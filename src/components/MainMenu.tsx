@@ -7,9 +7,20 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { GameMeta, Team, Game, Category, Clue } from '@/lib/storage';
-import { loadCustomGames, saveCustomGames, getSelectedGameId } from '@/lib/storage';
+import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, stateKey } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { useAIGeneration } from '@/lib/ai/hooks';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
@@ -19,7 +30,7 @@ import type { PreviewData } from '@/components/ai';
 import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image } from 'lucide-react';
 
 interface MainMenuProps {
-  onSelectGame: (gameId: string, game: any) => void;
+  onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
   onOpenEditor: (game?: Game) => void;
   editGame?: Game | null;
   onAIPreviewSave?: (game: Game) => void;
@@ -70,6 +81,10 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   const [rewritingTeamName, setRewritingTeamName] = useState<number | null>(null);
   const [enhancingTeamName, setEnhancingTeamName] = useState<number | null>(null);
   const [creatingNewCategory, setCreatingNewCategory] = useState<number | null>(null);
+
+  // Delete confirmation dialog state
+  const [deleteGameId, setDeleteGameId] = useState<string | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { generate: aiGenerate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
 
@@ -135,8 +150,20 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   );
 
   const handleAddTeam = () => {
+    if (teams.length >= 4) return; // Maximum 4 teams
+
     const newId = crypto.randomUUID();
-    setTeams([...teams, { id: newId, name: `Team ${teams.length + 1}`, score: 0 }]);
+
+    // Check if selected game has suggested team names
+    let teamName = `Team ${teams.length + 1}`;
+    if (selectedGameId) {
+      const game = games.find(g => g.id === selectedGameId);
+      if (game?.game?.suggestedTeamNames && game.game.suggestedTeamNames.length > teams.length) {
+        teamName = game.game.suggestedTeamNames[teams.length];
+      }
+    }
+
+    setTeams([...teams, { id: newId, name: teamName, score: 0 }]);
   };
 
   const handleUpdateTeamName = (id: string, name: string) => {
@@ -170,7 +197,41 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
     const game = games.find((g) => g.id === selectedGameId);
     if (!game) return;
     setSelectedGameId(selectedGameId);
-    onSelectGame(selectedGameId, game.game);
+    onSelectGame(selectedGameId, game.game, teams);
+  };
+
+  const handleDeleteGame = (gameId: string) => {
+    setDeleteGameId(gameId);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteGame = () => {
+    if (!deleteGameId) return;
+
+    // Remove from custom games
+    const customGames = loadCustomGames();
+    const updatedGames = customGames.filter(g => g.id !== deleteGameId);
+    saveCustomGames(updatedGames);
+
+    // Remove game state
+    localStorage.removeItem(stateKey(deleteGameId));
+
+    // Update games state
+    setGames(prev => prev.filter(g => g.id !== deleteGameId));
+
+    // If the deleted game was selected, select another game
+    if (selectedGameId === deleteGameId) {
+      const remainingGames = games.filter(g => g.id !== deleteGameId);
+      if (remainingGames.length > 0) {
+        setSelectedGameId(remainingGames[0].id);
+      } else {
+        setSelectedGameId(null);
+      }
+    }
+
+    // Close dialog
+    setShowDeleteDialog(false);
+    setDeleteGameId(null);
   };
 
   const handleEditWithAIPreview = (game: Game) => {
@@ -219,6 +280,47 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
       pendingAIPreviewGame.current = null;
     }
   }, []);
+
+  // Update teams when a game is selected
+  useEffect(() => {
+    if (selectedGameId) {
+      const game = games.find(g => g.id === selectedGameId);
+
+      // First, check if there's a saved game state
+      const savedState = loadGameState(selectedGameId);
+      if (savedState && savedState.teams && savedState.teams.length > 0) {
+        // Load teams from saved state (game in progress)
+        // Only replace with suggested names if the saved names are default "Team 1", "Team 2", etc.
+        if (game?.game?.suggestedTeamNames && game.game.suggestedTeamNames.length > 0) {
+          const suggestedNames = game.game.suggestedTeamNames;
+          setTeams(savedState.teams.map((team, index) => {
+            // Check if the saved name is a default name
+            const isDefaultName = team.name.match(/^Team \d+$/);
+            return {
+              ...team,
+              name: (isDefaultName && suggestedNames[index]) ? suggestedNames[index] : team.name,
+              score: 0, // Reset scores for display
+            };
+          }));
+        } else {
+          setTeams(savedState.teams.map(t => ({ ...t, score: 0 }))); // Reset scores for display
+        }
+        return;
+      }
+
+      // No saved state - use suggested team names for existing teams
+      if (game?.game?.suggestedTeamNames && game.game.suggestedTeamNames.length > 0) {
+        const suggestedNames = game.game.suggestedTeamNames;
+        // Only update existing team names, don't add more teams
+        setTeams(prevTeams => {
+          return prevTeams.map((team, index) => ({
+            ...team,
+            name: suggestedNames[index] || team.name,
+          }));
+        });
+      }
+    }
+  }, [selectedGameId, games]);
 
   // ==================== AI TEAM NAME HANDLERS ====================
 
@@ -1290,6 +1392,8 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
             <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
               {filteredGames.map((game) => {
                 const gameData = loadCustomGames().find(g => g.id === game.id);
+                const savedState = loadGameState(game.id);
+                const inProgress = savedState && savedState.teams && savedState.teams.length > 0;
                 return (
                   <div
                     key={game.id}
@@ -1305,10 +1409,19 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                           : 'bg-slate-800/30 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/50'
                       }`}
                     >
-                      <div className="font-medium text-sm">{game.title}</div>
-                      {game.subtitle && (
-                        <div className="text-xs text-slate-400 mt-1">{game.subtitle}</div>
-                      )}
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">{game.title}</div>
+                          {game.subtitle && (
+                            <div className="text-xs text-slate-400 mt-1 truncate">{game.subtitle}</div>
+                          )}
+                        </div>
+                        {inProgress && (
+                          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/50 flex-shrink-0">
+                            In Progress
+                          </Badge>
+                        )}
+                      </div>
                     </button>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -1333,7 +1446,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                             categories: [],
                             rows: 5,
                           };
-                          onSelectGame(game.id, fullGame);
+                          onSelectGame(game.id, fullGame, teams);
                         }}>
                           <Play className="w-4 h-4 mr-2 text-green-400" />
                           <span>Play Game</span>
@@ -1364,6 +1477,18 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                           <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
                           <span>Edit with AI Preview</span>
                         </DropdownMenuItem>
+                        {game.source === 'custom' && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteGame(game.id)}
+                              className="text-red-400 focus:text-red-300"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              <span>Delete Game</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -1555,9 +1680,9 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
               onClick={handleAddTeam}
               variant="outline"
               className="w-full mt-4 border-slate-700"
-              disabled={teams.length >= 6}
+              disabled={teams.length >= 4}
             >
-              + Add Team
+              + Add Team ({teams.length}/4)
             </Button>
           </div>
         </div>
@@ -1614,6 +1739,29 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
         rewritingTeamName={rewritingTeamName}
         enhancingTeamName={enhancingTeamName}
       />
+
+      {/* Delete Game Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Game</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this game? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteGame}
+              className="bg-red-600 hover:bg-red-500"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

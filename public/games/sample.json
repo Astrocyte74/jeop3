@@ -1,6 +1,7 @@
 {
   "title": "Science & Nature",
   "subtitle": "Test your knowledge of the natural world",
+  "suggestedTeamNames": ["The Atoms", "The Quarks", "The Neutrinos", "The Photons"],
   "categories": [
     {
       "title": "Planets",

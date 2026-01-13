@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +11,7 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, MoreVertical, Sparkles, Palette, Image, Settings as SettingsIcon } from 'lucide-react';
+import { Home, Edit, MoreVertical, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { useState, useEffect } from 'react';
 
@@ -22,6 +23,8 @@ interface GameBoardProps {
   onToggleEditor: () => void;
   onToggleAIPreviewEditor?: () => void;
   onSetActiveTeam: (teamId: string) => void;
+  onResetBoard?: () => void;
+  onUpdateTeamName?: (teamId: string, name: string) => void;
 }
 
 export function GameBoard({
@@ -32,11 +35,15 @@ export function GameBoard({
   onToggleEditor,
   onToggleAIPreviewEditor,
   onSetActiveTeam,
+  onResetBoard,
+  onUpdateTeamName,
 }: GameBoardProps) {
   const categories = game.categories || [];
   const rowCount = game.rows || categories[0]?.clues?.length || 5;
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingTeamName, setEditingTeamName] = useState('');
 
   const handleThemeChange = (themeKey: ThemeKey) => {
     setCurrentTheme(themeKey);
@@ -51,6 +58,32 @@ export function GameBoard({
     // Force a reload of the icon matcher data
     (iconMatcher as any).loaded = false;
     await iconMatcher.load();
+  };
+
+  const handleStartEditingTeam = (teamId: string, currentName: string) => {
+    setEditingTeamId(teamId);
+    setEditingTeamName(currentName);
+  };
+
+  const handleSaveTeamName = () => {
+    if (editingTeamId && onUpdateTeamName) {
+      onUpdateTeamName(editingTeamId, editingTeamName);
+    }
+    setEditingTeamId(null);
+    setEditingTeamName('');
+  };
+
+  const handleCancelEditingTeam = () => {
+    setEditingTeamId(null);
+    setEditingTeamName('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveTeamName();
+    } else if (e.key === 'Escape') {
+      handleCancelEditingTeam();
+    }
   };
 
   return (
@@ -137,6 +170,12 @@ export function GameBoard({
             </DropdownMenuSub>
 
             <DropdownMenuSeparator />
+            {onResetBoard && (
+              <DropdownMenuItem onClick={onResetBoard}>
+                <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
+                <span>Reset Board</span>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={onExit}>
               <Home className="w-4 h-4 mr-2" />
               <span>Main Menu</span>
@@ -146,52 +185,94 @@ export function GameBoard({
       </div>
 
       {/* Header with teams and title */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex items-center gap-8">
-          {/* Scoreboard - top left */}
-          <div className="bg-slate-900/80 backdrop-blur-sm border border-yellow-500/30 rounded-xl p-3">
-            <div className="flex flex-col gap-2">
-              {state.teams.map((team) => (
-                <button
-                  key={team.id}
-                  onClick={() => onSetActiveTeam(team.id)}
-                  className={`flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all text-left ${
-                    state.activeTeamId === team.id
-                      ? 'bg-yellow-500/20 scale-105'
-                      : 'hover:bg-slate-800/50'
-                  }`}
-                >
-                  {/* Rank */}
-                  <span className="text-xs font-semibold text-slate-500 w-4">
-                    {state.teams.findIndex(t => t.id === team.id) + 1}
-                  </span>
-
-                  {/* Team name */}
-                  <span className={`text-sm font-semibold min-w-[80px] ${
-                    state.activeTeamId === team.id ? 'text-yellow-500' : 'text-slate-300'
-                  }`}>
-                    {team.name}
-                  </span>
-
-                  {/* Score */}
-                  <span className={`text-lg font-black ml-auto ${
-                    team.score >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    ${team.score}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Title - center */}
-          <div className="flex-1 text-center">
+      <div className="max-w-7xl mx-auto mb-12">
+        <div className="relative">
+          {/* Title - centered */}
+          <div className="text-center pr-12">
             <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
               {game.title}
             </h1>
             {game.subtitle && (
               <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
             )}
+          </div>
+
+          {/* Scoreboard - absolute top left */}
+          <div className="absolute top-0 left-0 bg-slate-900/50 backdrop-blur-sm rounded-lg p-1.5">
+            <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5">
+              {state.teams.map((team) => (
+                <div
+                  key={team.id}
+                  className={`flex items-center gap-1 px-1 py-0.5 rounded transition-all text-left relative group ${
+                    state.activeTeamId === team.id
+                      ? 'bg-yellow-500/20'
+                      : 'hover:bg-slate-800/50'
+                  } ${editingTeamId === team.id ? 'ring-1 ring-yellow-500' : ''}`}
+                >
+                  {/* Rank */}
+                  <span className="text-xs font-semibold text-slate-500 w-3 flex-shrink-0">
+                    {state.teams.findIndex(t => t.id === team.id) + 1}
+                  </span>
+
+                  {/* Team name - editable or display */}
+                  {editingTeamId === team.id ? (
+                    <div className="flex items-center gap-0.5 flex-1 min-w-0">
+                      <Input
+                        value={editingTeamName}
+                        onChange={(e) => setEditingTeamName(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={handleSaveTeamName}
+                        className="text-xs font-semibold leading-tight bg-slate-800 border-slate-600 px-1 py-0 h-auto min-h-[20px] max-w-[140px]"
+                        autoFocus
+                        autoComplete="off"
+                      />
+                      <button
+                        onClick={handleSaveTeamName}
+                        className="w-4 h-4 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded flex-shrink-0"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={handleCancelEditingTeam}
+                        className="w-4 h-4 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded flex-shrink-0"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => onSetActiveTeam(team.id)}
+                      onDoubleClick={() => onUpdateTeamName && handleStartEditingTeam(team.id, team.name)}
+                      className={`text-xs font-semibold leading-tight line-clamp-2 max-w-[140px] text-left ${
+                        state.activeTeamId === team.id ? 'text-yellow-500' : 'text-slate-300'
+                      }`}
+                    >
+                      {team.name}
+                    </button>
+                  )}
+
+                  {/* Score */}
+                  <span className={`text-sm font-black ml-auto flex-shrink-0 ${
+                    team.score >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    ${team.score}
+                  </span>
+
+                  {/* Edit button - shown on hover when not editing */}
+                  {onUpdateTeamName && editingTeamId !== team.id && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEditingTeam(team.id, team.name);
+                      }}
+                      className="absolute top-0.5 right-12 w-4 h-4 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    >
+                      <Edit className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

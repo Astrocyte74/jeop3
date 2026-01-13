@@ -64,6 +64,20 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     setHasChanges(changed);
   }, [editingGame, game]);
 
+  // Load suggested team names from game on mount
+  useEffect(() => {
+    if (game.suggestedTeamNames && game.suggestedTeamNames.length > 0) {
+      // Load suggested team names, keeping at least 2 teams
+      const teamCount = Math.max(2, game.suggestedTeamNames.length);
+      setTeams(
+        Array.from({ length: teamCount }, (_, i) => ({
+          id: crypto.randomUUID(),
+          name: game.suggestedTeamNames[i] || `Team ${i + 1}`,
+        }))
+      );
+    }
+  }, [game]);
+
   const updateCategoryTitle = (index: number, title: string) => {
     const newCategories = [...categories];
     newCategories[index] = { ...newCategories[index], title };

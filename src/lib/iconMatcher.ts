@@ -169,7 +169,7 @@ class IconMatcher {
 
     if (allTokens.length === 0) return [];
 
-    // Expand tokens with synonyms
+    // Expand tokens with synonyms (but be more conservative for clue-only matches)
     const expandedTokens = new Set(allTokens);
     allTokens.forEach(token => {
       const synonyms = ICON_SYNONYMS.get(token);
@@ -179,6 +179,14 @@ class IconMatcher {
     });
 
     const tokens = Array.from(expandedTokens);
+
+    // For clue-only matches, require higher score and prefer more specific matches
+    const minScore = answer ? 2 : 4;
+
+    // Debug logging
+    if (!answer) {
+      console.log('Clue-only matching:', { clue, category, tokens: allTokens });
+    }
 
     // Score all icons
     const scored: IconMatch[] = [];
@@ -193,7 +201,7 @@ class IconMatcher {
       const iconCategory = tokenize(icon.category);
 
       for (const token of tokens) {
-        // Slug match (highest weight)
+        // Slug match (highest weight) - direct keyword match in slug is best
         if (iconSlug.includes(token)) {
           score += 3;
           matchedTokens.push(token);
@@ -208,15 +216,23 @@ class IconMatcher {
           score += 1.5;
           if (!matchedTokens.includes(token)) matchedTokens.push(token);
         }
-        // Category match (lowest weight)
+        // Category match (lowest weight) - too generic, skip for clue-only
         if (iconCategory.includes(token)) {
           score += 1;
           if (!matchedTokens.includes(token)) matchedTokens.push(token);
         }
       }
 
-      if (score >= 2) {
+      // For clue-only matches, require at least 2 matched tokens or higher single score
+      const hasMultipleMatches = matchedTokens.length >= 2;
+      const meetsThreshold = score >= minScore;
+      const validMatch = answer ? meetsThreshold : (meetsThreshold && hasMultipleMatches);
+
+      if (validMatch) {
         scored.push({ icon, score, matchedTokens });
+        if (!answer) {
+          console.log('  Match:', icon.title, 'score:', score, 'tokens:', matchedTokens);
+        }
       }
     }
 

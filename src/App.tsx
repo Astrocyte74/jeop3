@@ -85,10 +85,24 @@ export function App() {
     }
   }, [gameId, gameState]);
 
-  const handleSelectGame = useCallback((selectedGameId: string, game: Game) => {
+  const handleSelectGame = useCallback((selectedGameId: string, game: Game, teams?: any[]) => {
     setCurrentGame(game);
     setGameId(selectedGameId);
     setSelectedGameId(selectedGameId);
+
+    // If teams are passed from MainMenu, store them for use in game state initialization
+    if (teams && teams.length > 0) {
+      // Create a new game state with the passed teams
+      const initialState = {
+        used: {},
+        teams: teams.map(t => ({ ...t, score: 0 })), // Reset scores to 0
+        activeTeamId: teams[0]?.id || '1',
+        currentRound: 1,
+      };
+      setGameState(initialState);
+      saveGameState(selectedGameId, initialState);
+    }
+
     setMode('playing');
   }, []);
 
@@ -157,6 +171,18 @@ export function App() {
     });
   }, []);
 
+  const handleUpdateTeamName = useCallback((teamId: string, name: string) => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        teams: prev.teams.map((t) =>
+          t.id === teamId ? { ...t, name } : t
+        ),
+      };
+    });
+  }, []);
+
   const handleExitToMenu = useCallback(() => {
     setMode('menu');
     setCurrentGame(null);
@@ -177,6 +203,20 @@ export function App() {
     }
     setMode('ai-preview-editing');
   }, [currentGame]);
+
+  const handleResetBoard = useCallback(() => {
+    if (!currentGame || !gameState) return;
+
+    // Reset the game state - clear used clues, reset scores
+    const resetState: GameState = {
+      used: {},
+      teams: gameState.teams.map(team => ({ ...team, score: 0 })),
+      activeTeamId: gameState.teams[0]?.id || '',
+    };
+
+    setGameState(resetState);
+    saveGameState(gameId, resetState);
+  }, [currentGame, gameState, gameId]);
 
   const handleSaveGame = useCallback((updatedGame: Game) => {
     // For now, just update the current game
@@ -260,6 +300,8 @@ export function App() {
             onToggleEditor={handleToggleEditor}
             onToggleAIPreviewEditor={handleToggleAIPreviewEditor}
             onSetActiveTeam={handleSetActiveTeam}
+            onResetBoard={handleResetBoard}
+            onUpdateTeamName={handleUpdateTeamName}
           />
           {currentClue && (
             <ClueDialog
