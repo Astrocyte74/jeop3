@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { Game, Category, Clue } from '@/lib/storage';
-import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw } from 'lucide-react';
+import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1 } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
 import { AIPreviewDialog } from '@/components/ai';
 import type { PreviewData } from '@/components/ai';
@@ -121,7 +121,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   };
 
   const handleAddTeam = () => {
-    const newId = String(teams.length + 1);
+    const newId = crypto.randomUUID();
     setTeams([...teams, { id: newId, name: `Team ${teams.length + 1}` }]);
   };
 
@@ -132,6 +132,80 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   const handleRemoveTeam = (id: string) => {
     if (teams.length <= 1) return;
     setTeams(teams.filter((t) => t.id !== id));
+  };
+
+  // ==================== AI TEAM NAME HANDLERS ====================
+
+  const handleAIGenerateTeamName = async (teamIndex: number) => {
+    if (!aiAvailable) return;
+
+    const otherTeamNames = teams
+      .map((t, i) => (i === teamIndex ? null : t.name))
+      .filter((n): n is string => Boolean(n?.trim()));
+
+    const gameTopic = editingGame.title || editingGame.subtitle || '';
+
+    const result = await generate('team-name-random', {
+      count: 1,
+      existingNames: otherTeamNames,
+      gameTopic,
+    });
+
+    if (result && typeof result === 'object' && 'names' in result) {
+      const names = result as { names: string[] };
+      if (names.names[0]) {
+        setTeams((prev) =>
+          prev.map((t, i) => (i === teamIndex ? { ...t, name: names.names[0] } : t))
+        );
+      }
+    }
+  };
+
+  const handleAIEnhanceTeamName = async (teamIndex: number) => {
+    if (!aiAvailable) return;
+
+    const currentName = teams[teamIndex]?.name || '';
+    const otherTeamNames = teams
+      .map((t, i) => (i === teamIndex ? null : t.name))
+      .filter((n): n is string => Boolean(n?.trim()));
+
+    const gameTopic = editingGame.title || editingGame.subtitle || '';
+
+    const result = await generate('team-name-enhance', {
+      currentName,
+      existingNames: otherTeamNames,
+      gameTopic,
+    });
+
+    if (result && typeof result === 'object' && 'name' in result) {
+      const enhanced = result as { name: string };
+      if (enhanced.name) {
+        setTeams((prev) =>
+          prev.map((t, i) => (i === teamIndex ? { ...t, name: enhanced.name } : t))
+        );
+      }
+    }
+  };
+
+  const handleAIGenerateAllTeamNames = async () => {
+    if (!aiAvailable) return;
+
+    const gameTopic = editingGame.title || editingGame.subtitle || '';
+
+    const result = await generate('team-name-random', {
+      count: teams.length,
+      existingNames: [],
+      gameTopic,
+    });
+
+    if (result && typeof result === 'object' && 'names' in result) {
+      const names = result as { names: string[] };
+      if (names.names.length === teams.length) {
+        setTeams((prev) =>
+          prev.map((t, i) => ({ ...t, name: names.names[i] || t.name }))
+        );
+      }
+    }
   };
 
   // ==================== AI HANDLERS ====================
@@ -276,13 +350,31 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               gridTemplateRows: `repeat(${Math.ceil(teamCount / teamGridCols)}, auto)`,
             }}
           >
-            {teams.map((team) => (
-              <div key={team.id} className="relative group">
+            {teams.map((team, index) => (
+              <div key={team.id} className="relative group flex items-center gap-1">
                 <Input
                   value={team.name}
                   onChange={(e) => handleUpdateTeamName(team.id, e.target.value)}
                   className="px-3 py-2 bg-slate-800/50 border-2 border-slate-700 rounded-lg text-left min-w-[120px] font-medium text-sm text-slate-200"
                 />
+                {aiAvailable && (
+                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleAIGenerateTeamName(index)}
+                      className="w-6 h-6 flex items-center justify-center bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-500 rounded text-xs"
+                      title="Generate random name"
+                    >
+                      <Dice1 className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleAIEnhanceTeamName(index)}
+                      className="w-6 h-6 flex items-center justify-center bg-purple-500/20 hover:bg-purple-500/40 text-purple-500 rounded text-xs"
+                      title="Enhance this name"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
                 {teams.length > 1 && (
                   <button
                     onClick={() => handleRemoveTeam(team.id)}
@@ -299,6 +391,16 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                 className="px-3 py-2 border-2 border-dashed border-slate-700 rounded-lg text-left min-w-[120px] text-sm text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
               >
                 + Add Team
+              </button>
+            )}
+            {aiAvailable && teams.length > 1 && (
+              <button
+                onClick={handleAIGenerateAllTeamNames}
+                className="px-3 py-2 border-2 border-dashed border-yellow-500/50 rounded-lg text-left min-w-[120px] text-sm text-yellow-500 hover:text-yellow-400 hover:border-yellow-500 transition-colors flex items-center gap-2"
+                title="Generate names for all teams"
+              >
+                <Dice1 className="w-3 h-3" />
+                AI All
               </button>
             )}
           </div>

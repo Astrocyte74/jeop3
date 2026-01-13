@@ -13,6 +13,7 @@ export type AIPromptType =
   | 'categories-generate'
   // Category level
   | 'category-rename'
+  | 'category-title-generate'
   | 'category-generate-clues'
   | 'category-replace-all'
   // Question level
@@ -66,6 +67,7 @@ export interface AIContext {
   currentTitle?: string;
   currentSubtitle?: string;
   count?: number;
+  existingTitles?: Array<{ title: string; subtitle: string }>;
 
   // Category level
   categoryTitle?: string;
@@ -91,6 +93,7 @@ export interface AIResponses {
   'game-title': { titles: Array<{ title: string; subtitle: string }> };
   'categories-generate': { categories: AICategory[] };
   'category-rename': { names: string[] };
+  'category-title-generate': { title: string };
   'category-generate-clues': { clues: Clue[] };
   'category-replace-all': { category: AICategory };
   'questions-generate-five': { clues: Clue[] };

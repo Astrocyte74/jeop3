@@ -16,6 +16,7 @@ export type Game = {
   subtitle?: string;
   categories: Category[];
   rows?: number;
+  suggestedTeamNames?: string[];
 };
 
 export type Team = {

@@ -59,6 +59,7 @@ const ALLOWED_PROMPT_TYPES = new Set([
   'game-title',
   'categories-generate',
   'category-rename',
+  'category-title-generate',
   'category-generate-clues',
   'category-replace-all',
   'questions-generate-five',
@@ -152,6 +153,14 @@ function buildPrompt(type, context, difficulty) {
     'game-title': {
       system: SYSTEM_INSTRUCTION,
       user: (() => {
+        const existingTitlesText = context.existingTitles && context.existingTitles.length > 0
+          ? `IMPORTANT: Do NOT repeat these existing titles:
+${context.existingTitles.map(t => `- "${t.title}"`).join('\n')}
+
+Generate something completely different and fresh.
+`
+          : '';
+
         if (context.hasContent) {
           return `Generate 3 engaging Jeopardy game title options based on this sample content:
 
@@ -160,6 +169,8 @@ ${context.sampleContent}
 Analyze the categories and questions above, then create titles that capture the theme and tone.
 
 ${difficultyText}
+
+${existingTitlesText}
 
 Return JSON format:
 {
@@ -177,6 +188,8 @@ Return JSON format:
 ${randomHint}
 
 ${difficultyText}
+
+${existingTitlesText}
 
 Return JSON format:
 {
@@ -237,6 +250,35 @@ Theme: ${context.theme || 'general'}
 Return JSON format:
 {
   "names": ["Option 1", "Option 2", "Option 3"]
+}`
+    },
+
+    'category-title-generate': {
+      system: SYSTEM_INSTRUCTION,
+      user: `Generate a BRAND NEW, completely original Jeopardy category title for this content topic: "${context.contentTopic}"
+
+IMPORTANT: Create something FRESH and DIFFERENT - not just a variation or rewording of existing titles.
+
+The category title should:
+- Be completely original and unique
+- Use clever wordplay, puns, or pop culture references related to "${context.contentTopic}"
+- Fit the classic Jeopardy style (playful, sometimes cryptic, often using before/after, puns, or rhymes)
+- Capture the essence of "${context.contentTopic}" in a creative way
+${context.theme ? `- Optionally connect to the overall game theme: "${context.theme}"` : ''}
+- Be short (typically 1-6 words)
+
+Examples of good Jeopardy category styles:
+- "Before & After" (combining two phrases)
+- Puns or wordplay on the topic
+- Rhymes or alliteration
+- Pop culture references
+- Play on words or idioms
+
+Difficulty: ${difficultyText}
+
+Return JSON format:
+{
+  "title": "Brand New Clever Title"
 }`
     },
 
@@ -441,6 +483,7 @@ function getMaxTokens(promptType) {
     'questions-generate-five': 3000, // 5 clues
     'category-generate-clues': 3000, // Fill missing clues
     'game-title': 500, // Title options
+    'category-title-generate': 300, // Single category title
     'team-name-random': 200, // Short team names
     'team-name-enhance': 200, // Enhanced team name
     'default': 2000, // Single clue operations

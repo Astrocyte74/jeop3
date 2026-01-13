@@ -46,12 +46,22 @@ export function App() {
       if (saved) {
         setGameState(saved);
       } else {
+        // Use suggested team names if available
+        const defaultTeams = [
+          { id: '1', name: 'Team 1', score: 0 },
+          { id: '2', name: 'Team 2', score: 0 },
+        ];
+
+        const teams = (currentGame.suggestedTeamNames && currentGame.suggestedTeamNames.length >= 2)
+          ? [
+              { id: '1', name: currentGame.suggestedTeamNames[0], score: 0 },
+              { id: '2', name: currentGame.suggestedTeamNames[1], score: 0 },
+            ]
+          : defaultTeams;
+
         const initialState = {
           used: {},
-          teams: [
-            { id: '1', name: 'Team 1', score: 0 },
-            { id: '2', name: 'Team 2', score: 0 },
-          ],
+          teams,
           activeTeamId: '1',
           currentRound: 1,
         };
@@ -187,9 +197,9 @@ export function App() {
       {mode === 'menu' && (
         <MainMenu
           onSelectGame={handleSelectGame}
-          onOpenEditor={() => {
-            // Create a blank game for editing
-            const blankGame: Game = {
+          onOpenEditor={(game?: Game) => {
+            // Use the provided game or create a blank game for editing
+            const editorGame = game || {
               title: 'New Game',
               subtitle: '',
               categories: Array.from({ length: 5 }, (_, i) => ({
@@ -202,7 +212,7 @@ export function App() {
               })),
               rows: 5,
             };
-            setCurrentGame(blankGame);
+            setCurrentGame(editorGame);
             setMode('editing');
           }}
         />
