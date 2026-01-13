@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -19,7 +20,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { Game, Category, Clue } from '@/lib/storage';
-import { Save, Home, Plus, MoreVertical, X, Wand2 } from 'lucide-react';
+import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw } from 'lucide-react';
+import { useAIGeneration } from '@/lib/ai';
+import { AIPreviewDialog } from '@/components/ai';
+import type { PreviewData } from '@/components/ai';
+import type { AIPromptType } from '@/lib/ai';
 
 interface EditorBoardProps {
   game: Game;
@@ -37,6 +42,14 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     { id: '1', name: 'Team 1' },
     { id: '2', name: 'Team 2' },
   ]);
+
+  // AI state
+  const { generate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
+  const [aiPreview, setAiPreview] = useState<{
+    open: boolean;
+    type: AIPromptType;
+    data: PreviewData;
+  }>({ open: false, type: 'editor-generate-clue', data: {} });
 
   const categories = editingGame.categories || [];
   const rowCount = editingGame.rows || categories[0]?.clues?.length || 5;
@@ -120,6 +133,85 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     if (teams.length <= 1) return;
     setTeams(teams.filter((t) => t.id !== id));
   };
+
+  // ==================== AI HANDLERS ====================
+
+  const handleAIGenerateClue = useCallback(async () => {
+    if (!editingCell) return;
+    const { categoryId, clueIndex } = editingCell;
+    const category = categories[categoryId];
+    const clue = category?.clues[clueIndex];
+
+    const result = await generate('editor-generate-clue', {
+      categoryTitle: category.title,
+      contentTopic: (category as any).contentTopic || category.title,
+      value: clue?.value || (clueIndex + 1) * 200,
+      existingClues: category.clues,
+    });
+
+    if (result && typeof result === 'object' && 'clue' in result && 'response' in result) {
+      updateClue(categoryId, clueIndex, {
+        clue: result.clue as string,
+        response: result.response as string,
+      });
+    }
+  }, [editingCell, categories, generate]);
+
+  const handleAIRewriteClue = useCallback(async () => {
+    if (!editingCell) return;
+    const { categoryId, clueIndex } = editingCell;
+    const category = categories[categoryId];
+    const clue = category?.clues[clueIndex];
+    if (!clue?.clue) return;
+
+    const result = await generate('editor-rewrite-clue', {
+      currentClue: clue.clue,
+      categoryTitle: category.title,
+      value: clue.value,
+    });
+
+    if (result && typeof result === 'object' && 'clue' in result) {
+      updateClue(categoryId, clueIndex, { clue: result.clue as string });
+    }
+  }, [editingCell, categories, generate]);
+
+  const handleAIGenerateAnswer = useCallback(async () => {
+    if (!editingCell) return;
+    const { categoryId, clueIndex } = editingCell;
+    const category = categories[categoryId];
+    const clue = category?.clues[clueIndex];
+    if (!clue?.clue) return;
+
+    const result = await generate('editor-generate-answer', {
+      clue: clue.clue,
+      categoryTitle: category.title,
+      value: clue.value,
+    });
+
+    if (result && typeof result === 'object' && 'response' in result) {
+      updateClue(categoryId, clueIndex, { response: result.response as string });
+    }
+  }, [editingCell, categories, generate]);
+
+  const handleAIValidateClue = useCallback(async () => {
+    if (!editingCell) return;
+    const { categoryId, clueIndex } = editingCell;
+    const category = categories[categoryId];
+    const clue = category?.clues[clueIndex];
+    if (!clue?.clue || !clue?.response) return;
+
+    const result = await generate('editor-validate', {
+      clue: clue.clue,
+      response: clue.response,
+      categoryTitle: category.title,
+      value: clue.value,
+    });
+
+    if (result && typeof result === 'object' && 'valid' in result) {
+      // Validation result is handled by toast in the hook
+      console.log('Validation result:', result);
+    }
+  }, [editingCell, categories, generate]);
 
   // Get the current clue being edited
   const getCurrentEditingClue = () => {
@@ -330,13 +422,37 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               </div>
 
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 border-purple-500/50 text-purple-500"
-                >
-                  <Wand2 className="w-4 h-4 mr-2" />
-                  AI Enhance
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex-1 border-purple-500/50 text-purple-500"
+                      disabled={!aiAvailable || aiLoading}
+                    >
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      {aiLoading ? 'AI Working...' : 'AI Enhance'}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={handleAIGenerateClue}>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Question & Answer
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleAIRewriteClue} disabled={!currentClue.clue?.clue}>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Rewrite Question
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleAIGenerateAnswer} disabled={!currentClue.clue?.clue}>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      Generate Answer
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleAIValidateClue} disabled={!currentClue.clue?.clue || !currentClue.clue?.response}>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Validate Clue
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
@@ -370,6 +486,21 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* AI Preview Dialog */}
+      <AIPreviewDialog
+        open={aiPreview.open}
+        type={aiPreview.type}
+        data={aiPreview.data}
+        onConfirm={() => {
+          // Apply the AI-generated content
+          setAiPreview({ open: false, type: 'editor-generate-clue', data: {} });
+        }}
+        onCancel={() => setAiPreview({ open: false, type: 'editor-generate-clue', data: {} })}
+        onRegenerateAll={() => {
+          // Regenerate with the same context
+        }}
+      />
     </div>
   );
 }
