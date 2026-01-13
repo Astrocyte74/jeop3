@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +16,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import type { Game, Category, Clue } from '@/lib/storage';
-import { Save, Home, Plus, Trash2, Sparkles, Wand2, X } from 'lucide-react';
+import { Save, Home, Plus, Trash2, MoreVertical, X, Wand2 } from 'lucide-react';
 
 interface EditorBoardProps {
   game: Game;
@@ -27,12 +31,19 @@ interface EditorBoardProps {
 export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps) {
   const [editingGame, setEditingGame] = useState<Game>({ ...game });
   const [editingCell, setEditingCell] = useState<{ categoryId: number; clueIndex: number } | null>(null);
-  const [editingCategory, setEditingCategory] = useState<number | null>(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([
+    { id: '1', name: 'Team 1' },
+    { id: '2', name: 'Team 2' },
+  ]);
 
   const categories = editingGame.categories || [];
   const rowCount = editingGame.rows || categories[0]?.clues?.length || 5;
+
+  // Calculate grid columns for teams
+  const teamCount = teams.length;
+  const teamGridCols = teamCount <= 2 ? 1 : teamCount <= 4 ? 2 : 3;
 
   // Check if game has changed from original
   useEffect(() => {
@@ -94,169 +105,231 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     onCancel();
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4">
-      {/* Top bar */}
-      <div className="max-w-7xl mx-auto mb-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex-1">
-            <Input
-              value={editingGame.title}
-              onChange={(e) => setEditingGame({ ...editingGame, title: e.target.value })}
-              className="text-2xl font-bold bg-slate-800/50 border-slate-700 text-yellow-500"
-            />
-            <Input
-              value={editingGame.subtitle || ''}
-              onChange={(e) => setEditingGame({ ...editingGame, subtitle: e.target.value })}
-              className="mt-2 bg-slate-800/50 border-slate-700 text-slate-400"
-              placeholder="Add a subtitle..."
-            />
-          </div>
+  const updateGameTitle = (title: string) => {
+    setEditingGame({ ...editingGame, title });
+  };
 
-          <div className="flex gap-2">
-            <Button
-              onClick={addCategory}
-              variant="outline"
-              size="sm"
-              className="border-green-500/50 text-green-500"
-            >
+  const updateGameSubtitle = (subtitle: string) => {
+    setEditingGame({ ...editingGame, subtitle });
+  };
+
+  const handleAddTeam = () => {
+    const newId = String(teams.length + 1);
+    setTeams([...teams, { id: newId, name: `Team ${teams.length + 1}` }]);
+  };
+
+  const handleUpdateTeamName = (id: string, name: string) => {
+    setTeams(teams.map((t) => (t.id === id ? { ...t, name } : t)));
+  };
+
+  const handleRemoveTeam = (id: string) => {
+    if (teams.length <= 1) return;
+    setTeams(teams.filter((t) => t.id !== id));
+  };
+
+  // Get the current clue being edited
+  const getCurrentEditingClue = () => {
+    if (!editingCell) return null;
+    const { categoryId, clueIndex } = editingCell;
+    const category = categories[categoryId];
+    const clue = category?.clues[clueIndex];
+    return { category, clue, categoryId, clueIndex };
+  };
+
+  const currentClue = getCurrentEditingClue();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 relative">
+      {/* Menu dropdown - top right, absolute positioned */}
+      <div className="absolute top-4 right-4 z-10">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50">
+              <MoreVertical className="w-5 h-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={addCategory}>
               <Plus className="w-4 h-4 mr-2" />
               Add Column
-            </Button>
-            <Button
-              onClick={handleSave}
-              size="sm"
-              className="bg-green-600 hover:bg-green-500"
-            >
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleSave}>
               <Save className="w-4 h-4 mr-2" />
               Save
-            </Button>
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-              size="sm"
-              className="border-slate-600 hover:bg-slate-800"
-            >
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleCancel}>
               <X className="w-4 h-4 mr-2" />
               Cancel
-            </Button>
-          </div>
-        </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onExit} className="text-red-400">
+              <Home className="w-4 h-4 mr-2" />
+              Main Menu
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Editor hint */}
+      {/* Editor hint banner */}
       <div className="max-w-7xl mx-auto mb-4">
-        <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-yellow-500" />
-          <p className="text-sm text-yellow-200">
-            <strong>Editor Mode:</strong> Click any card to edit its clue and answer. Click category headers to rename them.
+        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 flex items-center gap-3">
+          <Wand2 className="w-5 h-5 text-purple-400" />
+          <p className="text-sm text-purple-200">
+            <strong>Editor Mode:</strong> Click any card to edit. Click category headers to rename them. Use the menu to add columns or save.
           </p>
         </div>
       </div>
 
-      {/* Game board editor */}
+      {/* Header with teams and title */}
+      <div className="max-w-7xl mx-auto mb-8">
+        <div className="flex items-center gap-8">
+          {/* Teams - top left, grid layout with edit controls */}
+          <div
+            className="grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${teamGridCols}, 1fr)`,
+              gridTemplateRows: `repeat(${Math.ceil(teamCount / teamGridCols)}, auto)`,
+            }}
+          >
+            {teams.map((team) => (
+              <div key={team.id} className="relative group">
+                <Input
+                  value={team.name}
+                  onChange={(e) => handleUpdateTeamName(team.id, e.target.value)}
+                  className="px-3 py-2 bg-slate-800/50 border-2 border-slate-700 rounded-lg text-left min-w-[120px] font-medium text-sm text-slate-200"
+                />
+                {teams.length > 1 && (
+                  <button
+                    onClick={() => handleRemoveTeam(team.id)}
+                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-400 rounded-full text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            {teams.length < 6 && (
+              <button
+                onClick={handleAddTeam}
+                className="px-3 py-2 border-2 border-dashed border-slate-700 rounded-lg text-left min-w-[120px] text-sm text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
+              >
+                + Add Team
+              </button>
+            )}
+          </div>
+
+          {/* Title - center, editable */}
+          <div className="flex-1 text-center pr-16">
+            <Input
+              value={editingGame.title}
+              onChange={(e) => updateGameTitle(e.target.value)}
+              className="text-3xl md:text-4xl font-black text-center bg-transparent border-none text-yellow-500 p-0 mb-2 focus-visible:ring-0 focus-visible:ring-offset-0"
+              style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
+            />
+            <Input
+              value={editingGame.subtitle || ''}
+              onChange={(e) => updateGameSubtitle(e.target.value)}
+              placeholder="Add a subtitle..."
+              className="text-sm md:text-base text-center bg-transparent border-none text-slate-300 font-medium p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Game board - same style as play mode */}
       <div className="max-w-7xl mx-auto">
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
-          }}
-        >
-          {/* Category headers */}
-          {categories.map((category, categoryIndex) => (
-            <div
-              key={categoryIndex}
-              className="relative bg-slate-800 border-2 border-slate-700 rounded-lg p-2 group"
-            >
-              <Input
-                value={category.title}
-                onChange={(e) => updateCategoryTitle(categoryIndex, e.target.value)}
-                className="bg-transparent border-none text-sm font-bold text-yellow-500 text-center"
-              />
-              {categories.length > 1 && (
-                <Button
-                  onClick={() => removeCategory(categoryIndex)}
-                  variant="ghost"
-                  size="sm"
-                  className="absolute -top-2 -right-2 w-6 h-6 p-0 bg-red-600 hover:bg-red-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              )}
-            </div>
-          ))}
+        <div className="board-wrap">
+          <div
+            className="game-board"
+            style={{
+              gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
+            }}
+          >
+            {/* Category headers - editable on click */}
+            {categories.map((category, index) => (
+              <div key={index} className="cell cell-header">
+                <Input
+                  value={category.title}
+                  onChange={(e) => updateCategoryTitle(index, e.target.value)}
+                  className="bg-transparent border-none text-center font-bold text-sm w-full"
+                  onClick={(e) => e.target.select()}
+                />
+              </div>
+            ))}
 
-          {/* Clue cells */}
-          {Array.from({ length: rowCount }).map((_, rowIndex) =>
-            categories.map((category, categoryIndex) => {
-              const clue = category.clues?.[rowIndex];
+            {/* Clue cells - clickable for editing */}
+            {Array.from({ length: rowCount }).map((_, rowIndex) =>
+              categories.map((category, categoryIndex) => {
+                const clue = category.clues?.[rowIndex];
 
-              return (
-                <button
-                  key={`${categoryIndex}-${rowIndex}`}
-                  onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}
-                  className="aspect-square bg-slate-800 border-2 border-purple-500 rounded-lg p-2 hover:bg-slate-700 transition-all text-left overflow-hidden"
-                >
-                  <div className="text-xs text-purple-400 font-bold mb-1">${clue?.value || (rowIndex + 1) * 200}</div>
-                  <div className="text-xs text-slate-300 line-clamp-3">{clue?.clue || 'Click to add clue...'}</div>
-                </button>
-              );
-            })
-          )}
+                return (
+                  <div key={`${categoryIndex}-${rowIndex}`} className="cell cursor-pointer hover:bg-slate-700/30 transition-colors" onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}>
+                    <div className="w-full h-full flex items-center justify-center">
+                      {clue?.clue ? (
+                        <div className="text-xs text-center p-2 line-clamp-3 opacity-50">
+                          {clue.clue || '(empty)'}
+                        </div>
+                      ) : (
+                        <span className="text-purple-500/50 text-sm">Click to add</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 
       {/* Edit clue modal */}
-      {editingCell && (
+      {editingCell && currentClue && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            onClick={() => setEditingCell(null)}
-          />
-          <div className="relative w-full max-w-lg bg-slate-900 border-2 border-purple-500 rounded-xl shadow-2xl p-6">
-            <h3 className="text-lg font-semibold text-purple-400 mb-4">Edit Clue</h3>
+            className="relative w-full max-w-lg bg-slate-900 border-2 border-purple-500 rounded-xl shadow-2xl shadow-purple-500/20 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-purple-400">Edit Clue</h3>
+              <button
+                onClick={() => setEditingCell(null)}
+                className="text-slate-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <div className="space-y-4">
+              {/* Category and value info */}
+              <div className="flex items-center gap-3 text-sm text-slate-400">
+                <span className="bg-slate-800 px-3 py-1 rounded">{currentClue.category.title}</span>
+                <span className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded font-bold">${currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}</span>
+              </div>
+
               <div>
-                <Label htmlFor="clue-value" className="text-slate-300">Value</Label>
+                <label className="text-sm font-medium text-slate-300 mb-1 block">Value</label>
                 <Input
-                  id="clue-value"
                   type="number"
-                  value={categories[editingCell.categoryId]?.clues?.[editingCell.clueIndex]?.value || ''}
-                  onChange={(e) => updateClue(
-                    editingCell.categoryId,
-                    editingCell.clueIndex,
-                    { value: parseInt(e.target.value) || 0 }
-                  )}
+                  value={currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}
+                  onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { value: parseInt(e.target.value) || 0 })}
                   className="bg-slate-800 border-slate-700"
                 />
               </div>
 
               <div>
-                <Label htmlFor="clue-text" className="text-slate-300">Clue (Question)</Label>
+                <label className="text-sm font-medium text-slate-300 mb-1 block">Clue (Question)</label>
                 <Textarea
-                  id="clue-text"
-                  value={categories[editingCell.categoryId]?.clues?.[editingCell.clueIndex]?.clue || ''}
-                  onChange={(e) => updateClue(
-                    editingCell.categoryId,
-                    editingCell.clueIndex,
-                    { clue: e.target.value }
-                  )}
+                  value={currentClue.clue?.clue || ''}
+                  onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { clue: e.target.value })}
                   className="bg-slate-800 border-slate-700 min-h-[100px]"
                   placeholder="Enter the clue..."
                 />
               </div>
 
               <div>
-                <Label htmlFor="clue-response" className="text-slate-300">Response (Answer)</Label>
+                <label className="text-sm font-medium text-slate-300 mb-1 block">Response (Answer)</label>
                 <Textarea
-                  id="clue-response"
-                  value={categories[editingCell.categoryId]?.clues?.[editingCell.clueIndex]?.response || ''}
-                  onChange={(e) => updateClue(
-                    editingCell.categoryId,
-                    editingCell.clueIndex,
-                    { response: e.target.value }
-                  )}
+                  value={currentClue.clue?.response || ''}
+                  onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { response: e.target.value })}
                   className="bg-slate-800 border-slate-700 min-h-[80px]"
                   placeholder="Enter the answer..."
                 />
@@ -278,12 +351,6 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                 onClick={() => setEditingCell(null)}
                 variant="outline"
                 className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => setEditingCell(null)}
-                className="flex-1 bg-purple-600 hover:bg-purple-500"
               >
                 Done
               </Button>
