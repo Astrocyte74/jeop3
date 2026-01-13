@@ -10,13 +10,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import type { GameMeta, Team, Game, Category, Clue } from '@/lib/storage';
 import { loadCustomGames, saveCustomGames, getSelectedGameId } from '@/lib/storage';
-import { themes, applyTheme, getStoredTheme, type ThemeKey } from '@/lib/themes';
+import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { useAIGeneration } from '@/lib/ai/hooks';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2 } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any) => void;
@@ -48,6 +48,8 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   ]);
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
   const [showThemePicker, setShowThemePicker] = useState(false);
+  const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
+  const [showIconSizePicker, setShowIconSizePicker] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
 
   // AI Preview state
@@ -133,6 +135,17 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
     setCurrentTheme(themeKey);
     applyTheme(themeKey);
     setShowThemePicker(false);
+  };
+
+  const handleIconSizeChange = async (size: IconSize) => {
+    setIconSizeState(size);
+    setIconSize(size);
+    setShowIconSizePicker(false);
+    // Re-initialize icon matcher with new size
+    const { iconMatcher } = await import('@/lib/iconMatcher');
+    // Force a reload of the icon matcher data
+    (iconMatcher as any).loaded = false;
+    await iconMatcher.load();
   };
 
   const handleStartGame = () => {
@@ -1378,12 +1391,13 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                 Theme
               </Button>
               <Button
+                onClick={() => setShowIconSizePicker(!showIconSizePicker)}
                 variant="outline"
                 size="sm"
                 className="border-slate-700"
               >
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
+                <Image className="w-4 h-4 mr-2" />
+                Icon Size
               </Button>
             </div>
 
@@ -1414,6 +1428,34 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Icon size picker */}
+            {showIconSizePicker && (
+              <div className="mt-4 p-4 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg w-full max-w-xs">
+                <h3 className="text-sm font-medium mb-3">Icon Size</h3>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['128', '256', '512', '1024'] as IconSize[]).map((size) => (
+                    <button
+                      key={size}
+                      onClick={() => handleIconSizeChange(size)}
+                      className={`text-xs p-3 rounded-lg border-2 transition-all font-medium ${
+                        iconSize === size
+                          ? 'border-yellow-500 ring-2 ring-yellow-500/50'
+                          : 'border-slate-700 hover:border-slate-500'
+                      }`}
+                    >
+                      <div className="font-bold">{size}px</div>
+                      {iconSize === size && (
+                        <div className="text-xs opacity-75 mt-1">✓ Active</div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-2">
+                  Larger icons look better but load slower
+                </p>
               </div>
             )}
           </div>

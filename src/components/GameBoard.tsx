@@ -5,9 +5,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, MoreVertical, Sparkles } from 'lucide-react';
+import { Home, Edit, MoreVertical, Sparkles, Palette, Image, Settings as SettingsIcon } from 'lucide-react';
+import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
+import { useState, useEffect } from 'react';
 
 interface GameBoardProps {
   game: Game;
@@ -30,6 +35,23 @@ export function GameBoard({
 }: GameBoardProps) {
   const categories = game.categories || [];
   const rowCount = game.rows || categories[0]?.clues?.length || 5;
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
+  const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
+
+  const handleThemeChange = (themeKey: ThemeKey) => {
+    setCurrentTheme(themeKey);
+    applyTheme(themeKey);
+  };
+
+  const handleIconSizeChange = async (size: IconSize) => {
+    setIconSizeState(size);
+    setIconSize(size);
+    // Re-initialize icon matcher with new size
+    const { iconMatcher } = await import('@/lib/iconMatcher');
+    // Force a reload of the icon matcher data
+    (iconMatcher as any).loaded = false;
+    await iconMatcher.load();
+  };
 
   // Calculate grid columns for teams
   const teamCount = state.teams.length;
@@ -46,6 +68,7 @@ export function GameBoard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            {/* Editor Options */}
             <DropdownMenuItem onClick={onToggleEditor}>
               <Edit className="w-4 h-4 mr-2 text-blue-400" />
               <span>Board Editor</span>
@@ -56,6 +79,67 @@ export function GameBoard({
                 <span>AI Preview Editor</span>
               </DropdownMenuItem>
             )}
+            <DropdownMenuSeparator />
+
+            {/* Settings Submenu */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <SettingsIcon className="w-4 h-4 mr-2" />
+                <span>Settings</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent sideOffset={5}>
+                {/* Theme Submenu */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Palette className="w-4 h-4 mr-2" />
+                    <span>Theme</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent sideOffset={5}>
+                    {Object.entries(themes).map(([key, theme]) => (
+                      <DropdownMenuItem
+                        key={key}
+                        onClick={() => handleThemeChange(key as ThemeKey)}
+                        className={currentTheme === key ? 'bg-yellow-500/10' : ''}
+                      >
+                        <div
+                          className="w-4 h-4 rounded mr-2"
+                          style={{
+                            background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
+                          }}
+                        />
+                        <span>{theme.name}</span>
+                        {currentTheme === key && (
+                          <span className="ml-auto text-xs text-yellow-500">✓</span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                {/* Icon Size Submenu */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Image className="w-4 h-4 mr-2" />
+                    <span>Icon Size</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent sideOffset={5}>
+                    {(['128', '256', '512', '1024'] as IconSize[]).map((size) => (
+                      <DropdownMenuItem
+                        key={size}
+                        onClick={() => handleIconSizeChange(size)}
+                        className={iconSize === size ? 'bg-yellow-500/10' : ''}
+                      >
+                        <span className="mr-2">{size}px</span>
+                        {iconSize === size && (
+                          <span className="ml-auto text-xs text-yellow-500">✓</span>
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onExit}>
               <Home className="w-4 h-4 mr-2" />

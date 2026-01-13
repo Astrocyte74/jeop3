@@ -1,4 +1,5 @@
 export type ThemeKey = 'classic' | 'sunset' | 'forest' | 'purple' | 'ocean' | 'rose' | 'ember' | 'midnight';
+export type IconSize = '128' | '256' | '512' | '1024';
 
 export type Theme = {
   name: string;
@@ -141,4 +142,19 @@ export function getStoredTheme(): ThemeKey {
     return stored as ThemeKey;
   }
   return 'classic';
+}
+
+// Icon size settings
+const ICON_SIZE_KEY = 'jeop3:iconSize';
+
+export function getIconSize(): IconSize {
+  const stored = localStorage.getItem(ICON_SIZE_KEY);
+  if (stored === '128' || stored === '256' || stored === '512' || stored === '1024') {
+    return stored as IconSize;
+  }
+  return '512'; // Default to 512px for good balance
+}
+
+export function setIconSize(size: IconSize): void {
+  localStorage.setItem(ICON_SIZE_KEY, size);
 }

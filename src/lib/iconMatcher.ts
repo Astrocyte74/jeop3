@@ -3,6 +3,8 @@
  * Matches relevant icons to clues based on semantic matching
  */
 
+import { getIconSize, type IconSize } from './themes';
+
 interface Icon {
   slug: string;
   file_name: string;
@@ -72,12 +74,13 @@ class IconMatcher {
     if (this.loaded) return true;
 
     try {
-      const response = await fetch('/icons/meta.json');
+      const size = getIconSize();
+      const response = await fetch(`/icons/size-${size}/meta.json`);
       if (!response.ok) throw new Error('Could not load icon index');
       const data = await response.json();
       this.icons = data.items || [];
       this.loaded = true;
-      console.log(`Loaded ${this.icons.length} icons`);
+      console.log(`Loaded ${this.icons.length} icons (size: ${size}px)`);
       return true;
     } catch (error) {
       console.warn('Failed to load icons:', error);
@@ -156,9 +159,77 @@ class IconMatcher {
     return bestMatch;
   }
 
+  findMatches(clue: string, answer?: string, category?: string, maxResults: number = 5): IconMatch[] {
+    if (!this.loaded || this.icons.length === 0) return [];
+
+    const clueTokens = tokenize(clue);
+    const answerTokens = answer ? tokenize(answer) : [];
+    const categoryTokens = category ? tokenize(category) : [];
+    const allTokens = [...clueTokens, ...answerTokens, ...categoryTokens];
+
+    if (allTokens.length === 0) return [];
+
+    // Expand tokens with synonyms
+    const expandedTokens = new Set(allTokens);
+    allTokens.forEach(token => {
+      const synonyms = ICON_SYNONYMS.get(token);
+      if (synonyms) {
+        synonyms.forEach(s => expandedTokens.add(s));
+      }
+    });
+
+    const tokens = Array.from(expandedTokens);
+
+    // Score all icons
+    const scored: IconMatch[] = [];
+
+    for (const icon of this.icons) {
+      let score = 0;
+      const matchedTokens: string[] = [];
+
+      const iconSlug = icon.slug.split('-');
+      const iconTitle = tokenize(icon.title);
+      const iconTags = (icon.tags || []).flatMap(tag => tokenize(tag));
+      const iconCategory = tokenize(icon.category);
+
+      for (const token of tokens) {
+        // Slug match (highest weight)
+        if (iconSlug.includes(token)) {
+          score += 3;
+          matchedTokens.push(token);
+        }
+        // Title match (medium weight)
+        if (iconTitle.includes(token)) {
+          score += 2;
+          if (!matchedTokens.includes(token)) matchedTokens.push(token);
+        }
+        // Tag match (lower weight)
+        if (iconTags.includes(token)) {
+          score += 1.5;
+          if (!matchedTokens.includes(token)) matchedTokens.push(token);
+        }
+        // Category match (lowest weight)
+        if (iconCategory.includes(token)) {
+          score += 1;
+          if (!matchedTokens.includes(token)) matchedTokens.push(token);
+        }
+      }
+
+      if (score >= 2) {
+        scored.push({ icon, score, matchedTokens });
+      }
+    }
+
+    // Sort by score descending and return top matches
+    return scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, maxResults);
+  }
+
   buildIconUrl(match: IconMatch | null): string | null {
     if (!match) return null;
-    return `/icons/images/${match.icon.file_name}`;
+    const size = getIconSize();
+    return `/icons/size-${size}/images/${match.icon.file_name}`;
   }
 
   search(query: string, maxResults = 12): Array<Icon & { score: number }> {
