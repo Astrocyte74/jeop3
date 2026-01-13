@@ -3,13 +3,14 @@ import { MainMenu } from '@/components/MainMenu';
 import { GameBoard } from '@/components/GameBoard';
 import { ClueDialog } from '@/components/ClueDialog';
 import { EditorBoard } from '@/components/EditorBoard';
+import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { AIToastContainer } from '@/components/ai';
 import { useAIToast } from '@/lib/ai';
 import type { Game, GameState } from '@/lib/storage';
-import { loadGameState, saveGameState, setSelectedGameId } from '@/lib/storage';
+import { loadGameState, saveGameState, setSelectedGameId, saveCustomGames, loadCustomGames } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
 
-type AppMode = 'menu' | 'playing' | 'editing';
+type AppMode = 'menu' | 'playing' | 'editing' | 'ai-preview-editing';
 
 interface ClueData {
   categoryId: number;
@@ -161,12 +162,31 @@ export function App() {
     setMode((prev) => prev === 'editing' ? 'playing' : 'editing');
   }, []);
 
+  const handleToggleAIPreviewEditor = useCallback(() => {
+    setMode('ai-preview-editing');
+  }, []);
+
   const handleSaveGame = useCallback((updatedGame: Game) => {
     // For now, just update the current game
     // In the future, this would save to localStorage or a backend
     setCurrentGame(updatedGame);
     setMode('playing');
   }, []);
+
+  const handleAIPreviewSave = useCallback((updatedGame: Game) => {
+    setCurrentGame(updatedGame);
+    if (gameId) {
+      // Update the game in the custom games list
+      const games = loadCustomGames();
+      const updatedGames = games.map(g =>
+        g.id === gameId
+          ? { ...g, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame }
+          : g
+      );
+      saveCustomGames(updatedGames);
+    }
+    setMode('playing');
+  }, [gameId]);
 
   // Get current clue data for dialog
   const getCurrentClue = useCallback((): ClueData | null => {
@@ -226,6 +246,7 @@ export function App() {
             onOpenClue={handleOpenClue}
             onExit={handleExitToMenu}
             onToggleEditor={handleToggleEditor}
+            onToggleAIPreviewEditor={handleToggleAIPreviewEditor}
             onSetActiveTeam={handleSetActiveTeam}
           />
           {currentClue && (
@@ -252,6 +273,31 @@ export function App() {
           onSave={handleSaveGame}
           onExit={handleExitToMenu}
           onCancel={handleToggleEditor}
+        />
+      )}
+
+      {mode === 'ai-preview-editing' && currentGame && (
+        <MainMenu
+          onSelectGame={handleSelectGame}
+          onOpenEditor={(game?: Game) => {
+            const editorGame = game || {
+              title: 'New Game',
+              subtitle: '',
+              categories: Array.from({ length: 5 }, (_, i) => ({
+                title: `Category ${i + 1}`,
+                clues: Array.from({ length: 5 }, (_, j) => ({
+                  value: (j + 1) * 200,
+                  clue: '',
+                  response: '',
+                })),
+              })),
+              rows: 5,
+            };
+            setCurrentGame(editorGame);
+            setMode('editing');
+          }}
+          editGame={currentGame}
+          onAIPreviewSave={handleAIPreviewSave}
         />
       )}
     </>

@@ -5,10 +5,9 @@
  * Based on jeop2's runNewGameWizard flow.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -60,11 +59,21 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   const [theme, setTheme] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [showBack, setShowBack] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Reset state when wizard opens
-  if (open && step === 'theme' && !showBack) {
-    // First time opening - keep defaults
-  }
+  // Reset state and auto-focus when wizard opens
+  useEffect(() => {
+    if (open) {
+      setTheme('');
+      setDifficulty('normal');
+      setStep('theme');
+      setShowBack(false);
+      // Auto-focus the input after a small delay to ensure the dialog is rendered
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [open]);
 
   const handleThemeNext = () => {
     setShowBack(true);
@@ -123,6 +132,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
                 <div className="space-y-2">
                   <Label htmlFor="theme">Game Theme</Label>
                   <Input
+                    ref={inputRef}
                     id="theme"
                     value={theme}
                     onChange={(e) => setTheme(e.target.value)}

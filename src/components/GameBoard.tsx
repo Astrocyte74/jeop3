@@ -4,9 +4,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, MoreVertical } from 'lucide-react';
+import { Home, Edit, MoreVertical, Sparkles } from 'lucide-react';
 
 interface GameBoardProps {
   game: Game;
@@ -14,6 +15,7 @@ interface GameBoardProps {
   onOpenClue: (categoryId: number, clueIndex: number) => void;
   onExit: () => void;
   onToggleEditor: () => void;
+  onToggleAIPreviewEditor?: () => void;
   onSetActiveTeam: (teamId: string) => void;
 }
 
@@ -23,6 +25,7 @@ export function GameBoard({
   onOpenClue,
   onExit,
   onToggleEditor,
+  onToggleAIPreviewEditor,
   onSetActiveTeam,
 }: GameBoardProps) {
   const categories = game.categories || [];
@@ -42,14 +45,21 @@ export function GameBoard({
               <MoreVertical className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onClick={onToggleEditor}>
-              <Edit className="w-4 h-4 mr-2" />
-              Editor Mode
+              <Edit className="w-4 h-4 mr-2 text-blue-400" />
+              <span>Board Editor</span>
             </DropdownMenuItem>
+            {onToggleAIPreviewEditor && (
+              <DropdownMenuItem onClick={onToggleAIPreviewEditor}>
+                <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                <span>AI Preview Editor</span>
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onExit}>
               <Home className="w-4 h-4 mr-2" />
-              Main Menu
+              <span>Main Menu</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

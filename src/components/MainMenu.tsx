@@ -2,19 +2,27 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { GameMeta, Team, Game, Category, Clue } from '@/lib/storage';
 import { loadCustomGames, saveCustomGames, getSelectedGameId } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, type ThemeKey } from '@/lib/themes';
 import { useAIGeneration } from '@/lib/ai/hooks';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard } from '@/components/NewGameWizard';
-import type { AIPromptType, AIContext, AIDifficulty } from '@/lib/ai/types';
+import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1 } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2 } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any) => void;
   onOpenEditor: (game?: Game) => void;
+  editGame?: Game | null;
+  onAIPreviewSave?: (game: Game) => void;
 }
 
 interface GeneratedGameData {
@@ -30,7 +38,7 @@ interface GeneratedGameData {
   difficulty: AIDifficulty;
 }
 
-export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
+export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave }: MainMenuProps) {
   const [games, setGames] = useState<GameMeta[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
@@ -47,15 +55,19 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [aiPreviewType, setAiPreviewType] = useState<AIPromptType>('categories-generate');
   const [aiPreviewData, setAiPreviewData] = useState<PreviewData>({});
   const [generatedGameData, setGeneratedGameData] = useState<GeneratedGameData | null>(null);
-  const [isRegenerating, setIsRegenerating] = useState(false);
-  const [dataVersion, setDataVersion] = useState(0);
+  const [isRegenerating] = useState(false);
   const [regeneratedItems, setRegeneratedItems] = useState<Set<string>>(new Set());
   const [isWizardGenerating, setIsWizardGenerating] = useState(false);
-  const [regeneratingCounts, setRegeneratingCounts] = useState<{ categories: number; clues: number } | null>(null);
+  const [regeneratingCounts] = useState<{ categories: number; clues: number } | undefined>(undefined);
   const [rewritingCategory, setRewritingCategory] = useState<number | null>(null);
   const [rewritingClue, setRewritingClue] = useState<{ catIndex: number; clueIndex: number } | null>(null);
+  const [regeneratingCategory, setRegeneratingCategory] = useState<number | null>(null);
+  const [regeneratingClue, setRegeneratingClue] = useState<{ catIndex: number; clueIndex: number } | null>(null);
   const [rewritingTitle, setRewritingTitle] = useState<number | null>(null);
+  const [enhancingTitle, setEnhancingTitle] = useState<number | null>(null);
   const [rewritingTeamName, setRewritingTeamName] = useState<number | null>(null);
+  const [enhancingTeamName, setEnhancingTeamName] = useState<number | null>(null);
+  const [creatingNewCategory, setCreatingNewCategory] = useState<number | null>(null);
 
   const { generate: aiGenerate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
 
@@ -129,6 +141,45 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     if (!game) return;
     setSelectedGameId(selectedGameId);
     onSelectGame(selectedGameId, game.game);
+  };
+
+  const handleEditWithAIPreview = (game: Game) => {
+    // Populate AI preview data with existing game data
+    const categories = game.categories.map(cat => ({
+      title: cat.title,
+      contentTopic: cat.title, // Use title as content topic
+      clues: cat.clues.map(clue => ({
+        value: clue.value,
+        clue: clue.clue,
+        response: clue.response,
+      })),
+    }));
+
+    const titles = game.title ? [{
+      title: game.title,
+      subtitle: game.subtitle || '',
+    }] : [];
+
+    const suggestedTeamNames = game.suggestedTeamNames || ['Team 1', 'Team 2'];
+
+    setGeneratedGameData({
+      game,
+      categories,
+      titles,
+      suggestedTeamNames,
+      theme: 'Custom',
+      difficulty: 'normal',
+    });
+
+    setAiPreviewData({
+      categories,
+      titles,
+      suggestedTeamNames,
+    });
+
+    setAiPreviewType('categories-generate');
+    setAiPreviewOpen(true);
+    setSelectedGameId(null); // Don't select a game when editing
   };
 
   // ==================== AI TEAM NAME HANDLERS ====================
@@ -210,8 +261,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   };
 
   const handleWizardComplete = async (theme: string, difficulty: AIDifficulty) => {
-    // Reset data version and regenerated items for new game
-    setDataVersion(0);
+    // Reset regenerated items for new game
     setRegeneratedItems(new Set());
 
     setIsWizardGenerating(true);
@@ -268,7 +318,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           value: clue.value,
           clue: clue.clue,
           response: clue.response,
-          completed: false,
         });
       }
       gameCategories.push({
@@ -317,25 +366,26 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     let categoriesToApply = generatedGameData.categories;
 
     if (checkedItems.size > 0) {
-      categoriesToApply = generatedGameData.categories.filter((cat, i) => {
-        const catId = `cat-${i}`;
-        return !checkedItems.has(catId);
-      }).map(cat => {
-        const catIdx = generatedGameData.categories.indexOf(cat);
-        const uncheckedClues = cat.clues.filter((_, j) => {
-          const clueId = `cat-${catIdx}-clue-${j}`;
-          return !checkedItems.has(clueId);
-        });
+      categoriesToApply = generatedGameData.categories
+        .map((cat, i) => {
+          const catId = `cat-${i}`;
+          if (checkedItems.has(catId)) return null;
 
-        if (uncheckedClues.length === 0) {
-          return null;
+          const uncheckedClues = cat.clues.filter((_, j) => {
+            const clueId = `cat-${i}-clue-${j}`;
+            return !checkedItems.has(clueId);
+          });
+
+          if (uncheckedClues.length === 0) {
+            return null;
         }
 
         return {
           ...cat,
           clues: uncheckedClues
         };
-      }).filter((cat): cat is typeof cat => cat !== null);
+      })
+      .filter((cat): cat is NonNullable<typeof cat> => cat !== null);
     }
 
     // Build the final game with selected title and filtered categories
@@ -441,7 +491,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           value: clue.value,
           clue: clue.clue,
           response: clue.response,
-          completed: false,
         });
       }
       gameCategories.push({
@@ -469,120 +518,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
     setAiPreviewData({ categories: categoriesList, titles: titlesList });
     setAiPreviewOpen(true);
-  }, [generatedGameData, aiGenerate]);
-
-  const handleRegenerateSelected = useCallback(async (checkedItems: Set<string>) => {
-    if (!generatedGameData || checkedItems.size === 0) return;
-
-    setIsRegenerating(true);
-
-    // Calculate regenerating counts for display
-    let catCount = 0;
-    let clueCount = 0;
-    generatedGameData.categories.forEach((cat, i) => {
-      const catId = `cat-${i}`;
-      if (checkedItems.has(catId)) {
-        catCount++;
-      } else {
-        cat.clues.forEach((_, j) => {
-          if (checkedItems.has(`cat-${i}-clue-${j}`)) {
-            clueCount++;
-          }
-        });
-      }
-    });
-    setRegeneratingCounts({ categories: catCount, clues: clueCount });
-
-    // Track successfully regenerated items
-    const successfullyRegenerated = new Set<string>();
-
-    try {
-      // Separate checked items into categories and individual clues
-      const updatedCategories = [...generatedGameData.categories];
-
-      for (const [catIndex, category] of updatedCategories.entries()) {
-        const catId = `cat-${catIndex}`;
-
-        if (checkedItems.has(catId)) {
-          // Regenerate entire category
-          const result = await aiGenerate(
-            'category-replace-all',
-            {
-              categoryTitle: category.title,
-              contentTopic: category.contentTopic || category.title,
-              theme: generatedGameData.theme || category.title,
-              existingClues: category.clues,
-            },
-            generatedGameData.difficulty
-          );
-
-          if (result && typeof result === 'object') {
-            const catData = result as { category?: typeof category; title?: string; clues?: typeof category.clues };
-            const newCat = catData.category || (catData.title && catData.clues ? { title: catData.title, clues: catData.clues } : null);
-            if (newCat) {
-              updatedCategories[catIndex] = newCat;
-              successfullyRegenerated.add(catId);
-            }
-          }
-        } else {
-          // Check for individual clues to regenerate
-          const cluesToRegenerate: number[] = [];
-          category.clues.forEach((_, j) => {
-            const clueId = `cat-${catIndex}-clue-${j}`;
-            if (checkedItems.has(clueId)) {
-              cluesToRegenerate.push(j);
-            }
-          });
-
-          // Regenerate individual clues (use question-generate-single for each)
-          for (const clueIndex of cluesToRegenerate) {
-            const result = await aiGenerate(
-              'question-generate-single',
-              {
-                categoryTitle: category.title,
-                contentTopic: category.contentTopic || category.title,
-                value: category.clues[clueIndex].value,
-                existingClues: category.clues.filter((_, i) => !cluesToRegenerate.includes(i)),
-              },
-              generatedGameData.difficulty
-            );
-
-            if (result && typeof result === 'object' && 'clue' in result) {
-              const clueData = result as { clue: { value: number; clue: string; response: string } };
-              updatedCategories[catIndex].clues[clueIndex] = clueData.clue;
-              successfullyRegenerated.add(`cat-${catIndex}-clue-${clueIndex}`);
-            }
-          }
-        }
-      }
-
-      // Update the game with regenerated content
-      const newGame: Game = {
-        ...generatedGameData.game,
-        categories: updatedCategories.map(cat => ({
-          title: cat.title,
-          clues: cat.clues.map(clue => ({
-            value: clue.value,
-            clue: clue.clue,
-            response: clue.response,
-            completed: false,
-          })),
-        })),
-      };
-
-      setGeneratedGameData({
-        ...generatedGameData,
-        game: newGame,
-        categories: updatedCategories,
-      });
-
-      setAiPreviewData({ categories: updatedCategories });
-      setRegeneratedItems(successfullyRegenerated);
-      setDataVersion(prev => prev + 1);
-    } finally {
-      setIsRegenerating(false);
-      setRegeneratingCounts(null);
-    }
   }, [generatedGameData, aiGenerate]);
 
   // ==================== AI REWRITE HANDLERS ====================
@@ -628,7 +563,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               value: clue.value,
               clue: clue.clue,
               response: clue.response,
-              completed: false,
             })),
           })),
         };
@@ -639,7 +573,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           categories: updatedCategories,
         });
 
-        setAiPreviewData({ categories: updatedCategories });
+        setAiPreviewData(prev => ({
+          ...prev,
+          categories: updatedCategories,
+        }));
         return newTitle;
       }
       return null;
@@ -687,7 +624,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               value: clue.value,
               clue: clue.clue,
               response: clue.response,
-              completed: false,
             })),
           })),
         };
@@ -698,7 +634,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           categories: updatedCategories,
         });
 
-        setAiPreviewData({ categories: updatedCategories });
+        setAiPreviewData(prev => ({
+          ...prev,
+          categories: updatedCategories,
+        }));
         return rewrittenClue.clue;
       }
       return null;
@@ -853,6 +792,416 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     }
   }, [generatedGameData, aiAvailable, aiGenerate]);
 
+  const handleRegenerateCategory = useCallback(async (catIndex: number) => {
+    if (!generatedGameData || !aiAvailable) return;
+
+    setRegeneratingCategory(catIndex);
+
+    try {
+      const category = generatedGameData.categories[catIndex];
+      const contentTopic = category.contentTopic || category.title;
+      const theme = generatedGameData.theme || contentTopic;
+
+      const result = await aiGenerate(
+        'category-replace-all',
+        {
+          categoryTitle: category.title,
+          contentTopic,
+          theme,
+          existingClues: category.clues,
+        },
+        generatedGameData.difficulty
+      );
+
+      if (result && typeof result === 'object') {
+        const catData = result as { category?: typeof category; title?: string; clues?: typeof category.clues };
+        const newCat = catData.category || (catData.title && catData.clues ? { title: catData.title, clues: catData.clues } : null);
+        if (newCat) {
+          const updatedCategories = [...generatedGameData.categories];
+          updatedCategories[catIndex] = newCat;
+
+          const updatedGame: Game = {
+            ...generatedGameData.game,
+            categories: updatedCategories.map(cat => ({
+              title: cat.title,
+              clues: cat.clues.map(clue => ({
+                value: clue.value,
+                clue: clue.clue,
+                response: clue.response,
+                completed: false,
+              })),
+            })),
+          };
+
+          setGeneratedGameData({
+            ...generatedGameData,
+            game: updatedGame,
+            categories: updatedCategories,
+          });
+
+          setAiPreviewData(prev => ({
+            ...prev,
+            categories: updatedCategories,
+          }));
+          setRegeneratedItems(prev => new Set(prev).add(`cat-${catIndex}`));
+        }
+      }
+    } finally {
+      setRegeneratingCategory(null);
+    }
+  }, [generatedGameData, aiAvailable, aiGenerate]);
+
+  const handleCreateNewCategory = useCallback(async (catIndex: number) => {
+    if (!generatedGameData || !aiAvailable) return;
+
+    setCreatingNewCategory(catIndex);
+
+    try {
+      const theme = generatedGameData.theme || 'general';
+
+      // Get existing category titles to avoid duplicates
+      const existingCategories = generatedGameData.categories
+        .map((c, i) => i === catIndex ? null : c.title)
+        .filter((t): t is string => t !== null);
+
+      const result = await aiGenerate(
+        'categories-generate',
+        {
+          theme,
+          count: 1,
+          existingTitles: existingCategories,
+        },
+        generatedGameData.difficulty
+      );
+
+      if (result && typeof result === 'object' && 'categories' in result) {
+        const catData = result as { categories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> };
+        if (catData.categories && catData.categories.length > 0) {
+          const newCat = catData.categories[0];
+          const updatedCategories = [...generatedGameData.categories];
+          updatedCategories[catIndex] = {
+            title: newCat.title,
+            contentTopic: newCat.title, // Use title as content topic for new categories
+            clues: newCat.clues,
+          };
+
+          const updatedGame: Game = {
+            ...generatedGameData.game,
+            categories: updatedCategories.map(cat => ({
+              title: cat.title,
+              clues: cat.clues.map(clue => ({
+                value: clue.value,
+                clue: clue.clue,
+                response: clue.response,
+                completed: false,
+              })),
+            })),
+          };
+
+          setGeneratedGameData({
+            ...generatedGameData,
+            game: updatedGame,
+            categories: updatedCategories,
+          });
+
+          setAiPreviewData(prev => ({
+            ...prev,
+            categories: updatedCategories,
+          }));
+          setRegeneratedItems(prev => new Set(prev).add(`cat-${catIndex}`));
+        }
+      }
+    } finally {
+      setCreatingNewCategory(null);
+    }
+  }, [generatedGameData, aiAvailable, aiGenerate]);
+
+  const handleRegenerateClue = useCallback(async (catIndex: number, clueIndex: number) => {
+    if (!generatedGameData || !aiAvailable) return;
+
+    setRegeneratingClue({ catIndex, clueIndex });
+
+    try {
+      const category = generatedGameData.categories[catIndex];
+      const clue = category.clues[clueIndex];
+
+      const result = await aiGenerate(
+        'question-generate-single',
+        {
+          categoryTitle: category.title,
+          contentTopic: category.contentTopic || category.title,
+          value: clue.value,
+          existingClues: category.clues.filter((_, i) => i !== clueIndex),
+        },
+        generatedGameData.difficulty
+      );
+
+      if (result && typeof result === 'object' && 'clue' in result) {
+        const clueData = result as { clue: { value: number; clue: string; response: string } };
+        const updatedCategories = [...generatedGameData.categories];
+        updatedCategories[catIndex] = {
+          ...category,
+          clues: [...category.clues],
+        };
+        updatedCategories[catIndex].clues[clueIndex] = clueData.clue;
+
+        const updatedGame: Game = {
+          ...generatedGameData.game,
+          categories: updatedCategories.map(cat => ({
+            title: cat.title,
+            clues: cat.clues.map(clue => ({
+              value: clue.value,
+              clue: clue.clue,
+              response: clue.response,
+            })),
+          })),
+        };
+
+        setGeneratedGameData({
+          ...generatedGameData,
+          game: updatedGame,
+          categories: updatedCategories,
+        });
+
+        setAiPreviewData(prev => ({
+          ...prev,
+          categories: updatedCategories,
+        }));
+        setRegeneratedItems(prev => new Set(prev).add(`cat-${catIndex}-clue-${clueIndex}`));
+      }
+    } finally {
+      setRegeneratingClue(null);
+    }
+  }, [generatedGameData, aiAvailable, aiGenerate]);
+
+  const handleEnhanceTitle = useCallback(async (titleIndex: number) => {
+    if (!generatedGameData || !aiAvailable) return null;
+
+    setEnhancingTitle(titleIndex);
+
+    try {
+      const theme = generatedGameData.theme || 'general';
+
+      // For title enhancement, we just call game-title with existing titles to avoid
+      const otherTitles = generatedGameData.titles.filter((_, i) => i !== titleIndex);
+      const result = await aiGenerate(
+        'game-title',
+        { theme, count: 1, existingTitles: otherTitles },
+        generatedGameData.difficulty
+      );
+
+      if (result && typeof result === 'object' && 'titles' in result) {
+        const titlesData = result as { titles: Array<{ title: string; subtitle: string }> };
+        if (titlesData.titles && titlesData.titles.length > 0) {
+          const updatedTitles = [...generatedGameData.titles];
+          updatedTitles[titleIndex] = titlesData.titles[0];
+
+          setGeneratedGameData({
+            ...generatedGameData,
+            titles: updatedTitles,
+          });
+
+          setAiPreviewData(prev => ({
+            ...prev,
+            titles: updatedTitles,
+          }));
+
+          return titlesData.titles[0].title;
+        }
+      }
+      return null;
+    } finally {
+      setEnhancingTitle(null);
+    }
+  }, [generatedGameData, aiAvailable, aiGenerate]);
+
+  const handleEnhanceTeamName = useCallback(async (teamIndex: number) => {
+    if (!generatedGameData || !aiAvailable) return null;
+
+    setEnhancingTeamName(teamIndex);
+
+    try {
+      const theme = generatedGameData.theme || 'general';
+      const currentName = generatedGameData.suggestedTeamNames[teamIndex];
+      const otherNames = generatedGameData.suggestedTeamNames.filter((_, i) => i !== teamIndex);
+
+      const result = await aiGenerate('team-name-enhance', {
+        currentName,
+        existingNames: otherNames,
+        gameTopic: theme,
+      });
+
+      if (result && typeof result === 'object' && 'name' in result) {
+        const enhanced = result as { name: string };
+        if (enhanced.name) {
+          const updatedNames = [...generatedGameData.suggestedTeamNames];
+          updatedNames[teamIndex] = enhanced.name;
+
+          setGeneratedGameData({
+            ...generatedGameData,
+            suggestedTeamNames: updatedNames,
+          });
+
+          setAiPreviewData(prev => ({
+            ...prev,
+            suggestedTeamNames: updatedNames,
+          }));
+
+          return enhanced.name;
+        }
+      }
+      return null;
+    } finally {
+      setEnhancingTeamName(null);
+    }
+  }, [generatedGameData, aiAvailable, aiGenerate]);
+
+  // ==================== MANUAL EDIT HANDLERS ====================
+
+  const handleEditCategoryTitle = useCallback((catIndex: number, newTitle: string) => {
+    if (!generatedGameData) return;
+
+    const updatedCategories = [...generatedGameData.categories];
+    updatedCategories[catIndex] = {
+      ...updatedCategories[catIndex],
+      title: newTitle,
+    };
+
+    const updatedGame: Game = {
+      ...generatedGameData.game,
+      categories: updatedCategories.map(cat => ({
+        title: cat.title,
+        clues: cat.clues.map(clue => ({
+          value: clue.value,
+          clue: clue.clue,
+          response: clue.response,
+        })),
+      })),
+    };
+
+    setGeneratedGameData({
+      ...generatedGameData,
+      game: updatedGame,
+      categories: updatedCategories,
+    });
+
+    setAiPreviewData(prev => ({
+      ...prev,
+      categories: updatedCategories,
+    }));
+  }, [generatedGameData]);
+
+  const handleEditClue = useCallback((catIndex: number, clueIndex: number, newClue: string) => {
+    if (!generatedGameData) return;
+
+    const updatedCategories = [...generatedGameData.categories];
+    updatedCategories[catIndex] = {
+      ...updatedCategories[catIndex],
+      clues: [...updatedCategories[catIndex].clues],
+    };
+    updatedCategories[catIndex].clues[clueIndex] = {
+      ...updatedCategories[catIndex].clues[clueIndex],
+      clue: newClue,
+    };
+
+    const updatedGame: Game = {
+      ...generatedGameData.game,
+      categories: updatedCategories.map(cat => ({
+        title: cat.title,
+        clues: cat.clues.map(clue => ({
+          value: clue.value,
+          clue: clue.clue,
+          response: clue.response,
+        })),
+      })),
+    };
+
+    setGeneratedGameData({
+      ...generatedGameData,
+      game: updatedGame,
+      categories: updatedCategories,
+    });
+
+    setAiPreviewData(prev => ({
+      ...prev,
+      categories: updatedCategories,
+    }));
+  }, [generatedGameData]);
+
+  const handleEditAnswer = useCallback((catIndex: number, clueIndex: number, newAnswer: string) => {
+    if (!generatedGameData) return;
+
+    const updatedCategories = [...generatedGameData.categories];
+    updatedCategories[catIndex] = {
+      ...updatedCategories[catIndex],
+      clues: [...updatedCategories[catIndex].clues],
+    };
+    updatedCategories[catIndex].clues[clueIndex] = {
+      ...updatedCategories[catIndex].clues[clueIndex],
+      response: newAnswer,
+    };
+
+    const updatedGame: Game = {
+      ...generatedGameData.game,
+      categories: updatedCategories.map(cat => ({
+        title: cat.title,
+        clues: cat.clues.map(clue => ({
+          value: clue.value,
+          clue: clue.clue,
+          response: clue.response,
+        })),
+      })),
+    };
+
+    setGeneratedGameData({
+      ...generatedGameData,
+      game: updatedGame,
+      categories: updatedCategories,
+    });
+
+    setAiPreviewData(prev => ({
+      ...prev,
+      categories: updatedCategories,
+    }));
+  }, [generatedGameData]);
+
+  const handleEditTitle = useCallback((titleIndex: number, newTitle: string, newSubtitle?: string) => {
+    if (!generatedGameData) return;
+
+    const updatedTitles = [...generatedGameData.titles];
+    updatedTitles[titleIndex] = {
+      title: newTitle,
+      subtitle: newSubtitle ?? updatedTitles[titleIndex].subtitle,
+    };
+
+    setGeneratedGameData({
+      ...generatedGameData,
+      titles: updatedTitles,
+    });
+
+    setAiPreviewData(prev => ({
+      ...prev,
+      titles: updatedTitles,
+    }));
+  }, [generatedGameData]);
+
+  const handleEditTeamName = useCallback((teamIndex: number, newName: string) => {
+    if (!generatedGameData) return;
+
+    const updatedNames = [...generatedGameData.suggestedTeamNames];
+    updatedNames[teamIndex] = newName;
+
+    setGeneratedGameData({
+      ...generatedGameData,
+      suggestedTeamNames: updatedNames,
+    });
+
+    setAiPreviewData(prev => ({
+      ...prev,
+      suggestedTeamNames: updatedNames,
+    }));
+  }, [generatedGameData]);
+
   const currentThemeData = themes[currentTheme];
 
   return (
@@ -901,24 +1250,87 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             />
 
             <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
-              {filteredGames.map((game) => (
-                <button
-                  key={game.id}
-                  onClick={() => {
-                    setSelectedGameId(game.id);
-                  }}
-                  className={`w-full text-left p-3 rounded-lg border transition-all ${
-                    selectedGameId === game.id
-                      ? 'bg-yellow-500/20 border-yellow-500/50'
-                      : 'bg-slate-800/30 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/50'
-                  }`}
-                >
-                  <div className="font-medium text-sm">{game.title}</div>
-                  {game.subtitle && (
-                    <div className="text-xs text-slate-400 mt-1">{game.subtitle}</div>
-                  )}
-                </button>
-              ))}
+              {filteredGames.map((game) => {
+                const gameData = loadCustomGames().find(g => g.id === game.id);
+                return (
+                  <div
+                    key={game.id}
+                    className={`relative group`}
+                  >
+                    <button
+                      onClick={() => {
+                        setSelectedGameId(game.id);
+                      }}
+                      className={`w-full text-left p-3 rounded-lg border transition-all pr-10 ${
+                        selectedGameId === game.id
+                          ? 'bg-yellow-500/20 border-yellow-500/50'
+                          : 'bg-slate-800/30 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/50'
+                      }`}
+                    >
+                      <div className="font-medium text-sm">{game.title}</div>
+                      {game.subtitle && (
+                        <div className="text-xs text-slate-400 mt-1">{game.subtitle}</div>
+                      )}
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800/80 hover:bg-slate-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedGameId(game.id);
+                          }}
+                        >
+                          <MoreVertical className="w-4 h-4 text-slate-400" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => {
+                          const fullGame = gameData?.game || {
+                            id: game.id,
+                            title: game.title,
+                            subtitle: game.subtitle || '',
+                            categories: [],
+                            rows: 5,
+                          };
+                          onSelectGame(game.id, fullGame);
+                        }}>
+                          <Play className="w-4 h-4 mr-2 text-green-400" />
+                          <span>Play Game</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          const fullGame = gameData?.game || {
+                            id: game.id,
+                            title: game.title,
+                            subtitle: game.subtitle || '',
+                            categories: [],
+                            rows: 5,
+                          };
+                          onOpenEditor(fullGame);
+                        }}>
+                          <Edit className="w-4 h-4 mr-2 text-blue-400" />
+                          <span>Edit with Board Editor</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => {
+                          const fullGame = gameData?.game || {
+                            id: game.id,
+                            title: game.title,
+                            subtitle: game.subtitle || '',
+                            categories: [],
+                            rows: 5,
+                          };
+                          handleEditWithAIPreview(fullGame);
+                        }}>
+                          <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                          <span>Edit with AI Preview</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
@@ -1035,40 +1447,39 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                   <Input
                     value={team.name}
                     onChange={(e) => handleUpdateTeamName(team.id, e.target.value)}
-                    className="bg-slate-800/50 border-slate-700"
+                    className="bg-slate-800/50 border-slate-700 flex-1"
                   />
-                  {aiAvailable && (
-                    <div className="flex gap-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
                       <Button
-                        onClick={() => handleAIGenerateTeamName(index)}
                         variant="ghost"
                         size="sm"
-                        className="h-8 w-8 p-0 text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
-                        title="Generate random name"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-slate-300 hover:bg-slate-700"
                       >
-                        <Dice1 className="w-4 h-4" />
+                        <MoreVertical className="w-4 h-4" />
                       </Button>
-                      <Button
-                        onClick={() => handleAIEnhanceTeamName(index)}
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-purple-500 hover:text-purple-400 hover:bg-purple-500/10"
-                        title="Enhance this name"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-                  {teams.length > 1 && (
-                    <Button
-                      onClick={() => handleRemoveTeam(team.id)}
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                    >
-                      ×
-                    </Button>
-                  )}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      {aiAvailable && (
+                        <>
+                          <DropdownMenuItem onClick={() => handleAIGenerateTeamName(index)}>
+                            <Dice1 className="w-4 h-4 mr-2 text-yellow-400" />
+                            <span>Generate Random Name</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleAIEnhanceTeamName(index)}>
+                            <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                            <span>Enhance Name</span>
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      {teams.length > 1 && (
+                        <DropdownMenuItem onClick={() => handleRemoveTeam(team.id)} className="text-red-400 focus:text-red-300">
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          <span>Remove Team</span>
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>
@@ -1106,21 +1517,35 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         onConfirm={handleAIPreviewConfirm}
         onCancel={handleAIPreviewCancel}
         onRegenerateAll={handleRegenerateAll}
-        onRegenerateSelected={handleRegenerateSelected}
         onRewriteCategoryTitle={handleRewriteCategoryTitle}
         onRewriteClue={handleRewriteClue}
+        onRegenerateCategory={handleRegenerateCategory}
+        onCreateNewCategory={handleCreateNewCategory}
+        onRegenerateClue={handleRegenerateClue}
         onRegenerateTitle={handleRegenerateTitle}
         onRegenerateAllTitles={handleRegenerateAllTitles}
+        onEnhanceTitle={handleEnhanceTitle}
         onRegenerateTeamName={handleRegenerateTeamName}
+        onEnhanceTeamName={handleEnhanceTeamName}
         onRegenerateAllTeamNames={handleRegenerateAllTeamNames}
+        // Manual editing handlers
+        onEditCategoryTitle={handleEditCategoryTitle}
+        onEditClue={handleEditClue}
+        onEditAnswer={handleEditAnswer}
+        onEditTitle={handleEditTitle}
+        onEditTeamName={handleEditTeamName}
         isLoading={isRegenerating}
-        dataVersion={dataVersion}
         regeneratedItems={regeneratedItems}
         regeneratingCounts={regeneratingCounts}
         rewritingCategory={rewritingCategory}
         rewritingClue={rewritingClue}
+        regeneratingCategory={regeneratingCategory}
+        creatingNewCategory={creatingNewCategory}
+        regeneratingClue={regeneratingClue}
         rewritingTitle={rewritingTitle}
+        enhancingTitle={enhancingTitle}
         rewritingTeamName={rewritingTeamName}
+        enhancingTeamName={enhancingTeamName}
       />
     </div>
   );

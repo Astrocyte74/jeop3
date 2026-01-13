@@ -157,6 +157,7 @@ export function useAIGeneration() {
       'game-title': '⏳ Generating title options...',
       'categories-generate': '⏳ Generating full game... This may take a moment...',
       'category-rename': '⏳ Generating name options...',
+      'category-title-generate': '⏳ Generating category title...',
       'category-generate-clues': '⏳ Generating clues...',
       'category-replace-all': '⏳ Replacing all clues...',
       'questions-generate-five': '⏳ Generating 5 questions...',
