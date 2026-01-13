@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Team } from '@/lib/storage';
 import { X, Eye, Check, X as XIcon } from 'lucide-react';
+import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 
 interface ClueDialogProps {
   isOpen: boolean;
@@ -30,12 +31,16 @@ export function ClueDialog({
   onSetActiveTeam,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
+  const [matchedIcon, setMatchedIcon] = useState<IconMatch | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setShowResponse(false);
+      // Find matching icon for this clue
+      const match = iconMatcher.findMatch(clue, response, categoryTitle);
+      setMatchedIcon(match);
     }
-  }, [isOpen]);
+  }, [isOpen, clue, response, categoryTitle]);
 
   if (!isOpen) return null;
 
@@ -58,6 +63,36 @@ export function ClueDialog({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Matched Icon */}
+        {matchedIcon && (
+          <div className="flex items-center justify-center gap-4 py-3 px-4 bg-slate-700/50 rounded-xl">
+            <div className="text-center">
+              <img
+                src={iconMatcher.buildIconUrl(matchedIcon) || undefined}
+                alt={matchedIcon.icon.title}
+                className="w-24 h-24 mx-auto object-contain drop-shadow-lg"
+                loading="lazy"
+              />
+              <p className="text-xs text-slate-400 mt-2 capitalize">{matchedIcon.icon.title}</p>
+            </div>
+            {matchedIcon.matchedTokens.length > 0 && (
+              <div className="text-left">
+                <p className="text-xs text-slate-500 mb-1">Matched keywords:</p>
+                <div className="flex flex-wrap gap-1">
+                  {matchedIcon.matchedTokens.map(token => (
+                    <span
+                      key={token}
+                      className="text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full"
+                    >
+                      {token}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Clue */}
         <div className="clue-text">{clue}</div>

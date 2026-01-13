@@ -9,6 +9,7 @@ import { useAIToast } from '@/lib/ai';
 import type { Game, GameState } from '@/lib/storage';
 import { loadGameState, saveGameState, setSelectedGameId, saveCustomGames, loadCustomGames } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
+import { iconMatcher } from '@/lib/iconMatcher';
 
 type AppMode = 'menu' | 'playing' | 'editing' | 'ai-preview-editing';
 
@@ -38,6 +39,11 @@ export function App() {
   useEffect(() => {
     const theme = getStoredTheme();
     applyTheme(theme);
+  }, []);
+
+  // Initialize icon matcher on mount
+  useEffect(() => {
+    iconMatcher.load().catch(console.error);
   }, []);
 
   // Load game state when game changes
