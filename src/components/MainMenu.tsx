@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -73,8 +73,25 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
 
   const { generate: aiGenerate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
 
+  // Ref to track if we need to open AI preview after component mounts
+  const pendingAIPreviewGame = useRef<Game | null>(null);
+
   useEffect(() => {
     loadGames();
+
+    // Check if we're coming from gameplay with AI preview editor
+    const storedGame = sessionStorage.getItem('aiPreviewGame');
+    if (storedGame) {
+      try {
+        const game = JSON.parse(storedGame) as Game;
+        // Clear the stored game so we don't re-open on every render
+        sessionStorage.removeItem('aiPreviewGame');
+        // Store for later - we'll open it after handleEditWithAIPreview is defined
+        pendingAIPreviewGame.current = game;
+      } catch (error) {
+        console.error('Failed to load stored game for AI preview:', error);
+      }
+    }
   }, []);
 
   const loadGames = async () => {
@@ -194,6 +211,14 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
     setAiPreviewOpen(true);
     setSelectedGameId(null); // Don't select a game when editing
   };
+
+  // Check for pending AI preview game from gameplay
+  useEffect(() => {
+    if (pendingAIPreviewGame.current) {
+      handleEditWithAIPreview(pendingAIPreviewGame.current);
+      pendingAIPreviewGame.current = null;
+    }
+  }, []);
 
   // ==================== AI TEAM NAME HANDLERS ====================
 

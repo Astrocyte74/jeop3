@@ -169,8 +169,14 @@ export function App() {
   }, []);
 
   const handleToggleAIPreviewEditor = useCallback(() => {
+    // Need to pass the current game data to MainMenu for AI preview editing
+    // We set a flag so MainMenu knows to open AI preview with current game
+    if (currentGame) {
+      // Store the current game so MainMenu can use it
+      sessionStorage.setItem('aiPreviewGame', JSON.stringify(currentGame));
+    }
     setMode('ai-preview-editing');
-  }, []);
+  }, [currentGame]);
 
   const handleSaveGame = useCallback((updatedGame: Game) => {
     // For now, just update the current game
