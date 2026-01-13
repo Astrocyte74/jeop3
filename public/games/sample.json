@@ -1,0 +1,66 @@
+{
+  "title": "Science & Nature",
+  "subtitle": "Test your knowledge of the natural world",
+  "categories": [
+    {
+      "title": "Planets",
+      "clues": [
+        { "value": 200, "clue": "This planet is known as the Red Planet", "response": "What is Mars?" },
+        { "value": 400, "clue": "The largest planet in our solar system", "response": "What is Jupiter?" },
+        { "value": 600, "clue": "This planet has the most moons", "response": "What is Saturn?" },
+        { "value": 800, "clue": "The closest planet to the Sun", "response": "What is Mercury?" },
+        { "value": 1000, "clue": "This planet rotates on its side", "response": "What is Uranus?" }
+      ]
+    },
+    {
+      "title": "Elements",
+      "clues": [
+        { "value": 200, "clue": "This element has the atomic number 1", "response": "What is Hydrogen?" },
+        { "value": 400, "clue": "The most abundant element in Earth's atmosphere", "response": "What is Nitrogen?" },
+        { "value": 600, "clue": "This element is symbolized as Fe", "response": "What is Iron?" },
+        { "value": 800, "clue": "The rarest naturally occurring element", "response": "What is Astatine?" },
+        { "value": 1000, "clue": "This element is named after the creator of the periodic table", "response": "What is Mendelevium?" }
+      ]
+    },
+    {
+      "title": "Animals",
+      "clues": [
+        { "value": 200, "clue": "The fastest land animal", "response": "What is a Cheetah?" },
+        { "value": 400, "clue": "This mammal can fly", "response": "What is a Bat?" },
+        { "value": 600, "clue": "The largest animal on Earth", "response": "What is the Blue Whale?" },
+        { "value": 800, "clue": "This bird cannot fly but is a strong swimmer", "response": "What is a Penguin?" },
+        { "value": 1000, "clue": "The only mammal capable of true sustained flight", "response": "What is a Bat?" }
+      ]
+    },
+    {
+      "title": "Weather",
+      "clues": [
+        { "value": 200, "clue": "This type of cloud brings thunderstorms", "response": "What are Cumulonimbus clouds?" },
+        { "value": 400, "clue": "The instrument used to measure air pressure", "response": "What is a Barometer?" },
+        { "value": 600, "clue": "This scale measures earthquake intensity", "response": "What is the Richter Scale?" },
+        { "value": 800, "clue": "The eye of this storm is the calmest part", "response": "What is a Hurricane?" },
+        { "value": 1000, "clue": "This phenomenon causes the Aurora Borealis", "response": "What are Solar Winds?" }
+      ]
+    },
+    {
+      "title": "Oceans",
+      "clues": [
+        { "value": 200, "clue": "The largest ocean on Earth", "response": "What is the Pacific Ocean?" },
+        { "value": 400, "clue": "This zone is where photosynthesis can occur", "response": "What is the Euphotic Zone?" },
+        { "value": 600, "clue": "The deepest part of the ocean", "response": "What is the Mariana Trench?" },
+        { "value": 800, "clue": "This current circulates around Antarctica", "response": "What is the Antarctic Circumpolar Current?" },
+        { "value": 1000, "clue": "The ocean covers this percent of Earth's surface", "response": "What is 71%?" }
+      ]
+    },
+    {
+      "title": "Physics",
+      "clues": [
+        { "value": 200, "clue": "This force keeps us on the ground", "response": "What is Gravity?" },
+        { "value": 400, "clue": "E=mc^2 describes this relationship", "response": "What is mass-energy equivalence?" },
+        { "value": 600, "clue": "This travels at approximately 300,000 km/s", "response": "What is the Speed of Light?" },
+        { "value": 800, "clue": "Newton's first law describes this concept", "response": "What is Inertia?" },
+        { "value": 1000, "clue": "This principle explains why airplanes fly", "response": "What is Bernoulli's Principle?" }
+      ]
+    }
+  ]
+}

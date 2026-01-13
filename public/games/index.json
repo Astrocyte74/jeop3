@@ -1,0 +1,10 @@
+{
+  "games": [
+    {
+      "id": "sample",
+      "title": "Science & Nature",
+      "subtitle": "Test your knowledge of the natural world",
+      "path": "games/sample.json"
+    }
+  ]
+}
