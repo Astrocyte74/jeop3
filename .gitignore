@@ -17,6 +17,10 @@ dist-ssr
 .env.local
 .env.*.local
 
+# AI server
+ai-server.log
+server/node_modules
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
