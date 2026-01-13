@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, EyeOff, Check, X as XIcon } from 'lucide-react';
+import { X, Eye, Check, X as XIcon } from 'lucide-react';
 
 interface ClueDialogProps {
   isOpen: boolean;
@@ -38,8 +38,6 @@ export function ClueDialog({
   }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const activeTeam = teams.find((t) => t.id === activeTeamId);
 
   return (
     <div className="clue-dialog-backdrop" onClick={onClose}>

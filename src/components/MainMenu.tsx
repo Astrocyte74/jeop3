@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import type { GameMeta, Team } from '@/lib/storage';
-import { loadCustomGames, createInitialGameState, getSelectedGameId, setSelectedGameId } from '@/lib/storage';
+import { loadCustomGames, getSelectedGameId } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, type ThemeKey } from '@/lib/themes';
 import { Gamepad2, Users, Sparkles, Palette, Settings } from 'lucide-react';
 

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -6,8 +5,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { Game, GameState, Team } from '@/lib/storage';
-import { Settings, Home, Edit, MoreVertical } from 'lucide-react';
+import type { Game, GameState } from '@/lib/storage';
+import { Home, Edit, MoreVertical } from 'lucide-react';
 
 interface GameBoardProps {
   game: Game;
@@ -15,7 +14,6 @@ interface GameBoardProps {
   onOpenClue: (categoryId: number, clueIndex: number) => void;
   onExit: () => void;
   onToggleEditor: () => void;
-  onUpdateTeamScore: (teamId: string, delta: number) => void;
   onSetActiveTeam: (teamId: string) => void;
 }
 
@@ -25,7 +23,6 @@ export function GameBoard({
   onOpenClue,
   onExit,
   onToggleEditor,
-  onUpdateTeamScore,
   onSetActiveTeam,
 }: GameBoardProps) {
   const categories = game.categories || [];

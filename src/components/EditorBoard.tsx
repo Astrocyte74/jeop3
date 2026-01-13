@@ -19,7 +19,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { Game, Category, Clue } from '@/lib/storage';
-import { Save, Home, Plus, Trash2, MoreVertical, X, Wand2 } from 'lucide-react';
+import { Save, Home, Plus, MoreVertical, X, Wand2 } from 'lucide-react';
 
 interface EditorBoardProps {
   game: Game;
@@ -80,12 +80,6 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
       ...editingGame,
       categories: [...categories, newCategory],
     });
-  };
-
-  const removeCategory = (index: number) => {
-    if (categories.length <= 1) return;
-    const newCategories = categories.filter((_, i) => i !== index);
-    setEditingGame({ ...editingGame, categories: newCategories });
   };
 
   const handleSave = () => {
@@ -251,7 +245,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                   value={category.title}
                   onChange={(e) => updateCategoryTitle(index, e.target.value)}
                   className="bg-transparent border-none text-center font-bold text-sm w-full"
-                  onClick={(e) => e.target.select()}
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
                 />
               </div>
             ))}

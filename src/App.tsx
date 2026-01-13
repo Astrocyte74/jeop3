@@ -3,8 +3,10 @@ import { MainMenu } from '@/components/MainMenu';
 import { GameBoard } from '@/components/GameBoard';
 import { ClueDialog } from '@/components/ClueDialog';
 import { EditorBoard } from '@/components/EditorBoard';
-import type { Game, GameState, Team } from '@/lib/storage';
-import { loadGameState, saveGameState, setSelectedGameId, slugify } from '@/lib/storage';
+import { AIToastContainer } from '@/components/ai';
+import { useAIToast } from '@/lib/ai';
+import type { Game, GameState } from '@/lib/storage';
+import { loadGameState, saveGameState, setSelectedGameId } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
 
 type AppMode = 'menu' | 'playing' | 'editing';
@@ -27,6 +29,9 @@ export function App() {
     isOpen: boolean;
     clueId: string;
   }>({ isOpen: false, clueId: '' });
+
+  // AI toast system
+  const { toasts, dismiss } = useAIToast();
 
   // Initialize theme on mount
   useEffect(() => {
@@ -177,6 +182,8 @@ export function App() {
 
   return (
     <>
+      {/* AI Toast Container */}
+      <AIToastContainer toasts={toasts} onDismiss={dismiss} />
       {mode === 'menu' && (
         <MainMenu
           onSelectGame={handleSelectGame}
@@ -209,7 +216,6 @@ export function App() {
             onOpenClue={handleOpenClue}
             onExit={handleExitToMenu}
             onToggleEditor={handleToggleEditor}
-            onUpdateTeamScore={() => {}}
             onSetActiveTeam={handleSetActiveTeam}
           />
           {currentClue && (

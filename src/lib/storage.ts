@@ -68,7 +68,7 @@ export function loadCustomGames(): GameMeta[] {
       title: String(g.title ?? 'Custom game'),
       subtitle: String(g.subtitle ?? ''),
       source: 'custom' as const,
-      game: g.game ?? null,
+      game: g.game ?? undefined,
     }))
     .filter((g) => g.id && g.game && typeof g.game === 'object');
 }
