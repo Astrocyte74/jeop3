@@ -53,10 +53,6 @@ export function GameBoard({
     await iconMatcher.load();
   };
 
-  // Calculate grid columns for teams
-  const teamCount = state.teams.length;
-  const teamGridCols = teamCount <= 2 ? 1 : teamCount <= 4 ? 2 : 3;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 relative">
       {/* Menu dropdown - top right, absolute positioned */}
@@ -152,34 +148,44 @@ export function GameBoard({
       {/* Header with teams and title */}
       <div className="max-w-7xl mx-auto mb-8">
         <div className="flex items-center gap-8">
-          {/* Teams - top left, grid layout */}
-          <div
-            className="grid gap-2"
-            style={{
-              gridTemplateColumns: `repeat(${teamGridCols}, 1fr)`,
-              gridTemplateRows: `repeat(${Math.ceil(teamCount / teamGridCols)}, auto)`,
-            }}
-          >
-            {state.teams.map((team) => (
-              <button
-                key={team.id}
-                onClick={() => onSetActiveTeam(team.id)}
-                className={`px-3 py-2 rounded-lg border-2 text-left transition-all min-w-[120px] ${
-                  state.activeTeamId === team.id
-                    ? 'bg-yellow-500/20 border-yellow-500 shadow-lg shadow-yellow-500/20'
-                    : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
-                }`}
-              >
-                <div className="font-medium text-sm text-slate-200">{team.name}</div>
-                <div className={`text-xl font-black ${team.score >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ${team.score}
-                </div>
-              </button>
-            ))}
+          {/* Scoreboard - top left */}
+          <div className="bg-slate-900/80 backdrop-blur-sm border border-yellow-500/30 rounded-xl p-3">
+            <div className="flex flex-col gap-2">
+              {state.teams.map((team) => (
+                <button
+                  key={team.id}
+                  onClick={() => onSetActiveTeam(team.id)}
+                  className={`flex items-center gap-3 px-3 py-1.5 rounded-lg transition-all text-left ${
+                    state.activeTeamId === team.id
+                      ? 'bg-yellow-500/20 scale-105'
+                      : 'hover:bg-slate-800/50'
+                  }`}
+                >
+                  {/* Rank */}
+                  <span className="text-xs font-semibold text-slate-500 w-4">
+                    {state.teams.findIndex(t => t.id === team.id) + 1}
+                  </span>
+
+                  {/* Team name */}
+                  <span className={`text-sm font-semibold min-w-[80px] ${
+                    state.activeTeamId === team.id ? 'text-yellow-500' : 'text-slate-300'
+                  }`}>
+                    {team.name}
+                  </span>
+
+                  {/* Score */}
+                  <span className={`text-lg font-black ml-auto ${
+                    team.score >= 0 ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    ${team.score}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Title - center */}
-          <div className="flex-1 text-center pr-16">
+          <div className="flex-1 text-center">
             <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
               {game.title}
             </h1>
