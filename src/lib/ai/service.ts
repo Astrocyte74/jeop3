@@ -226,13 +226,15 @@ export function safeJsonParse<T>(
  * @param context - Context data for the prompt
  * @param difficulty - 'easy', 'normal', or 'hard'
  * @param config - Optional server configuration
+ * @param authToken - Optional Clerk auth token
  * @returns Parsed JSON response
  */
 export async function generateAI<T = unknown>(
   promptType: AIPromptType,
   context: AIContext,
   difficulty: AIDifficulty = 'normal',
-  config?: AIServerConfig
+  config?: AIServerConfig,
+  authToken?: string | null
 ): Promise<T> {
   if (!serverAvailable) {
     throw new Error('AI server is not available. Please start the AI server with: node server.js');
@@ -252,9 +254,15 @@ export async function generateAI<T = unknown>(
     model: selectedModel || undefined
   };
 
+  // Build headers with auth token if available
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authToken) {
+    headers['Authorization'] = authToken;
+  }
+
   const response = await fetch(`${apiBase}/ai/generate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(requestBody)
   });
 
@@ -280,9 +288,13 @@ export async function generateAI<T = unknown>(
  * Fetch article content from URL
  *
  * @param url - The URL to fetch content from
+ * @param authToken - Optional Clerk auth token
  * @returns Object with success status, text content, and error details
  */
-export async function fetchArticleContent(url: string): Promise<{
+export async function fetchArticleContent(
+  url: string,
+  authToken?: string | null
+): Promise<{
   success: boolean;
   text?: string;
   truncated?: boolean;
@@ -291,9 +303,15 @@ export async function fetchArticleContent(url: string): Promise<{
   const apiBase = getAIApiBase();
 
   try {
+    // Build headers with auth token if available
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers['Authorization'] = authToken;
+    }
+
     const response = await fetch(`${apiBase}/fetch-article`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ url })
     });
 

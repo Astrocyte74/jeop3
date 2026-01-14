@@ -6,6 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import type {
   AIPromptType,
   AIContext,
@@ -135,6 +136,7 @@ export function useAIGeneration() {
   const [error, setError] = useState<Error | null>(null);
   const { show, loading } = useAIToast();
   const { isAvailable } = useAIServer();
+  const { getToken } = useAuth();
 
   const generate = useCallback(async (
     promptType: AIPromptType,
@@ -152,6 +154,9 @@ export function useAIGeneration() {
 
     setIsLoading(true);
     setError(null);
+
+    // Get auth token for protected endpoints
+    const authToken = await getToken().catch(() => null);
 
     // Get the selected model from localStorage first (for estimate)
     const modelUsed = typeof window !== 'undefined'
@@ -191,7 +196,7 @@ export function useAIGeneration() {
     const startTime = Date.now();
 
     try {
-      const rawResult = await generateAI<string>(promptType, context, difficulty);
+      const rawResult = await generateAI<string>(promptType, context, difficulty, undefined, authToken);
 
       console.log('[useAIGeneration] Raw AI response:', { promptType, rawLength: rawResult?.length, rawPreview: rawResult?.substring(0, 500) });
 
@@ -241,7 +246,7 @@ export function useAIGeneration() {
       options?.onError?.(error);
       return null;
     }
-  }, [isAvailable, show, loading]);
+  }, [isAvailable, show, loading, getToken]);
 
   return {
     generate,

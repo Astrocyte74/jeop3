@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth, useUser, SignInButton, SignedIn, SignedOut } from '@clerk/clerk-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -32,7 +33,7 @@ import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -63,6 +64,10 @@ interface GeneratedGameData {
 }
 
 export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
+  // Clerk auth
+  const { signOut } = useAuth();
+  const { user } = useUser();
+
   // Simple slugify function for safe filenames
   const slugify = (str: string) => {
     return str
@@ -1534,7 +1539,41 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
       <div className="relative max-w-7xl mx-auto">
         {/* Header */}
-        <header className="text-center mb-8">
+        <header className="text-center mb-8 relative">
+          {/* Auth button - top right */}
+          <div className="absolute top-0 right-0">
+            <SignedIn>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <span className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center text-xs font-medium">
+                      {user?.firstName?.charAt(0) || 'U'}
+                    </span>
+                    <span className="hidden sm:inline">{user?.firstName || 'User'}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <div className="px-3 py-2 text-sm border-b border-slate-700">
+                    <div className="font-medium">{user?.fullName || 'User'}</div>
+                    <div className="text-xs text-slate-400">{user?.emailAddresses[0]?.emailAddress}</div>
+                  </div>
+                  <DropdownMenuItem onClick={() => signOut()} className="text-red-400 focus:text-red-300">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    <span>Sign Out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="outline" size="sm" className="gap-2 border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10">
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </Button>
+              </SignInButton>
+            </SignedOut>
+          </div>
+
           <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200 mb-2">
             JEOPARDY
           </h1>
