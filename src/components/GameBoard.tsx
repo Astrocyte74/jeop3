@@ -11,7 +11,7 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, MoreVertical, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
+import { Home, Edit, Grid2x2, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -66,7 +66,12 @@ export function GameBoard({
           }
         }
       })
-      .catch(err => console.error('Failed to load AI models:', err));
+      .catch(err => {
+        // Silent fail - AI features will be disabled
+        if (import.meta.env.DEV) {
+          console.warn('AI server not available - AI features disabled');
+        }
+      });
   }, []);
 
   const handleThemeChange = (themeKey: ThemeKey) => {
@@ -118,11 +123,16 @@ export function GameBoard({
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 relative">
       {/* Menu dropdown - top right, absolute positioned */}
-      <div className="absolute top-4 right-4 z-10">
+      <div className="absolute top-4 right-4 z-10 flex gap-2">
+        {/* Home button */}
+        <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit}>
+          <Home className="w-5 h-5" />
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50">
-              <MoreVertical className="w-5 h-5" />
+              <Grid2x2 className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

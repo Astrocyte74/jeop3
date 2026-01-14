@@ -138,7 +138,12 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
           }
         }
       })
-      .catch(err => console.error('Failed to load AI models:', err));
+      .catch(err => {
+        // Silent fail - AI features will be disabled
+        if (import.meta.env.DEV) {
+          console.warn('AI server not available - AI features disabled');
+        }
+      });
   }, []);
 
   const loadGames = async () => {
