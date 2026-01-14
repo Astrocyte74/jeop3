@@ -162,15 +162,22 @@ app.post('/api/ai/generate', async (req, res) => {
 
     // Call appropriate provider
     let result;
+    const startTime = Date.now();
     if (selectedModel.provider === 'ollama') {
       result = await callOllama(selectedModel.model, prompt, promptType);
     } else {
       result = await callOpenRouter(selectedModel.model, prompt, promptType);
     }
+    const duration = Date.now() - startTime;
+
+    // Log successful generation
+    console.log(`[${new Date().toISOString()}] AI Success: ${selectedModel.provider}:${selectedModel.model} | Type: ${promptType} | Time: ${duration}ms | Length: ${result.length} chars`);
 
     res.json({ result, model: `${selectedModel.provider}:${selectedModel.model}` });
   } catch (error) {
-    console.error('AI generation error:', error);
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] AI generation error:`, error.message);
+    console.error(`[${timestamp}] Model: ${model || 'default'}, Type: ${promptType}, Difficulty: ${difficulty}`);
     res.status(500).json({
       error: 'AI generation failed',
       message: error.message,
