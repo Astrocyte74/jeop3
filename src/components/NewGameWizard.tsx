@@ -582,7 +582,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
             ))}
           </div>
             )}
-          </>
+          </div>
         )}
 
         <AlertDialogFooter>
