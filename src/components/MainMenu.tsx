@@ -1139,7 +1139,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
       // Get existing category titles to avoid duplicates
       const existingCategories = generatedGameData.categories
-        .filter((c, i) => i !== catIndex)
+        .filter((_, i) => i !== catIndex)
         .map(c => ({ title: c.title, subtitle: '' }));
 
       const result = await aiGenerate(
