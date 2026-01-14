@@ -199,7 +199,7 @@ export function useAIGeneration() {
       const validator = validators[promptType];
       const result = safeJsonParse(rawResult, validator);
 
-      console.log('[useAIGeneration] Parsed result:', { result, hasCategories: result && 'categories' in result });
+      console.log('[useAIGeneration] Parsed result:', { result, hasCategories: result && typeof result === 'object' && 'categories' in result });
 
       if (!result) {
         throw new Error('Failed to parse AI response');
