@@ -24,6 +24,12 @@ const DEFAULT_PORT = 7476;
 export function getAIApiBase(config?: AIServerConfig): string {
   if (config?.baseUrl) return config.baseUrl;
 
+  // Check for VITE_AI_API_URL environment variable (for external backend)
+  const externalApiUrl = import.meta.env.VITE_AI_API_URL;
+  if (externalApiUrl) {
+    return externalApiUrl;
+  }
+
   const isLocal = typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -204,7 +210,10 @@ export async function generateAI<T = unknown>(
  */
 export function initAIService(config?: AIServerConfig): void {
   checkAIServer(config).then(available => {
-    console.log(`AI Server ${available ? 'is available' : 'not available'}`);
+    if (available) {
+      console.log('AI Server is available');
+    }
+    // Silent if not available - components will handle it
   });
 }
 
