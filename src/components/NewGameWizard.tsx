@@ -91,7 +91,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
           }
         }
       })
-      .catch(err => {
+      .catch(() => {
         // Silent fail - AI features will be disabled
         if (import.meta.env.DEV) {
           console.warn('AI server not available - AI features disabled');

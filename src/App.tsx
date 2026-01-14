@@ -3,7 +3,6 @@ import { MainMenu } from '@/components/MainMenu';
 import { GameBoard } from '@/components/GameBoard';
 import { ClueDialog } from '@/components/ClueDialog';
 import { EditorBoard } from '@/components/EditorBoard';
-import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { AIToastContainer } from '@/components/ai';
 import { useAIToast } from '@/lib/ai';
 import type { Game, GameState } from '@/lib/storage';
@@ -212,10 +211,13 @@ export function App() {
       used: {},
       teams: gameState.teams.map(team => ({ ...team, score: 0 })),
       activeTeamId: gameState.teams[0]?.id || '',
+      currentRound: 1,
     };
 
     setGameState(resetState);
-    saveGameState(gameId, resetState);
+    if (gameId) {
+      saveGameState(gameId, resetState);
+    }
   }, [currentGame, gameState, gameId]);
 
   const handleSaveGame = useCallback((updatedGame: Game) => {

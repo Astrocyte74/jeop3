@@ -32,7 +32,7 @@ import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Upload, Plus } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Upload, Plus } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -59,7 +59,15 @@ interface GeneratedGameData {
   };
 }
 
-export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave }: MainMenuProps) {
+export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
+  // Simple slugify function for safe filenames
+  const slugify = (str: string) => {
+    return str
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+  };
+
   const [games, setGames] = useState<GameMeta[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
@@ -73,7 +81,6 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
   const [showCreateGameMenu, setShowCreateGameMenu] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Preview state
@@ -138,7 +145,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
           }
         }
       })
-      .catch(err => {
+      .catch(() => {
         // Silent fail - AI features will be disabled
         if (import.meta.env.DEV) {
           console.warn('AI server not available - AI features disabled');
@@ -215,13 +222,11 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   const handleThemeChange = (themeKey: ThemeKey) => {
     setCurrentTheme(themeKey);
     applyTheme(themeKey);
-    setShowThemePicker(false);
   };
 
   const handleIconSizeChange = async (size: IconSize) => {
     setIconSizeState(size);
     setIconSize(size);
-    setShowIconSizePicker(false);
     // Re-initialize icon matcher with new size
     const { iconMatcher } = await import('@/lib/iconMatcher');
     // Force a reload of the icon matcher data
@@ -528,10 +533,6 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   };
 
   // ==================== AI NEW GAME GENERATION ====================
-
-  const handleAIGenerateNewGame = () => {
-    setShowWizard(true);
-  };
 
   const handleWizardComplete = async (theme: string, difficulty: AIDifficulty) => {
     // Reset regenerated items for new game

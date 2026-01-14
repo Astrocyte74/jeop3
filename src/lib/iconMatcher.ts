@@ -3,7 +3,7 @@
  * Matches relevant icons to clues based on semantic matching
  */
 
-import { getIconSize, type IconSize } from './themes';
+import { getIconSize } from './themes';
 
 interface Icon {
   slug: string;

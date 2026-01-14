@@ -25,7 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, Sparkles, RefreshCw, Edit3, Eye, EyeOff } from 'lucide-react';
+import { Wand2, Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import type { AIPromptType } from '@/lib/ai/types';
 
 // ============================================
@@ -281,7 +281,6 @@ function CategoriesPreview({
   onEditCategoryTitle,
   onEditClue,
   onEditAnswer,
-  onEditTitle,
   onEditTeamName
 }: {
   categories: Array<{
@@ -325,7 +324,6 @@ function CategoriesPreview({
   const [showAnswers, setShowAnswers] = useState(false);
   const [editingCategory, setEditingCategory] = useState<{ catIndex: number; field: 'title' | 'contentTopic' } | null>(null);
   const [editingClue, setEditingClue] = useState<{ catIndex: number; clueIndex: number; field: 'clue' | 'response' } | null>(null);
-  const [editingTitle, setEditingTitle] = useState<{ titleIndex: number; field: 'title' | 'subtitle' } | null>(null);
   const [editingTeamName, setEditingTeamName] = useState<number | null>(null);
   return (
     <div className="space-y-4">
@@ -702,7 +700,6 @@ export function AIPreviewDialog({
   onEditCategoryTitle,
   onEditClue,
   onEditAnswer,
-  onEditTitle,
   onEditTeamName,
   isLoading = false,
   regeneratedItems: externalRegeneratedItems,

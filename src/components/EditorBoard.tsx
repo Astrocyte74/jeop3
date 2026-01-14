@@ -104,7 +104,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
       setTeams(
         Array.from({ length: teamCount }, (_, i) => ({
           id: crypto.randomUUID(),
-          name: game.suggestedTeamNames[i] || `Team ${i + 1}`,
+          name: game.suggestedTeamNames?.[i] || `Team ${i + 1}`,
         }))
       );
     }
