@@ -163,10 +163,16 @@ export async function generateAI<T = unknown>(
 
   const apiBase = getAIApiBase(config);
 
+  // Get selected model from localStorage
+  const selectedModel = typeof window !== 'undefined'
+    ? localStorage.getItem('jeop3:aiModel')
+    : null;
+
   const requestBody: AIGenerateRequest = {
     promptType,
     context,
-    difficulty
+    difficulty,
+    model: selectedModel || undefined
   };
 
   const response = await fetch(`${apiBase}/ai/generate`, {

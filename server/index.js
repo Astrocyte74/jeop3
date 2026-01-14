@@ -36,22 +36,54 @@ function checkRateLimit(ip) {
   return true;
 }
 
-// Get available models from OR_MODELS env var
+// Get available models from environment variables
 function getAvailableModels() {
-  const modelsEnv = process.env.OR_MODELS || '';
-  return modelsEnv.split(',').map(m => m.trim()).filter(m => m);
+  const openrouterModels = (process.env.OR_MODELS || '').split(',').map(m => m.trim()).filter(m => m);
+  const ollamaModels = (process.env.OLLAMA_MODELS || '').split(',').map(m => m.trim()).filter(m => m);
+
+  return {
+    openrouter: openrouterModels,
+    ollama: ollamaModels
+  };
 }
 
-// Select model based on options (difficulty, etc.)
-function selectModel(options = {}) {
+// Get all available models (flattened with provider prefix)
+function getAllModels() {
   const models = getAvailableModels();
-  if (models.length === 0) {
-    throw new Error('No models configured in OR_MODELS');
+  const all = [];
+
+  models.openrouter.forEach(m => all.push({ id: `or:${m}`, name: m, provider: 'openrouter' }));
+  models.ollama.forEach(m => all.push({ id: `ollama:${m}`, name: m, provider: 'ollama' }));
+
+  return all;
+}
+
+// Select model based on options (provider, model, etc.)
+function selectModel(options = {}) {
+  const { provider = 'openrouter', model } = options;
+  const models = getAvailableModels();
+
+  // If specific model requested, parse provider:model format
+  if (model) {
+    const [modelProvider, modelName] = model.split(':');
+    if (modelProvider === 'or' || modelProvider === 'openrouter') {
+      return { provider: 'openrouter', model: modelName || models.openrouter[0] };
+    } else if (modelProvider === 'ollama') {
+      return { provider: 'ollama', model: modelName || models.ollama[0] };
+    }
   }
 
-  // Default: first model in list
-  // Could add logic to select based on difficulty here
-  return models[0];
+  // Default to first available model from requested provider
+  if (provider === 'ollama' && models.ollama.length > 0) {
+    return { provider: 'ollama', model: models.ollama[0] };
+  }
+
+  // Fall back to OpenRouter
+  if (models.openrouter.length === 0) {
+    throw new Error('No models configured in OR_MODELS or OLLAMA_MODELS');
+  }
+
+  return { provider: 'openrouter', model: models.openrouter[0] };
 }
 
 // Whitelist of allowed prompt types
@@ -76,7 +108,11 @@ const ALLOWED_PROMPT_TYPES = new Set([
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    models: getAvailableModels(),
+    models: getAllModels(),
+    providers: {
+      openrouter: getAvailableModels().openrouter,
+      ollama: getAvailableModels().ollama
+    },
     rpm_limit: RPM_LIMIT,
     port: PORT,
   });
@@ -104,7 +140,7 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 
   try {
-    const { promptType, context, difficulty } = req.body;
+    const { promptType, context, difficulty, model } = req.body;
 
     // Validate prompt type
     if (!promptType || !ALLOWED_PROMPT_TYPES.has(promptType)) {
@@ -114,14 +150,21 @@ app.post('/api/ai/generate', async (req, res) => {
       });
     }
 
-    // Build prompt (will use ai-prompts.js logic)
+    // Build prompt
     const prompt = buildPrompt(promptType, context, difficulty);
 
-    // Call OpenRouter API
-    const model = selectModel({ difficulty });
-    const result = await callOpenRouter(model, prompt, promptType);
+    // Select provider and model
+    const selectedModel = selectModel({ model });
 
-    res.json({ result, model });
+    // Call appropriate provider
+    let result;
+    if (selectedModel.provider === 'ollama') {
+      result = await callOllama(selectedModel.model, prompt, promptType);
+    } else {
+      result = await callOpenRouter(selectedModel.model, prompt, promptType);
+    }
+
+    res.json({ result, model: `${selectedModel.provider}:${selectedModel.model}` });
   } catch (error) {
     console.error('AI generation error:', error);
     res.status(500).json({
@@ -532,10 +575,57 @@ async function callOpenRouter(model, prompt, promptType) {
   return content;
 }
 
+// Call Ollama API
+async function callOllama(model, prompt, promptType) {
+  const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/api/chat';
+
+  try {
+    const response = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model,
+        stream: false,
+        messages: [
+          { role: 'system', content: prompt.system },
+          { role: 'user', content: prompt.user },
+        ],
+        options: {
+          temperature: 0.7,
+          num_predict: getMaxTokens(promptType),
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Ollama error: ${response.status} ${error}`);
+    }
+
+    const data = await response.json();
+    const content = data.message?.content;
+
+    if (!content) {
+      throw new Error('No content in Ollama response');
+    }
+
+    return content;
+  } catch (error) {
+    if (error.message.includes('ECONNREFUSED')) {
+      throw new Error('Ollama server not available. Make sure Ollama is running with: ollama serve');
+    }
+    throw error;
+  }
+}
+
 // Start server
 app.listen(PORT, () => {
+  const models = getAvailableModels();
   console.log(`\n🪄 Jeop3 AI Server running on http://localhost:${PORT}`);
-  console.log(`📋 Models: ${getAvailableModels().join(', ')}`);
+  console.log(`🤖 OpenRouter: ${models.openrouter.length > 0 ? models.openrouter.join(', ') : 'none'}`);
+  console.log(`🦙 Ollama: ${models.ollama.length > 0 ? models.ollama.join(', ') : 'none'}`);
   console.log(`⚡ Rate limit: ${RPM_LIMIT} requests/minute`);
   console.log(`🌐 CORS: ${corsOrigin === '*' ? 'All origins' : corsOrigin}`);
   console.log(`\nPress Ctrl+C to stop\n`);

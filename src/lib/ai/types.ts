@@ -111,6 +111,7 @@ export interface AIGenerateRequest {
   promptType: AIPromptType;
   context: AIContext;
   difficulty: AIDifficulty;
+  model?: string;  // Optional: specific model to use (e.g., "or:google/gemini-2.5-flash" or "ollama:gemma3:12b")
 }
 
 export interface AIGenerateResponse {

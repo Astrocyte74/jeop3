@@ -44,10 +44,36 @@ export function GameBoard({
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
+  const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
+  const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
+
+  // Load available models on mount
+  useEffect(() => {
+    fetch('http://localhost:7476/api/health')
+      .then(res => res.json())
+      .then(data => {
+        if (data.models) {
+          setAvailableModels(data.models);
+          // Set default to first model if none selected
+          const stored = localStorage.getItem('jeop3:aiModel');
+          if (stored && data.models.find((m: any) => m.id === stored)) {
+            setAIModel(stored);
+          } else if (data.models.length > 0) {
+            setAIModel(data.models[0].id);
+          }
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   const handleThemeChange = (themeKey: ThemeKey) => {
     setCurrentTheme(themeKey);
     applyTheme(themeKey);
+  };
+
+  const handleAIModelChange = (modelId: string) => {
+    setAIModel(modelId);
+    localStorage.setItem('jeop3:aiModel', modelId);
   };
 
   const handleIconSizeChange = async (size: IconSize) => {
@@ -164,6 +190,41 @@ export function GameBoard({
                         )}
                       </DropdownMenuItem>
                     ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                {/* AI Model Submenu */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    <span>AI Model</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                    {availableModels.length === 0 ? (
+                      <div className="px-3 py-2 text-sm text-slate-500">
+                        No models available
+                      </div>
+                    ) : (
+                      availableModels.map((model) => (
+                        <DropdownMenuItem
+                          key={model.id}
+                          onClick={() => handleAIModelChange(model.id)}
+                          className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                        >
+                          <span className="flex items-center gap-2 flex-1 min-w-0">
+                            {model.provider === 'ollama' ? (
+                              <span className="text-green-400">🦙</span>
+                            ) : (
+                              <span className="text-blue-400">🤖</span>
+                            )}
+                            <span className="truncate">{model.name}</span>
+                          </span>
+                          {aiModel === model.id && (
+                            <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                          )}
+                        </DropdownMenuItem>
+                      ))
+                    )}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
               </DropdownMenuSubContent>
