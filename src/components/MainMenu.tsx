@@ -308,8 +308,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setImportError(null);
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -346,7 +344,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         setShowCreateGameMenu(false);
 
       } catch (error) {
-        setImportError(error instanceof Error ? error.message : 'Failed to import game');
+        console.error('Failed to import game:', error);
       }
     };
 
@@ -1141,8 +1139,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
       // Get existing category titles to avoid duplicates
       const existingCategories = generatedGameData.categories
-        .map((c, i) => i === catIndex ? null : c.title)
-        .filter((t): t is string => t !== null);
+        .filter((c, i) => i !== catIndex)
+        .map(c => ({ title: c.title, subtitle: '' }));
 
       const result = await aiGenerate(
         'categories-generate',

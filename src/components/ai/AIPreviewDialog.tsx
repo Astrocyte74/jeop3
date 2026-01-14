@@ -847,7 +847,6 @@ export function AIPreviewDialog({
             onEditCategoryTitle={onEditCategoryTitle}
             onEditClue={onEditClue}
             onEditAnswer={onEditAnswer}
-            onEditTitle={onEditTitle}
             onEditTeamName={onEditTeamName}
           />
         ) : null;
