@@ -164,14 +164,18 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   }, [open]);
 
   const handleSourceNext = () => {
+    console.log('[NewGameWizard] handleSourceNext called', { sourceMode, referenceMaterialLength: referenceMaterial.length, referenceUrl });
     if (sourceMode === 'scratch') {
+      console.log('[NewGameWizard] Going to theme step (scratch mode)');
       setShowBack(true);
       setStep('theme');
     } else if (sourceMode === 'paste') {
+      console.log('[NewGameWizard] Paste mode - checking length:', referenceMaterial.trim().length, 'vs MIN_CHARS:', MIN_CHARS);
       if (referenceMaterial.trim().length < MIN_CHARS) {
         setFetchError(`Please enter at least ${MIN_CHARS} characters`);
         return;
       }
+      console.log('[NewGameWizard] Going to theme step (paste mode)');
       setShowBack(true);
       setStep('theme');
     } else if (sourceMode === 'url') {
@@ -253,6 +257,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   };
 
   const handleClose = () => {
+    console.log('[NewGameWizard] handleClose called - wizard closing');
     onClose();
     // Reset state
     setSourceMode('scratch');
