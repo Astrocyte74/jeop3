@@ -1,9 +1,16 @@
 /**
  * Icon Matcher for Jeopardy Clues
  * Matches relevant icons to clues based on semantic matching
+ *
+ * Environment-aware configuration:
+ * - Local dev: Uses /icons (relative path - expects icons in /public/icons/)
+ * - Production: Uses VITE_ICON_BASE_URL environment variable (e.g., Cloudflare R2)
  */
 
 import { getIconSize } from './themes';
+
+// Environment-aware icon base URL
+const ICON_BASE_URL = import.meta.env.VITE_ICON_BASE_URL || '/icons';
 
 interface Icon {
   slug: string;
@@ -75,12 +82,12 @@ class IconMatcher {
 
     try {
       const size = getIconSize();
-      const response = await fetch(`/icons/size-${size}/meta.json`);
+      const response = await fetch(`${ICON_BASE_URL}/size-${size}/meta.json`);
       if (!response.ok) throw new Error('Could not load icon index');
       const data = await response.json();
       this.icons = data.items || [];
       this.loaded = true;
-      console.log(`Loaded ${this.icons.length} icons (size: ${size}px)`);
+      console.log(`Loaded ${this.icons.length} icons from ${ICON_BASE_URL} (size: ${size}px)`);
       return true;
     } catch (error) {
       console.warn('Failed to load icons:', error);
@@ -245,7 +252,7 @@ class IconMatcher {
   buildIconUrl(match: IconMatch | null): string | null {
     if (!match) return null;
     const size = getIconSize();
-    return `/icons/size-${size}/images/${match.icon.file_name}`;
+    return `${ICON_BASE_URL}/size-${size}/images/${match.icon.file_name}`;
   }
 
   search(query: string, maxResults = 12): Array<Icon & { score: number }> {
