@@ -112,7 +112,7 @@ const creationModeOptions = [
     value: 'ai' as const,
     icon: Wand2,
     title: 'AI Generate',
-    desc: 'Create a game with AI assistance',
+    desc: 'Create with AI - choose from scratch, paste content, or from a URL',
     color: 'text-purple-400'
   },
   {
