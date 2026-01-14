@@ -537,6 +537,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 <p className="text-sm text-slate-400">How would you like to create your game?</p>
                 {creationModeOptions.map((option) => {
                   const Icon = option.icon;
+                  const isSelected = creationMode === option.value;
                   return (
                     <button
                       key={option.value}
@@ -545,7 +546,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       }}
                       className={`
                         w-full text-left p-4 rounded-lg border transition-all
-                        ${creationMode === option.value
+                        ${isSelected
                           ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
                           : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                         }
@@ -553,9 +554,29 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     >
                       <div className="flex items-start gap-3">
                         <Icon className={`w-5 h-5 mt-0.5 ${option.color}`} />
-                        <div>
+                        <div className="flex-1">
                           <div className="font-semibold text-slate-200">{option.title}</div>
                           <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
+                          {isSelected && option.value === 'ai' && (
+                            <div className="mt-3 pt-3 border-t border-slate-600">
+                              <p className="text-xs text-slate-400 mb-2">Choose your AI generation method:</p>
+                              <ul className="text-xs text-slate-300 space-y-1">
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span><span className="text-green-400 font-medium">From any theme</span> - just enter a topic</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-blue-400">✓</span>
+                                  <span><span className="text-blue-400 font-medium">From your content</span> - paste notes, transcripts, or articles</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-blue-400">✓</span>
+                                  <span><span className="text-blue-400 font-medium">From a webpage</span> - paste a URL to fetch content</span>
+                                </li>
+                              </ul>
+                              <p className="text-xs text-purple-300 mt-2">✨ Complete game in seconds with fact-checked clues!</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </button>
