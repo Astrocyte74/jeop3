@@ -34,7 +34,7 @@ import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 
 export interface WizardStep {
-  type: 'creation-mode' | 'source' | 'theme' | 'difficulty';
+  type: 'creation-mode' | 'manual-confirm' | 'source' | 'theme' | 'difficulty';
   creationMode?: 'ai' | 'manual' | 'import-json';
   sourceMode?: 'scratch' | 'paste' | 'url';
   referenceMaterial?: string;
@@ -135,7 +135,7 @@ const MIN_CHARS = 40;
 const MAX_CHARS = 100000;
 
 export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false }: NewGameWizardProps) {
-  const [step, setStep] = useState<'creation-mode' | 'source' | 'theme' | 'difficulty'>('creation-mode');
+  const [step, setStep] = useState<'creation-mode' | 'manual-confirm' | 'source' | 'theme' | 'difficulty'>('creation-mode');
   const [creationMode, setCreationMode] = useState<'ai' | 'manual' | 'import-json'>('ai');
   const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url'>('scratch');
   const [referenceMaterial, setReferenceMaterial] = useState('');
@@ -243,7 +243,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   };
 
   const handleBack = () => {
-    if (step === 'source') {
+    if (step === 'manual-confirm') {
+      setStep('creation-mode');
+      setShowBack(false);
+    } else if (step === 'source') {
       setStep('creation-mode');
       setShowBack(false);
     } else if (step === 'theme') {
@@ -318,14 +321,18 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       setShowBack(true);
       setStep('source');
     } else if (creationMode === 'manual') {
-      // Close wizard and open editor
-      handleClose();
-      onOpenEditor?.();
+      setShowBack(true);
+      setStep('manual-confirm');
     } else if (creationMode === 'import-json') {
       // Close wizard and trigger JSON import
       handleClose();
       onImportJSON?.();
     }
+  };
+
+  const handleManualConfirmProceed = () => {
+    handleClose();
+    onOpenEditor?.();
   };
 
   const canProceedFromSource = () => {
@@ -348,6 +355,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 <AlertDialogTitle>Create New Game</AlertDialogTitle>
                 <AlertDialogDescription>
                   {step === 'creation-mode' && 'Choose how you want to create your game'}
+                  {step === 'manual-confirm' && 'Manual creation requires entering all content yourself'}
                   {step === 'source' && 'Choose your content source'}
                   {step === 'theme' && 'Choose a theme for your game'}
                   {step === 'difficulty' && 'Select difficulty level'}
@@ -483,7 +491,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
         </AlertDialogHeader>
 
         {/* Progress Indicator - shows selected choices */}
-        {step !== 'creation-mode' && (
+        {step !== 'creation-mode' && step !== 'manual-confirm' && (
           <div className="px-6 pb-4 border-b border-slate-700/50">
             <div className="flex flex-wrap gap-2 text-xs">
               {creationMode === 'ai' && (
@@ -553,6 +561,57 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     </button>
                   );
                 })}
+              </div>
+            )}
+            {step === 'manual-confirm' && (
+              <div className="py-4 space-y-6">
+                {/* What's involved */}
+                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                  <h3 className="font-semibold text-yellow-300 mb-2">⚠️ Manual creation requires significant effort</h3>
+                  <p className="text-sm text-slate-300 mb-2">You'll need to manually enter:</p>
+                  <ul className="text-sm text-slate-300 space-y-1 ml-4">
+                    <li>• 6 category titles</li>
+                    <li>• 30 clues (5 per category)</li>
+                    <li>• 30 correct responses/answers</li>
+                    <li>• Dollar values for each clue</li>
+                  </ul>
+                  <p className="text-xs text-slate-400 mt-3">This can take 30-60 minutes or more to complete.</p>
+                </div>
+
+                {/* AI alternative */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                  <h3 className="font-semibold text-purple-300 mb-2">✨ Or let AI do the work for you</h3>
+                  <p className="text-sm text-slate-300 mb-2">AI can generate a complete game in seconds:</p>
+                  <ul className="text-sm text-slate-300 space-y-1 ml-4">
+                    <li>• <span className="text-green-400">From any theme</span> - just enter a topic</li>
+                    <li>• <span className="text-blue-400">From your content</span> - paste notes, transcripts, or articles</li>
+                    <li>• <span className="text-blue-400">From a webpage</span> - paste a URL to fetch content</li>
+                  </ul>
+                  <p className="text-xs text-slate-400 mt-3">All clues fact-checked and ready to play!</p>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-col gap-3">
+                  <Button
+                    onClick={handleManualConfirmProceed}
+                    className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-semibold"
+                  >
+                    <Edit className="w-4 h-4 mr-2" />
+                    I understand - proceed to manual editor
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setCreationMode('ai');
+                      setStep('source');
+                      setShowBack(true);
+                    }}
+                    variant="outline"
+                    className="w-full border-purple-500/50 text-purple-300 hover:bg-purple-500/10"
+                  >
+                    <Wand2 className="w-4 h-4 mr-2" />
+                    Try AI generation instead
+                  </Button>
+                </div>
               </div>
             )}
             {step === 'source' && (
@@ -731,7 +790,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 Cancel
               </AlertDialogCancel>
             )}
-            {step === 'creation-mode' ? (
+            {step === 'manual-confirm' ? (
+              <div className="flex-1"></div>
+            ) : step === 'creation-mode' ? (
               <Button
                 onClick={handleCreationModeNext}
                 className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
