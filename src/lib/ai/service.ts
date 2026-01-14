@@ -113,6 +113,52 @@ export class AISchemaError extends Error {
 /**
  * Safely parse JSON with schema validation
  */
+/**
+ * Attempt to fix truncated JSON by closing incomplete structures
+ */
+function attemptFixTruncatedJson(jsonStr: string): string {
+  // Count open/close braces and brackets
+  const openBraces = (jsonStr.match(/{/g) || []).length;
+  const closeBraces = (jsonStr.match(/}/g) || []).length;
+  const openBrackets = (jsonStr.match(/\[/g) || []).length;
+  const closeBrackets = (jsonStr.match(/\]/g) || []).length;
+
+  let fixed = jsonStr;
+
+  // Close any open strings (unterminated strings)
+  if (fixed.endsWith('"')) {
+    // String is properly closed, remove trailing quote
+  } else if (fixed.includes('"') && !fixed.endsWith('"')) {
+    // Likely an unterminated string - close it
+    const lastQuote = fixed.lastIndexOf('"');
+    if (lastQuote > 0 && fixed.charAt(lastQuote - 1) !== '\\') {
+      fixed = fixed.substring(0, lastQuote + 1);
+    }
+  }
+
+  // Close any open brackets
+  const neededCloseBrackets = openBrackets - closeBrackets;
+  for (let i = 0; i < neededCloseBrackets; i++) {
+    fixed += ']';
+  }
+
+  // Close any open braces
+  const neededCloseBraces = openBraces - closeBraces;
+  for (let i = 0; i < neededCloseBraces; i++) {
+    fixed += '}';
+  }
+
+  if (fixed !== jsonStr) {
+    console.log('[safeJsonParse] Attempted to fix truncated JSON', {
+      originalLength: jsonStr.length,
+      fixedLength: fixed.length,
+      addedChars: fixed.length - jsonStr.length
+    });
+  }
+
+  return fixed;
+}
+
 export function safeJsonParse<T>(
   raw: string,
   validator?: AIValidator<T>
@@ -132,16 +178,27 @@ export function safeJsonParse<T>(
   try {
     parsed = JSON.parse(cleaned);
   } catch (parseError) {
-    console.error('[safeJsonParse] JSON.parse failed', {
-      error: parseError,
-      cleaned,
+    console.error('[safeJsonParse] JSON.parse failed, attempting to fix truncated JSON', {
+      error: (parseError as Error).message,
       cleanedLength: cleaned.length
     });
-    throw new AISchemaError(
-      'JSON_PARSE_ERROR',
-      'Failed to parse AI response as JSON',
-      raw
-    );
+
+    // Try to fix truncated JSON
+    const fixed = attemptFixTruncatedJson(cleaned);
+    try {
+      parsed = JSON.parse(fixed);
+      console.log('[safeJsonParse] Successfully parsed after fixing truncated JSON');
+    } catch (secondError) {
+      console.error('[safeJsonParse] Still failed after fix attempt', {
+        error: (secondError as Error).message,
+        fixedLength: fixed.length
+      });
+      throw new AISchemaError(
+        'JSON_PARSE_ERROR',
+        'Failed to parse AI response as JSON',
+        raw
+      );
+    }
   }
 
   // Validate schema if validator provided
