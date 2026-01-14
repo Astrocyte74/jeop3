@@ -117,6 +117,8 @@ export function safeJsonParse<T>(
   raw: string,
   validator?: AIValidator<T>
 ): T | null {
+  console.log('[safeJsonParse] Input raw:', { rawLength: raw.length, rawStart: raw.substring(0, 200), rawEnd: raw.substring(raw.length - 200) });
+
   // Strip markdown code blocks if present
   let cleaned = raw.trim();
   cleaned = cleaned.replace(/^```json\s*/i, '');
@@ -124,10 +126,17 @@ export function safeJsonParse<T>(
   cleaned = cleaned.replace(/\s*```$/g, '');
   cleaned = cleaned.trim();
 
+  console.log('[safeJsonParse] Cleaned for parsing:', { cleanedLength: cleaned.length, cleanedPreview: cleaned.substring(0, 200), cleanedEnd: cleaned.substring(cleaned.length - 200) });
+
   let parsed: unknown;
   try {
     parsed = JSON.parse(cleaned);
   } catch (parseError) {
+    console.error('[safeJsonParse] JSON.parse failed', {
+      error: parseError,
+      cleaned,
+      cleanedLength: cleaned.length
+    });
     throw new AISchemaError(
       'JSON_PARSE_ERROR',
       'Failed to parse AI response as JSON',
