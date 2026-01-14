@@ -242,11 +242,17 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setStep('difficulty');
   };
 
-  const handleDifficultyBack = () => {
-    if (sourceMode === 'scratch') {
-      setStep('theme');
-    } else {
+  const handleBack = () => {
+    if (step === 'theme') {
       setStep('source');
+      setShowBack(false);
+    } else if (step === 'difficulty') {
+      if (sourceMode === 'scratch') {
+        setStep('theme');
+      } else {
+        setStep('source');
+        setShowBack(false);
+      }
     }
   };
 
@@ -710,7 +716,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             {showBack ? (
               <Button
                 variant="outline"
-                onClick={handleDifficultyBack}
+                onClick={handleBack}
                 className="flex-1"
                 disabled={isLoading}
               >
