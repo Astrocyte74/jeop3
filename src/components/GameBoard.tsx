@@ -16,6 +16,7 @@ import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type Them
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 
 interface GameBoardProps {
   game: Game;
@@ -40,6 +41,9 @@ export function GameBoard({
   onResetBoard,
   onUpdateTeamName,
 }: GameBoardProps) {
+  // Clerk auth
+  const { isSignedIn } = useAuth();
+
   const categories = game.categories || [];
   const rowCount = game.rows || categories[0]?.clues?.length || 5;
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
@@ -141,7 +145,7 @@ export function GameBoard({
               <Edit className="w-4 h-4 mr-2 text-blue-400" />
               <span>Board Editor</span>
             </DropdownMenuItem>
-            {onToggleAIPreviewEditor && (
+            {onToggleAIPreviewEditor && isSignedIn && (
               <DropdownMenuItem onClick={onToggleAIPreviewEditor}>
                 <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
                 <span>AI Preview Editor</span>
@@ -206,7 +210,8 @@ export function GameBoard({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
 
-                {/* AI Model Submenu */}
+                {/* AI Model Submenu - only for signed in users */}
+                {isSignedIn && (
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <Sparkles className="w-4 h-4 mr-2" />
@@ -317,6 +322,7 @@ export function GameBoard({
                     )}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+                )}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 

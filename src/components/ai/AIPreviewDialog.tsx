@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from '@clerk/clerk-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -715,6 +716,24 @@ export function AIPreviewDialog({
   enhancingTeamName,
   metadata
 }: AIPreviewDialogProps) {
+  // Clerk auth - hide AI action buttons if not signed in
+  const { isSignedIn } = useAuth();
+
+  // Conditionally include AI action props based on auth
+  const aiActionProps = isSignedIn ? {
+    onRewriteCategoryTitle,
+    onRewriteClue,
+    onRegenerateCategory,
+    onCreateNewCategory,
+    onRegenerateClue,
+    onRegenerateTitle,
+    onRegenerateAllTitles,
+    onEnhanceTitle,
+    onRegenerateTeamName,
+    onEnhanceTeamName,
+    onRegenerateAllTeamNames,
+  } : {};
+
   const [selectedTitle, setSelectedTitle] = useState<number | null>(null);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [internalRegeneratedItems, setInternalRegeneratedItems] = useState<Set<string>>(new Set());
@@ -823,25 +842,14 @@ export function AIPreviewDialog({
             titles={data.titles}
             selectedTitle={selectedTitle}
             onSelectTitle={setSelectedTitle}
-            onRewriteCategoryTitle={onRewriteCategoryTitle}
-            onRewriteClue={onRewriteClue}
-            onRegenerateCategory={onRegenerateCategory}
-            onCreateNewCategory={onCreateNewCategory}
-            onRegenerateClue={onRegenerateClue}
             rewritingCategory={rewritingCategory}
             rewritingClue={rewritingClue}
             regeneratingCategory={regeneratingCategory}
             creatingNewCategory={creatingNewCategory}
             regeneratingClue={regeneratingClue}
-            onRegenerateTitle={onRegenerateTitle}
-            onRegenerateAllTitles={onRegenerateAllTitles}
-            onEnhanceTitle={onEnhanceTitle}
             rewritingTitle={rewritingTitle}
             enhancingTitle={enhancingTitle}
             suggestedTeamNames={data.suggestedTeamNames}
-            onRegenerateTeamName={onRegenerateTeamName}
-            onEnhanceTeamName={onEnhanceTeamName}
-            onRegenerateAllTeamNames={onRegenerateAllTeamNames}
             rewritingTeamName={rewritingTeamName}
             enhancingTeamName={enhancingTeamName}
             // Manual editing callbacks
@@ -849,6 +857,7 @@ export function AIPreviewDialog({
             onEditClue={onEditClue}
             onEditAnswer={onEditAnswer}
             onEditTeamName={onEditTeamName}
+            {...aiActionProps}
           />
         ) : null;
 
@@ -860,25 +869,14 @@ export function AIPreviewDialog({
             titles={data.titles}
             selectedTitle={selectedTitle}
             onSelectTitle={setSelectedTitle}
-            onRewriteCategoryTitle={onRewriteCategoryTitle}
-            onRewriteClue={onRewriteClue}
-            onRegenerateCategory={onRegenerateCategory}
-            onCreateNewCategory={onCreateNewCategory}
-            onRegenerateClue={onRegenerateClue}
             rewritingCategory={rewritingCategory}
             rewritingClue={rewritingClue}
             regeneratingCategory={regeneratingCategory}
             creatingNewCategory={creatingNewCategory}
             regeneratingClue={regeneratingClue}
-            onRegenerateTitle={onRegenerateTitle}
-            onRegenerateAllTitles={onRegenerateAllTitles}
-            onEnhanceTitle={onEnhanceTitle}
             rewritingTitle={rewritingTitle}
             enhancingTitle={enhancingTitle}
             suggestedTeamNames={data.suggestedTeamNames}
-            onRegenerateTeamName={onRegenerateTeamName}
-            onEnhanceTeamName={onEnhanceTeamName}
-            onRegenerateAllTeamNames={onRegenerateAllTeamNames}
             rewritingTeamName={rewritingTeamName}
             enhancingTeamName={enhancingTeamName}
             // Manual editing callbacks
@@ -886,6 +884,7 @@ export function AIPreviewDialog({
             onEditClue={onEditClue}
             onEditAnswer={onEditAnswer}
             onEditTeamName={onEditTeamName}
+            {...aiActionProps}
           />
         ) : null;
 
@@ -976,7 +975,7 @@ export function AIPreviewDialog({
         <AlertDialogFooter>
           <div className="flex gap-2 w-full">
             <AlertDialogCancel onClick={onCancel} disabled={isLoading}>Cancel</AlertDialogCancel>
-            {onRegenerateAll && type !== 'game-title' && (
+            {onRegenerateAll && type !== 'game-title' && isSignedIn && (
               <Button
                 variant="outline"
                 onClick={() => {
