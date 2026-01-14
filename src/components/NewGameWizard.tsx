@@ -640,6 +640,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 <p className="text-sm text-slate-400">How would you like to create your game?</p>
                 {sourceModeOptions.map((option) => {
                   const Icon = option.icon;
+                  const isSelected = sourceMode === option.value;
                   return (
                     <button
                       key={option.value}
@@ -649,7 +650,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       }}
                       className={`
                         w-full text-left p-4 rounded-lg border transition-all
-                        ${sourceMode === option.value
+                        ${isSelected
                           ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
                           : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                         }
@@ -657,9 +658,67 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     >
                       <div className="flex items-start gap-3">
                         <Icon className={`w-5 h-5 mt-0.5 ${option.color}`} />
-                        <div>
+                        <div className="flex-1">
                           <div className="font-semibold text-slate-200">{option.title}</div>
                           <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
+                          {isSelected && option.value === 'scratch' && (
+                            <div className="mt-3 pt-3 border-t border-slate-600">
+                              <p className="text-xs text-slate-400 mb-2">Just enter any topic and AI will create a complete game!</p>
+                              <ul className="text-xs text-slate-300 space-y-1">
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span>Works with any theme - science, history, movies, pop culture, etc.</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span>AI generates themed categories and fact-checked clues</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span>Fastest way to create a complete game</span>
+                                </li>
+                              </ul>
+                            </div>
+                          )}
+                          {isSelected && option.value === 'paste' && (
+                            <div className="mt-3 pt-3 border-t border-slate-600">
+                              <p className="text-xs text-slate-400 mb-2">Perfect for custom content from your documents:</p>
+                              <ul className="text-xs text-slate-300 space-y-1">
+                                <li className="flex items-center gap-2">
+                                  <span className="text-blue-400">✓</span>
+                                  <span>Paste study notes, class transcripts, training materials</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-blue-400">✓</span>
+                                  <span>Articles, Wikipedia entries, or any text content</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-blue-400">✓</span>
+                                  <span>AI analyzes content and creates themed questions</span>
+                                </li>
+                              </ul>
+                              <p className="text-xs text-blue-300 mt-2">💡 Up to 100,000 characters supported</p>
+                            </div>
+                          )}
+                          {isSelected && option.value === 'url' && (
+                            <div className="mt-3 pt-3 border-t border-slate-600">
+                              <p className="text-xs text-slate-400 mb-2">Automatically fetch and learn from webpages:</p>
+                              <ul className="text-xs text-slate-300 space-y-1">
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span>Works with Wikipedia articles and most web pages</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span>AI extracts key facts and generates questions</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-green-400">✓</span>
+                                  <span>Great for educational content or news articles</span>
+                                </li>
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </button>
