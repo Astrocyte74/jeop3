@@ -11,7 +11,7 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, Grid2x2, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
+import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -136,7 +136,7 @@ export function GameBoard({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50">
-              <Grid2x2 className="w-5 h-5" />
+              <SettingsIcon className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
