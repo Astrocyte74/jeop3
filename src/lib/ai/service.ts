@@ -206,6 +206,49 @@ export async function generateAI<T = unknown>(
 }
 
 /**
+ * Fetch article content from URL
+ *
+ * @param url - The URL to fetch content from
+ * @returns Object with success status, text content, and error details
+ */
+export async function fetchArticleContent(url: string): Promise<{
+  success: boolean;
+  text?: string;
+  truncated?: boolean;
+  error?: string;
+}> {
+  const apiBase = getAIApiBase();
+
+  try {
+    const response = await fetch(`${apiBase}/fetch-article`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }));
+      return {
+        success: false,
+        error: error.error || error.message || `HTTP ${response.status}`
+      };
+    }
+
+    const data = await response.json();
+    return {
+      success: true,
+      text: data.text || '',
+      truncated: data.truncated || false
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch article'
+    };
+  }
+}
+
+/**
  * Initialize AI service - check server on load
  */
 export function initAIService(config?: AIServerConfig): void {

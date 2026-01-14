@@ -11,6 +11,7 @@ export type AIPromptType =
   // Game level
   | 'game-title'
   | 'categories-generate'
+  | 'categories-generate-from-content'
   // Category level
   | 'category-rename'
   | 'category-title-generate'
@@ -69,6 +70,11 @@ export interface AIContext {
   count?: number;
   existingTitles?: Array<{ title: string; subtitle: string }>;
 
+  // Source material for content-based generation
+  referenceMaterial?: string;
+  referenceUrl?: string;
+  sourceCharacters?: number;
+
   // Category level
   categoryTitle?: string;
   contentTopic?: string;
@@ -92,6 +98,7 @@ export interface AIContext {
 export interface AIResponses {
   'game-title': { titles: Array<{ title: string; subtitle: string }> };
   'categories-generate': { categories: AICategory[] };
+  'categories-generate-from-content': { categories: AICategory[] };
   'category-rename': { names: string[] };
   'category-title-generate': { title: string };
   'category-generate-clues': { clues: Clue[] };
