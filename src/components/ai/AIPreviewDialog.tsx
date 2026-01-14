@@ -752,6 +752,7 @@ export function AIPreviewDialog({
     const labels: Record<AIPromptType, string> = {
       'game-title': 'Generate Title & Subtitle',
       'categories-generate': 'Generate All Categories',
+      'categories-generate-from-content': 'Generate from Content',
       'category-rename': 'Rename Category',
       'category-title-generate': 'Generate Category Title',
       'category-generate-clues': 'Generate Missing Clues',
@@ -815,6 +816,43 @@ export function AIPreviewDialog({
         ) : null;
 
       case 'categories-generate':
+        return data.categories ? (
+          <CategoriesPreview
+            categories={data.categories}
+            regeneratedItems={regeneratedItems}
+            titles={data.titles}
+            selectedTitle={selectedTitle}
+            onSelectTitle={setSelectedTitle}
+            onRewriteCategoryTitle={onRewriteCategoryTitle}
+            onRewriteClue={onRewriteClue}
+            onRegenerateCategory={onRegenerateCategory}
+            onCreateNewCategory={onCreateNewCategory}
+            onRegenerateClue={onRegenerateClue}
+            rewritingCategory={rewritingCategory}
+            rewritingClue={rewritingClue}
+            regeneratingCategory={regeneratingCategory}
+            creatingNewCategory={creatingNewCategory}
+            regeneratingClue={regeneratingClue}
+            onRegenerateTitle={onRegenerateTitle}
+            onRegenerateAllTitles={onRegenerateAllTitles}
+            onEnhanceTitle={onEnhanceTitle}
+            rewritingTitle={rewritingTitle}
+            enhancingTitle={enhancingTitle}
+            suggestedTeamNames={data.suggestedTeamNames}
+            onRegenerateTeamName={onRegenerateTeamName}
+            onEnhanceTeamName={onEnhanceTeamName}
+            onRegenerateAllTeamNames={onRegenerateAllTeamNames}
+            rewritingTeamName={rewritingTeamName}
+            enhancingTeamName={enhancingTeamName}
+            // Manual editing callbacks
+            onEditCategoryTitle={onEditCategoryTitle}
+            onEditClue={onEditClue}
+            onEditAnswer={onEditAnswer}
+            onEditTeamName={onEditTeamName}
+          />
+        ) : null;
+
+      case 'categories-generate-from-content':
         return data.categories ? (
           <CategoriesPreview
             categories={data.categories}

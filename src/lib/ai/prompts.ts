@@ -133,6 +133,53 @@ Return JSON format:
 }`
     },
 
+    'categories-generate-from-content': {
+      system: SYSTEM_INSTRUCTION,
+      user: (() => {
+        const referenceMaterial = context.referenceMaterial || '';
+        const maxReferenceChars = 50000;
+        const referenceSnippet = referenceMaterial.length > maxReferenceChars
+          ? referenceMaterial.substring(0, maxReferenceChars) + '\n\n[Content truncated for length...]'
+          : referenceMaterial;
+
+        return `Generate ${context.count || 6} Jeopardy categories based on the following source material.
+
+Source material:
+"""${referenceSnippet}"""
+
+Theme: ${context.theme || 'general'}
+${difficultyText}
+${valueGuidanceText}
+
+IMPORTANT INSTRUCTIONS:
+1. Create categories that cover the key topics, people, events, places, and concepts from the source material above
+2. All clues must be answerable using ONLY the information provided in the source material
+3. Do NOT fabricate facts or include outside knowledge
+4. Each category needs TWO names:
+   - "title" - A creative, catchy display name for players (e.g., "Historical Events", "Famous Figures")
+   - "contentTopic" - The descriptive topic name for AI context (e.g., "World War II Battles", "Scientists")
+
+The title should be fun and creative while the contentTopic should be clear and descriptive.
+
+Return JSON format:
+{
+  "categories": [
+    {
+      "title": "Creative Display Name",
+      "contentTopic": "Descriptive Topic Name",
+      "clues": [
+        { "value": 200, "clue": "...", "response": "..." },
+        { "value": 400, "clue": "...", "response": "..." },
+        { "value": 600, "clue": "...", "response": "..." },
+        { "value": 800, "clue": "...", "response": "..." },
+        { "value": 1000, "clue": "...", "response": "..." }
+      ]
+    }
+  ]
+}`;
+      })()
+    },
+
     'category-rename': {
       system: SYSTEM_INSTRUCTION,
       user: `Suggest 3 alternative names for this Jeopardy category: "${context.currentTitle}"
@@ -395,6 +442,22 @@ export const validators: Record<AIPromptType, AIValidator<unknown>> = {
 
   'categories-generate': (data): data is AIResponses['categories-generate'] => {
     const d = data as AIResponses['categories-generate'];
+    return typeof d === 'object' && d !== null &&
+           Array.isArray(d.categories) &&
+           d.categories.every(cat =>
+             typeof cat.title === 'string' &&
+             (typeof cat.contentTopic === 'string' || cat.contentTopic === undefined || cat.contentTopic === null) &&
+             Array.isArray(cat.clues) &&
+             cat.clues.every(clue =>
+               typeof clue.value === 'number' &&
+               typeof clue.clue === 'string' &&
+               typeof clue.response === 'string'
+             )
+           );
+  },
+
+  'categories-generate-from-content': (data): data is AIResponses['categories-generate-from-content'] => {
+    const d = data as AIResponses['categories-generate-from-content'];
     return typeof d === 'object' && d !== null &&
            Array.isArray(d.categories) &&
            d.categories.every(cat =>

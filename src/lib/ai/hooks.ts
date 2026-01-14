@@ -162,6 +162,7 @@ export function useAIGeneration() {
     const baseLoadingMessages: Record<AIPromptType, string> = {
       'game-title': 'Generating title options...',
       'categories-generate': 'Generating full game...',
+      'categories-generate-from-content': 'Generating game from content...',
       'category-rename': 'Generating name options...',
       'category-title-generate': 'Generating category title...',
       'category-generate-clues': 'Generating clues...',
