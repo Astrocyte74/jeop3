@@ -137,6 +137,11 @@ export function safeJsonParse<T>(
 
   // Validate schema if validator provided
   if (validator && !validator(parsed)) {
+    console.error('[safeJsonParse] Validation failed', {
+      parsed,
+      parsedKeys: typeof parsed === 'object' && parsed ? Object.keys(parsed) : 'not an object',
+      parsedCategories: typeof parsed === 'object' && parsed && 'categories' in parsed ? (parsed as any).categories : 'no categories'
+    });
     throw new AISchemaError(
       'SCHEMA_VALIDATION_ERROR',
       'AI response does not match expected format',

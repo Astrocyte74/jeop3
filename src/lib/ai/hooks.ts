@@ -193,11 +193,17 @@ export function useAIGeneration() {
     try {
       const rawResult = await generateAI<string>(promptType, context, difficulty);
 
-      console.log('[useAIGeneration] Raw AI response:', { promptType, rawLength: rawResult?.length, rawPreview: rawResult?.substring(0, 200) });
+      console.log('[useAIGeneration] Raw AI response:', { promptType, rawLength: rawResult?.length, rawPreview: rawResult?.substring(0, 500) });
 
       // Parse with validator
       const validator = validators[promptType];
-      const result = safeJsonParse(rawResult, validator);
+      let result;
+      try {
+        result = safeJsonParse(rawResult, validator);
+      } catch (parseErr) {
+        console.error('[useAIGeneration] Parse error:', parseErr);
+        throw parseErr;
+      }
 
       console.log('[useAIGeneration] Parsed result:', { result, hasCategories: result && typeof result === 'object' && 'categories' in result });
 
@@ -228,6 +234,7 @@ export function useAIGeneration() {
 
     } catch (err) {
       const error = err as Error;
+      console.error('[useAIGeneration] Generation error:', { error, message: error.message, stack: error.stack });
       loader.error(error.message || 'AI generation failed');
       setIsLoading(false);
       setError(error);
