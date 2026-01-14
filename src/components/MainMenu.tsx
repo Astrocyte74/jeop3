@@ -65,7 +65,7 @@ interface GeneratedGameData {
 
 export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // Clerk auth
-  const { signOut } = useAuth();
+  const { isSignedIn, signOut } = useAuth();
   const { user } = useUser();
 
   // Simple slugify function for safe filenames
@@ -112,6 +112,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // Delete confirmation dialog state
   const [deleteGameId, setDeleteGameId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
+  // Sign-in prompt dialog state
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
 
   const { generate: aiGenerate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
 
@@ -1713,11 +1716,23 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-slate-400">AI Game Creation</span>
+                <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
+                  Approved users only
+                </Badge>
+              </div>
               <Button
                 variant="default"
                 className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
                 disabled={aiLoading}
-                onClick={() => setShowWizard(true)}
+                onClick={() => {
+                  if (!isSignedIn) {
+                    setShowSignInPrompt(true);
+                  } else {
+                    setShowWizard(true);
+                  }
+                }}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Game
@@ -2089,6 +2104,30 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sign-in Required Dialog */}
+      <SignedOut>
+        <AlertDialog open={showSignInPrompt} onOpenChange={setShowSignInPrompt}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sign In Required</AlertDialogTitle>
+              <AlertDialogDescription>
+                Creating games with AI requires you to sign in with an approved account.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setShowSignInPrompt(false)}>
+                Cancel
+              </AlertDialogCancel>
+              <SignInButton mode="modal">
+                <AlertDialogAction className="bg-purple-600 hover:bg-purple-500">
+                  Sign In
+                </AlertDialogAction>
+              </SignInButton>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </SignedOut>
     </div>
   );
 }
