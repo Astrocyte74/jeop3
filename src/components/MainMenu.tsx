@@ -29,7 +29,7 @@ import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
-import { NewGameWizard } from '@/components/NewGameWizard';
+import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
 import { Gamepad2, Users, Sparkles, Palette, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Upload, Plus } from 'lucide-react';
@@ -52,6 +52,9 @@ interface GeneratedGameData {
   suggestedTeamNames: string[];
   theme: string;
   difficulty: AIDifficulty;
+  sourceMode?: 'scratch' | 'paste' | 'url';
+  referenceUrl?: string;
+  sourceCharacters?: number;
   metadata?: {
     modelUsed?: string;
     generatedAt?: string;
@@ -532,16 +535,35 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   // ==================== AI NEW GAME GENERATION ====================
 
-  const handleWizardComplete = async (theme: string, difficulty: AIDifficulty) => {
+  const handleWizardComplete = async (wizardData: WizardCompleteData) => {
+    const { theme, difficulty, sourceMode, referenceMaterial, referenceUrl } = wizardData;
+
     // Reset regenerated items for new game
     setRegeneratedItems(new Set());
 
     setIsWizardGenerating(true);
 
+    // Determine prompt type and build context based on source mode
+    const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
+      ? 'categories-generate-from-content'
+      : 'categories-generate';
+
+    const context: Record<string, any> = {
+      theme: theme || 'random',
+      count: 6,
+    };
+
+    // Add reference material for content-based generation
+    if (sourceMode !== 'scratch' && referenceMaterial) {
+      context.referenceMaterial = referenceMaterial;
+      context.referenceUrl = referenceUrl;
+      context.sourceCharacters = referenceMaterial.length;
+    }
+
     // Generate categories
     const categoriesResult = await aiGenerate(
-      'categories-generate',
-      { theme: theme || 'random', count: 6 },
+      promptType,
+      context,
       difficulty
     );
 
@@ -618,6 +640,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       suggestedTeamNames,
       theme,
       difficulty,
+      sourceMode,
+      referenceUrl,
+      sourceCharacters: referenceMaterial?.length,
       metadata: categoriesMetadata,
     });
 

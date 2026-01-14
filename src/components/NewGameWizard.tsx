@@ -1,8 +1,8 @@
 /**
  * New Game Wizard Dialog
  *
- * Collects theme and difficulty preferences before generating a new game with AI.
- * Based on jeop2's runNewGameWizard flow.
+ * Collects source, theme, and difficulty preferences before generating a new game with AI.
+ * Based on jeop2's runNewGameWizard flow with added custom content support.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -18,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,20 +29,31 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown } from 'lucide-react';
-import { getAIApiBase } from '@/lib/ai/service';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap } from 'lucide-react';
+import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 
 export interface WizardStep {
-  type: 'theme' | 'difficulty';
+  type: 'source' | 'theme' | 'difficulty';
+  sourceMode?: 'scratch' | 'paste' | 'url';
+  referenceMaterial?: string;
+  referenceUrl?: string;
   theme?: string;
   difficulty?: 'easy' | 'normal' | 'hard';
+}
+
+export interface WizardCompleteData {
+  theme: string;
+  difficulty: 'easy' | 'normal' | 'hard';
+  sourceMode: 'scratch' | 'paste' | 'url';
+  referenceMaterial?: string;
+  referenceUrl?: string;
 }
 
 interface NewGameWizardProps {
   open: boolean;
   onClose: () => void;
-  onComplete: (theme: string, difficulty: 'easy' | 'normal' | 'hard') => void;
+  onComplete: (data: WizardCompleteData) => void;
   isLoading?: boolean;
 }
 
@@ -66,14 +78,48 @@ const difficultyOptions = [
   }
 ];
 
+const sourceModeOptions = [
+  {
+    value: 'scratch' as const,
+    icon: Zap,
+    title: 'From Scratch',
+    desc: 'Let AI create a game from any theme',
+    color: 'text-purple-400'
+  },
+  {
+    value: 'paste' as const,
+    icon: FileText,
+    title: 'Paste Content',
+    desc: 'Paste notes, transcripts, or articles',
+    color: 'text-blue-400'
+  },
+  {
+    value: 'url' as const,
+    icon: Globe,
+    title: 'From URL',
+    desc: 'Fetch content from a webpage',
+    color: 'text-green-400'
+  }
+];
+
+const MIN_CHARS = 40;
+const MAX_CHARS = 100000;
+
 export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: NewGameWizardProps) {
-  const [step, setStep] = useState<'theme' | 'difficulty'>('theme');
+  const [step, setStep] = useState<'source' | 'theme' | 'difficulty'>('source');
+  const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url'>('scratch');
+  const [referenceMaterial, setReferenceMaterial] = useState('');
+  const [referenceUrl, setReferenceUrl] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
+  const [fetchError, setFetchError] = useState('');
   const [theme, setTheme] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [showBack, setShowBack] = useState(false);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const urlInputRef = useRef<HTMLInputElement>(null);
 
   // Load available AI models on mount
   useEffect(() => {
@@ -102,24 +148,77 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   // Reset state and auto-focus when wizard opens
   useEffect(() => {
     if (open) {
+      setSourceMode('scratch');
+      setReferenceMaterial('');
+      setReferenceUrl('');
+      setFetchError('');
       setTheme('');
       setDifficulty('normal');
-      setStep('theme');
+      setStep('source');
       setShowBack(false);
       // Auto-focus the input after a small delay to ensure the dialog is rendered
       setTimeout(() => {
-        inputRef.current?.focus();
+        if (sourceMode === 'scratch') {
+          inputRef.current?.focus();
+        } else if (sourceMode === 'paste') {
+          textareaRef.current?.focus();
+        } else if (sourceMode === 'url') {
+          urlInputRef.current?.focus();
+        }
       }, 100);
     }
-  }, [open]);
+  }, [open, sourceMode]);
+
+  const handleSourceNext = () => {
+    if (sourceMode === 'scratch') {
+      setShowBack(true);
+      setStep('theme');
+    } else if (sourceMode === 'paste') {
+      if (referenceMaterial.trim().length < MIN_CHARS) {
+        setFetchError(`Please enter at least ${MIN_CHARS} characters`);
+        return;
+      }
+      setShowBack(true);
+      setStep('theme');
+    } else if (sourceMode === 'url') {
+      if (!referenceUrl.trim()) {
+        setFetchError('Please enter a URL');
+        return;
+      }
+      handleFetchUrl();
+    }
+  };
+
+  const handleFetchUrl = async () => {
+    setIsFetching(true);
+    setFetchError('');
+
+    try {
+      const result = await fetchArticleContent(referenceUrl.trim());
+      if (result.success && result.text) {
+        setReferenceMaterial(result.text);
+        setShowBack(true);
+        setStep('theme');
+      } else {
+        setFetchError(result.error || 'Failed to fetch content from URL');
+      }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const handleThemeNext = () => {
-    setShowBack(true);
     setStep('difficulty');
   };
 
   const handleDifficultyBack = () => {
-    setStep('theme');
+    if (sourceMode === 'scratch') {
+      setStep('theme');
+    } else {
+      setStep('source');
+    }
   };
 
   const handleAIModelChange = (modelId: string) => {
@@ -141,21 +240,42 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   };
 
   const handleComplete = () => {
-    onComplete(theme, difficulty);
+    onComplete({
+      theme: theme || 'random',
+      difficulty,
+      sourceMode,
+      referenceMaterial: sourceMode !== 'scratch' ? referenceMaterial : undefined,
+      referenceUrl: sourceMode === 'url' ? referenceUrl : undefined
+    });
     // Reset state
+    setSourceMode('scratch');
+    setReferenceMaterial('');
+    setReferenceUrl('');
+    setFetchError('');
     setTheme('');
     setDifficulty('normal');
-    setStep('theme');
+    setStep('source');
     setShowBack(false);
   };
 
   const handleClose = () => {
     onClose();
     // Reset state
+    setSourceMode('scratch');
+    setReferenceMaterial('');
+    setReferenceUrl('');
+    setFetchError('');
     setTheme('');
     setDifficulty('normal');
-    setStep('theme');
+    setStep('source');
     setShowBack(false);
+  };
+
+  const canProceedFromSource = () => {
+    if (sourceMode === 'scratch') return true;
+    if (sourceMode === 'paste') return referenceMaterial.trim().length >= MIN_CHARS;
+    if (sourceMode === 'url') return referenceUrl.trim().length > 0;
+    return false;
   };
 
   return (
@@ -170,7 +290,9 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
               <div>
                 <AlertDialogTitle>Create New Game</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {step === 'theme' ? 'Choose a theme for your game' : 'Select difficulty level'}
+                  {step === 'source' && 'Choose your content source'}
+                  {step === 'theme' && 'Choose a theme for your game'}
+                  {step === 'difficulty' && 'Select difficulty level'}
                 </AlertDialogDescription>
               </div>
             </div>
@@ -310,6 +432,104 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
           </div>
         ) : (
           <>
+            {step === 'source' && (
+              <div className="py-4 space-y-4">
+                <p className="text-sm text-slate-400">How would you like to create your game?</p>
+                {sourceModeOptions.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setSourceMode(option.value);
+                        setFetchError('');
+                      }}
+                      className={`
+                        w-full text-left p-4 rounded-lg border transition-all
+                        ${sourceMode === option.value
+                          ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
+                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                        }
+                      `}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Icon className={`w-5 h-5 mt-0.5 ${option.color}`} />
+                        <div>
+                          <div className="font-semibold text-slate-200">{option.title}</div>
+                          <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* Paste Content Input */}
+                {sourceMode === 'paste' && (
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="referenceMaterial">Content</Label>
+                    <Textarea
+                      ref={textareaRef}
+                      id="referenceMaterial"
+                      value={referenceMaterial}
+                      onChange={(e) => {
+                        setReferenceMaterial(e.target.value);
+                        setFetchError('');
+                      }}
+                      placeholder="Paste notes, transcripts, or excerpts here..."
+                      className="bg-slate-800/50 border-slate-700 min-h-[150px] resize-none"
+                      maxLength={MAX_CHARS}
+                    />
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span>{referenceMaterial.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</span>
+                      {referenceMaterial.length > 0 && referenceMaterial.length < MIN_CHARS && (
+                        <span className="text-orange-500">Minimum {MIN_CHARS} characters required</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* URL Input */}
+                {sourceMode === 'url' && (
+                  <div className="space-y-2 mt-4">
+                    <Label htmlFor="referenceUrl">URL</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        ref={urlInputRef}
+                        id="referenceUrl"
+                        type="url"
+                        value={referenceUrl}
+                        onChange={(e) => {
+                          setReferenceUrl(e.target.value);
+                          setFetchError('');
+                        }}
+                        placeholder="https://en.wikipedia.org/wiki/Topic"
+                        className="bg-slate-800/50 border-slate-700 flex-1"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSourceNext();
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={handleFetchUrl}
+                        disabled={isFetching || !referenceUrl.trim()}
+                        className="bg-green-600 hover:bg-green-500 text-white px-4"
+                      >
+                        {isFetching ? 'Fetching...' : 'Fetch'}
+                      </Button>
+                    </div>
+                    {fetchError && (
+                      <p className="text-xs text-red-400">{fetchError}</p>
+                    )}
+                    <p className="text-xs text-slate-500">
+                      Works with Wikipedia articles and most web pages
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {step === 'theme' && (
               <div className="py-4 space-y-4">
                 <div className="space-y-2">
@@ -319,7 +539,11 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
                     id="theme"
                     value={theme}
                     onChange={(e) => setTheme(e.target.value)}
-                    placeholder="e.g., Science, Movies, 1990s... (leave blank for random)"
+                    placeholder={
+                      sourceMode === 'scratch'
+                        ? "e.g., Science, Movies, 1990s... (leave blank for random)"
+                        : "Optional theme hint (leave blank to auto-detect from content)"
+                    }
                     className="bg-slate-800/50 border-slate-700"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -329,7 +553,10 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
                     }}
                   />
                   <p className="text-xs text-slate-500">
-                    Enter a topic or leave blank for a randomly generated theme
+                    {sourceMode === 'scratch'
+                      ? "Enter a topic or leave blank for a randomly generated theme"
+                      : "The AI will analyze your content and create themed categories"
+                    }
                   </p>
                 </div>
               </div>
@@ -366,7 +593,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
 
         <AlertDialogFooter>
           <div className="flex gap-2 w-full">
-            {showBack && step === 'difficulty' ? (
+            {showBack ? (
               <Button
                 variant="outline"
                 onClick={handleDifficultyBack}
@@ -381,7 +608,15 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
                 Cancel
               </AlertDialogCancel>
             )}
-            {step === 'theme' ? (
+            {step === 'source' ? (
+              <Button
+                onClick={handleSourceNext}
+                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
+                disabled={isLoading || !canProceedFromSource() || isFetching}
+              >
+                {sourceMode === 'url' && isFetching ? 'Fetching...' : 'Next'}
+              </Button>
+            ) : step === 'theme' ? (
               <Button
                 onClick={handleThemeNext}
                 className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
