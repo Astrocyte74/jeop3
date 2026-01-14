@@ -791,7 +791,13 @@ export function AIPreviewDialog({
   const formatGenerationTime = (ms?: number): string => {
     if (!ms) return '';
     if (ms < 1000) return `${ms}ms`;
-    return `${(ms / 1000).toFixed(1)}s`;
+    const seconds = Math.floor(ms / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0
+      ? `${minutes} min ${remainingSeconds}s`
+      : `${minutes} min`;
   };
 
   const formatTimestamp = (iso?: string): string => {
