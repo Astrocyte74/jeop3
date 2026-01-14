@@ -136,7 +136,7 @@ export function useAIGeneration() {
   const [error, setError] = useState<Error | null>(null);
   const { show, loading } = useAIToast();
   const { isAvailable } = useAIServer();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded: clerkLoaded } = useAuth();
 
   const generate = useCallback(async (
     promptType: AIPromptType,
@@ -157,6 +157,23 @@ export function useAIGeneration() {
 
     // Get auth token for protected endpoints
     const authToken = await getToken().catch(() => null);
+
+    // Log for debugging
+    console.log('[useAIGeneration] Clerk auth check:', {
+      clerkLoaded,
+      hasToken: !!authToken,
+      tokenPreview: authToken ? `${authToken.substring(0, 20)}...` : 'none'
+    });
+
+    // Check if we have a token (AI generation requires auth)
+    if (!authToken) {
+      const err = new Error('Please sign in to create games with AI');
+      show(err.message, 'error', { duration: 4000 });
+      setError(err);
+      setIsLoading(false);
+      options?.onError?.(err);
+      return null;
+    }
 
     // Get the selected model from localStorage first (for estimate)
     const modelUsed = typeof window !== 'undefined'
@@ -246,7 +263,7 @@ export function useAIGeneration() {
       options?.onError?.(error);
       return null;
     }
-  }, [isAvailable, show, loading, getToken]);
+  }, [isAvailable, show, loading, getToken, clerkLoaded]);
 
   return {
     generate,
