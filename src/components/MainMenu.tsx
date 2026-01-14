@@ -585,11 +585,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const categoriesMetadata = (categoriesResult as any)._metadata;
 
     // Generate titles - use sample content if available for better titles
-    const titleContext: Record<string, any> = { theme: theme || 'random', count: 3 };
+    const titleContext: Record<string, any> = { theme: theme || 'random' };
     if (sourceMode !== 'scratch' && referenceMaterial) {
       titleContext.hasContent = true;
-      titleContext.sampleContent = referenceMaterial.substring(0, 2000); // First 2000 chars for title generation
+      // Use first 1000 chars for title generation - enough to understand the theme
+      titleContext.sampleContent = referenceMaterial.substring(0, 1000);
     }
+    console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length });
     const titlesResult = await aiGenerate(
       'game-title',
       titleContext,
@@ -599,6 +601,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const titlesList = (titlesResult && typeof titlesResult === 'object' && 'titles' in titlesResult)
       ? (titlesResult as any).titles as Array<{ title: string; subtitle: string }>
       : [{ title: `${theme || 'Trivia'} Night`, subtitle: theme || '' }];
+
+    console.log('[MainMenu] Generated titles:', titlesList);
 
     // Generate team names - include theme or content hint
     const teamNamesContext: Record<string, any> = {
