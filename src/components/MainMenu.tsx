@@ -567,7 +567,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       difficulty
     );
 
+    console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
+
     if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
+      console.error('[MainMenu] Invalid categories result:', categoriesResult);
       setIsWizardGenerating(false);
       setShowWizard(false);
       return;

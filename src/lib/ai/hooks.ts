@@ -193,9 +193,13 @@ export function useAIGeneration() {
     try {
       const rawResult = await generateAI<string>(promptType, context, difficulty);
 
+      console.log('[useAIGeneration] Raw AI response:', { promptType, rawLength: rawResult?.length, rawPreview: rawResult?.substring(0, 200) });
+
       // Parse with validator
       const validator = validators[promptType];
       const result = safeJsonParse(rawResult, validator);
+
+      console.log('[useAIGeneration] Parsed result:', { result, hasCategories: result && 'categories' in result });
 
       if (!result) {
         throw new Error('Failed to parse AI response');
