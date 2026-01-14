@@ -68,9 +68,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
     { id: '2', name: 'Team 2', score: 0 },
   ]);
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
-  const [showThemePicker, setShowThemePicker] = useState(false);
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
-  const [showIconSizePicker, setShowIconSizePicker] = useState(false);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
@@ -1689,24 +1687,68 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
             </Button>
 
             <div className="mt-6 flex gap-2">
-              <Button
-                onClick={() => setShowThemePicker(!showThemePicker)}
-                variant="outline"
-                size="sm"
-                className="border-slate-700"
-              >
-                <Palette className="w-4 h-4 mr-2" />
-                Theme
-              </Button>
-              <Button
-                onClick={() => setShowIconSizePicker(!showIconSizePicker)}
-                variant="outline"
-                size="sm"
-                className="border-slate-700"
-              >
-                <Image className="w-4 h-4 mr-2" />
-                Icon Size
-              </Button>
+              {/* Theme dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-700"
+                  >
+                    <Palette className="w-4 h-4 mr-2" />
+                    Theme
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {Object.entries(themes).map(([key, theme]) => (
+                    <DropdownMenuItem
+                      key={key}
+                      onClick={() => handleThemeChange(key as ThemeKey)}
+                      className={currentTheme === key ? 'bg-yellow-500/10' : ''}
+                    >
+                      <div
+                        className="w-4 h-4 rounded mr-2 flex-shrink-0"
+                        style={{
+                          background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
+                        }}
+                      />
+                      <span className="flex-1">{theme.name}</span>
+                      {currentTheme === key && (
+                        <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Icon Size dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-700"
+                  >
+                    <Image className="w-4 h-4 mr-2" />
+                    Icon Size
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {(['128', '256', '512', '1024'] as IconSize[]).map((size) => (
+                    <DropdownMenuItem
+                      key={size}
+                      onClick={() => handleIconSizeChange(size)}
+                      className={iconSize === size ? 'bg-yellow-500/10' : ''}
+                    >
+                      <span className="mr-2 font-mono text-xs text-slate-400">{size}</span>
+                      <span className="flex-1">pixels</span>
+                      {iconSize === size && (
+                        <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               {/* AI Model dropdown menu */}
               <DropdownMenu>
@@ -1831,64 +1873,6 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-
-            {/* Theme picker */}
-            {showThemePicker && (
-              <div className="mt-4 p-4 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg w-full max-w-xs">
-                <h3 className="text-sm font-medium mb-3">Choose Theme</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {Object.entries(themes).map(([key, theme]) => (
-                    <button
-                      key={key}
-                      onClick={() => handleThemeChange(key as ThemeKey)}
-                      className={`text-xs p-3 rounded-lg border-2 transition-all font-medium ${
-                        currentTheme === key
-                          ? 'border-yellow-500 ring-2 ring-yellow-500/50'
-                          : 'border-slate-700 hover:border-slate-500'
-                      }`}
-                      style={{
-                        background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
-                        color: '#fff',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.5)',
-                      }}
-                    >
-                      <div>{theme.name}</div>
-                      {currentTheme === key && (
-                        <div className="text-xs opacity-75 mt-1">✓ Active</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Icon size picker */}
-            {showIconSizePicker && (
-              <div className="mt-4 p-4 bg-slate-900/80 backdrop-blur-sm border border-slate-700 rounded-lg w-full max-w-xs">
-                <h3 className="text-sm font-medium mb-3">Icon Size</h3>
-                <div className="grid grid-cols-4 gap-2">
-                  {(['128', '256', '512', '1024'] as IconSize[]).map((size) => (
-                    <button
-                      key={size}
-                      onClick={() => handleIconSizeChange(size)}
-                      className={`text-xs p-3 rounded-lg border-2 transition-all font-medium ${
-                        iconSize === size
-                          ? 'border-yellow-500 ring-2 ring-yellow-500/50'
-                          : 'border-slate-700 hover:border-slate-500'
-                      }`}
-                    >
-                      <div className="font-bold">{size}px</div>
-                      {iconSize === size && (
-                        <div className="text-xs opacity-75 mt-1">✓ Active</div>
-                      )}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-slate-400 mt-2">
-                  Larger icons look better but load slower
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Teams panel */}
