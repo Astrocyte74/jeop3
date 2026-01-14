@@ -141,10 +141,12 @@ export function GameBoard({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {/* Editor Options */}
-            <DropdownMenuItem onClick={onToggleEditor}>
-              <Edit className="w-4 h-4 mr-2 text-blue-400" />
-              <span>Board Editor</span>
-            </DropdownMenuItem>
+            {isSignedIn && (
+              <DropdownMenuItem onClick={onToggleEditor}>
+                <Edit className="w-4 h-4 mr-2 text-blue-400" />
+                <span>Board Editor</span>
+              </DropdownMenuItem>
+            )}
             {onToggleAIPreviewEditor && isSignedIn && (
               <DropdownMenuItem onClick={onToggleAIPreviewEditor}>
                 <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
