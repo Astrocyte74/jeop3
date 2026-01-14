@@ -243,7 +243,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   };
 
   const handleBack = () => {
-    if (step === 'theme') {
+    if (step === 'source') {
+      setStep('creation-mode');
+      setShowBack(false);
+    } else if (step === 'theme') {
       setStep('source');
       setShowBack(false);
     } else if (step === 'difficulty') {
