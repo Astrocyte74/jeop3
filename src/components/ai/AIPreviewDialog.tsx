@@ -341,7 +341,7 @@ function CategoriesPreview({
                 className="h-7 px-2 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
               >
                 <Sparkles className="w-3 h-3 mr-1" />
-                Regenerate All
+                Regenerate All titles
               </Button>
             )}
           </div>

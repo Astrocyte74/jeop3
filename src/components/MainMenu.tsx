@@ -32,7 +32,7 @@ import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Upload, Plus } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -83,7 +83,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
-  const [showCreateGameMenu, setShowCreateGameMenu] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Preview state
@@ -343,9 +342,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         setGames(prev => [...prev, gameMeta]);
         setSelectedGameId(gameId);
 
-        // Close menu
-        setShowCreateGameMenu(false);
-
       } catch (error) {
         console.error('Failed to import game:', error);
       }
@@ -357,16 +353,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
-
-  const handleCreateGameAI = () => {
-    setShowCreateGameMenu(false);
-    setShowWizard(true);
-  };
-
-  const handleCreateGameManual = () => {
-    setShowCreateGameMenu(false);
-    onOpenEditor();
   };
 
   const handleCreateGameImport = () => {
@@ -536,7 +522,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // ==================== AI NEW GAME GENERATION ====================
 
   const handleWizardComplete = async (wizardData: WizardCompleteData) => {
-    const { theme, difficulty, sourceMode, referenceMaterial, referenceUrl } = wizardData;
+    const { mode, theme, difficulty, sourceMode, referenceMaterial, referenceUrl } = wizardData;
+
+    // Only AI mode should reach here - manual and import-json are handled directly in the wizard
+    if (mode !== 'ai') {
+      console.error('[MainMenu] handleWizardComplete called with non-AI mode:', mode);
+      return;
+    }
 
     // Reset regenerated items for new game
     setRegeneratedItems(new Set());
@@ -656,8 +648,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       categories: categoriesList,
       titles: titlesList,
       suggestedTeamNames,
-      theme,
-      difficulty,
+      theme: theme || 'random',
+      difficulty: difficulty || 'normal',
       sourceMode,
       referenceUrl,
       sourceCharacters: referenceMaterial?.length,
@@ -1682,43 +1674,15 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
-              <DropdownMenu open={showCreateGameMenu} onOpenChange={setShowCreateGameMenu}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="default"
-                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
-                    disabled={aiLoading}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Game
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {aiAvailable && (
-                    <DropdownMenuItem onClick={handleCreateGameAI}>
-                      <Wand2 className="w-4 h-4 mr-2 text-purple-400" />
-                      <div>
-                        <div className="font-medium">AI Generate</div>
-                        <div className="text-xs text-slate-500">Create with AI assistance</div>
-                      </div>
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={handleCreateGameManual}>
-                    <Edit className="w-4 h-4 mr-2 text-yellow-500" />
-                    <div>
-                      <div className="font-medium">Manual Create</div>
-                      <div className="text-xs text-slate-500">Build from scratch</div>
-                    </div>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleCreateGameImport}>
-                    <Upload className="w-4 h-4 mr-2 text-blue-400" />
-                    <div>
-                      <div className="font-medium">Import from File</div>
-                      <div className="text-xs text-slate-500">Load a JSON game file</div>
-                    </div>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button
+                variant="default"
+                className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
+                disabled={aiLoading}
+                onClick={() => setShowWizard(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Create Game
+              </Button>
             </div>
           </div>
 
@@ -2010,6 +1974,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         open={showWizard}
         onClose={() => setShowWizard(false)}
         onComplete={handleWizardComplete}
+        onOpenEditor={onOpenEditor}
+        onImportJSON={handleCreateGameImport}
         isLoading={isWizardGenerating}
       />
 

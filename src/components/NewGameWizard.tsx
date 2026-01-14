@@ -29,12 +29,13 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap } from 'lucide-react';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 
 export interface WizardStep {
-  type: 'source' | 'theme' | 'difficulty';
+  type: 'creation-mode' | 'source' | 'theme' | 'difficulty';
+  creationMode?: 'ai' | 'manual' | 'import-json';
   sourceMode?: 'scratch' | 'paste' | 'url';
   referenceMaterial?: string;
   referenceUrl?: string;
@@ -43,9 +44,11 @@ export interface WizardStep {
 }
 
 export interface WizardCompleteData {
-  theme: string;
-  difficulty: 'easy' | 'normal' | 'hard';
-  sourceMode: 'scratch' | 'paste' | 'url';
+  mode: 'ai' | 'manual' | 'import-json';
+  // AI mode fields
+  theme?: string;
+  difficulty?: 'easy' | 'normal' | 'hard';
+  sourceMode?: 'scratch' | 'paste' | 'url';
   referenceMaterial?: string;
   referenceUrl?: string;
 }
@@ -54,6 +57,8 @@ interface NewGameWizardProps {
   open: boolean;
   onClose: () => void;
   onComplete: (data: WizardCompleteData) => void;
+  onOpenEditor?: () => void;
+  onImportJSON?: () => void;
   isLoading?: boolean;
 }
 
@@ -102,11 +107,36 @@ const sourceModeOptions = [
   }
 ];
 
+const creationModeOptions = [
+  {
+    value: 'ai' as const,
+    icon: Wand2,
+    title: 'AI Generate',
+    desc: 'Create a game with AI assistance',
+    color: 'text-purple-400'
+  },
+  {
+    value: 'manual' as const,
+    icon: Edit,
+    title: 'Manual Create',
+    desc: 'Build from scratch - requires manually entering every clue and answer',
+    color: 'text-yellow-400'
+  },
+  {
+    value: 'import-json' as const,
+    icon: Upload,
+    title: 'Import JSON',
+    desc: 'Load a game from a JSON file',
+    color: 'text-blue-400'
+  }
+];
+
 const MIN_CHARS = 40;
 const MAX_CHARS = 100000;
 
-export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: NewGameWizardProps) {
-  const [step, setStep] = useState<'source' | 'theme' | 'difficulty'>('source');
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false }: NewGameWizardProps) {
+  const [step, setStep] = useState<'creation-mode' | 'source' | 'theme' | 'difficulty'>('creation-mode');
+  const [creationMode, setCreationMode] = useState<'ai' | 'manual' | 'import-json'>('ai');
   const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url'>('scratch');
   const [referenceMaterial, setReferenceMaterial] = useState('');
   const [referenceUrl, setReferenceUrl] = useState('');
@@ -148,13 +178,14 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   // Reset state and auto-focus when wizard opens
   useEffect(() => {
     if (open) {
+      setCreationMode('ai');
       setSourceMode('scratch');
       setReferenceMaterial('');
       setReferenceUrl('');
       setFetchError('');
       setTheme('');
       setDifficulty('normal');
-      setStep('source');
+      setStep('creation-mode');
       setShowBack(false);
       // Auto-focus the input after a small delay to ensure the dialog is rendered
       setTimeout(() => {
@@ -239,6 +270,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
 
   const handleComplete = () => {
     onComplete({
+      mode: creationMode,
       theme: theme || 'random',
       difficulty,
       sourceMode,
@@ -246,13 +278,14 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
       referenceUrl: sourceMode === 'url' ? referenceUrl : undefined
     });
     // Reset state
+    setCreationMode('ai');
     setSourceMode('scratch');
     setReferenceMaterial('');
     setReferenceUrl('');
     setFetchError('');
     setTheme('');
     setDifficulty('normal');
-    setStep('source');
+    setStep('creation-mode');
     setShowBack(false);
   };
 
@@ -260,14 +293,30 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
     console.log('[NewGameWizard] handleClose called - wizard closing');
     onClose();
     // Reset state
+    setCreationMode('ai');
     setSourceMode('scratch');
     setReferenceMaterial('');
     setReferenceUrl('');
     setFetchError('');
     setTheme('');
     setDifficulty('normal');
-    setStep('source');
+    setStep('creation-mode');
     setShowBack(false);
+  };
+
+  const handleCreationModeNext = () => {
+    if (creationMode === 'ai') {
+      setShowBack(true);
+      setStep('source');
+    } else if (creationMode === 'manual') {
+      // Close wizard and open editor
+      handleClose();
+      onOpenEditor?.();
+    } else if (creationMode === 'import-json') {
+      // Close wizard and trigger JSON import
+      handleClose();
+      onImportJSON?.();
+    }
   };
 
   const canProceedFromSource = () => {
@@ -289,6 +338,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
               <div>
                 <AlertDialogTitle>Create New Game</AlertDialogTitle>
                 <AlertDialogDescription>
+                  {step === 'creation-mode' && 'Choose how you want to create your game'}
                   {step === 'source' && 'Choose your content source'}
                   {step === 'theme' && 'Choose a theme for your game'}
                   {step === 'difficulty' && 'Select difficulty level'}
@@ -431,6 +481,37 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
           </div>
         ) : (
           <div className="overflow-y-auto flex-1 -mx-6 px-6">
+            {step === 'creation-mode' && (
+              <div className="py-4 space-y-4">
+                <p className="text-sm text-slate-400">How would you like to create your game?</p>
+                {creationModeOptions.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        setCreationMode(option.value);
+                      }}
+                      className={`
+                        w-full text-left p-4 rounded-lg border transition-all
+                        ${creationMode === option.value
+                          ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
+                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                        }
+                      `}
+                    >
+                      <div className="flex items-start gap-3">
+                        <Icon className={`w-5 h-5 mt-0.5 ${option.color}`} />
+                        <div>
+                          <div className="font-semibold text-slate-200">{option.title}</div>
+                          <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {step === 'source' && (
               <div className="py-4 space-y-4">
                 <p className="text-sm text-slate-400">How would you like to create your game?</p>
@@ -607,7 +688,15 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
                 Cancel
               </AlertDialogCancel>
             )}
-            {step === 'source' ? (
+            {step === 'creation-mode' ? (
+              <Button
+                onClick={handleCreationModeNext}
+                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
+                disabled={isLoading}
+              >
+                Next
+              </Button>
+            ) : step === 'source' ? (
               <Button
                 onClick={handleSourceNext}
                 className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
