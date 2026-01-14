@@ -32,7 +32,7 @@ import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Settings, Wand2, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Upload, Plus } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -74,6 +74,9 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
+  const [showCreateGameMenu, setShowCreateGameMenu] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Preview state
   const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
@@ -268,6 +271,97 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
     // Close dialog
     setShowDeleteDialog(false);
     setDeleteGameId(null);
+  };
+
+  // ==================== IMPORT/EXPORT HANDLERS ====================
+
+  const handleExportGame = (gameMeta: GameMeta) => {
+    if (!gameMeta.game) return;
+
+    const gameData = {
+      ...gameMeta.game,
+      _exportedAt: new Date().toISOString(),
+      _exportedFrom: 'jeop3',
+    };
+
+    const filename = `${slugify(gameMeta.title)}.json`;
+    const blob = new Blob([JSON.stringify(gameData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportGame = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImportError(null);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const gameData = JSON.parse(content) as Game & { _exportedFrom?: string };
+
+        // Validate basic structure
+        if (!gameData.title || !Array.isArray(gameData.categories)) {
+          throw new Error('Invalid game file structure');
+        }
+
+        // Create a unique ID
+        const gameId = `imported-${Date.now()}`;
+
+        // Create game metadata
+        const gameMeta: GameMeta = {
+          id: gameId,
+          title: gameData.title,
+          subtitle: gameData.subtitle || '',
+          source: 'custom',
+          game: gameData,
+        };
+
+        // Save to localStorage
+        const customGames = loadCustomGames();
+        const updatedGames = [...customGames, gameMeta];
+        saveCustomGames(updatedGames);
+
+        // Add to games state
+        setGames(prev => [...prev, gameMeta]);
+        setSelectedGameId(gameId);
+
+        // Close menu
+        setShowCreateGameMenu(false);
+
+      } catch (error) {
+        setImportError(error instanceof Error ? error.message : 'Failed to import game');
+      }
+    };
+
+    reader.readAsText(file);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleCreateGameAI = () => {
+    setShowCreateGameMenu(false);
+    setShowWizard(true);
+  };
+
+  const handleCreateGameManual = () => {
+    setShowCreateGameMenu(false);
+    onOpenEditor();
+  };
+
+  const handleCreateGameImport = () => {
+    fileInputRef.current?.click();
   };
 
   const handleEditWithAIPreview = (game: Game) => {
@@ -1519,6 +1613,10 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                           <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
                           <span>Edit with AI Preview</span>
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportGame(game)}>
+                          <Download className="w-4 h-4 mr-2 text-green-400" />
+                          <span>Export to File</span>
+                        </DropdownMenuItem>
                         {game.source === 'custom' && (
                           <>
                             <DropdownMenuSeparator />
@@ -1539,25 +1637,43 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
-              {aiAvailable && (
-                <Button
-                  onClick={handleAIGenerateNewGame}
-                  variant="default"
-                  className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
-                  disabled={aiLoading}
-                >
-                  <Wand2 className="w-4 h-4 mr-2" />
-                  AI Generate Game
-                </Button>
-              )}
-              <Button
-                onClick={() => onOpenEditor()}
-                variant="outline"
-                className="w-full border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Game Creator
-              </Button>
+              <DropdownMenu open={showCreateGameMenu} onOpenChange={setShowCreateGameMenu}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="default"
+                    className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
+                    disabled={aiLoading}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Game
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {aiAvailable && (
+                    <DropdownMenuItem onClick={handleCreateGameAI}>
+                      <Wand2 className="w-4 h-4 mr-2 text-purple-400" />
+                      <div>
+                        <div className="font-medium">AI Generate</div>
+                        <div className="text-xs text-slate-500">Create with AI assistance</div>
+                      </div>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleCreateGameManual}>
+                    <Edit className="w-4 h-4 mr-2 text-yellow-500" />
+                    <div>
+                      <div className="font-medium">Manual Create</div>
+                      <div className="text-xs text-slate-500">Build from scratch</div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCreateGameImport}>
+                    <Upload className="w-4 h-4 mr-2 text-blue-400" />
+                    <div>
+                      <div className="font-medium">Import from File</div>
+                      <div className="text-xs text-slate-500">Load a JSON game file</div>
+                    </div>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -1864,6 +1980,15 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
         onClose={() => setShowWizard(false)}
         onComplete={handleWizardComplete}
         isLoading={isWizardGenerating}
+      />
+
+      {/* Hidden file input for import */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={handleImportGame}
+        style={{ display: 'none' }}
       />
 
       {/* AI Preview Dialog */}
