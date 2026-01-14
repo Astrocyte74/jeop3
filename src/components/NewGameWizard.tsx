@@ -158,16 +158,10 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
       setShowBack(false);
       // Auto-focus the input after a small delay to ensure the dialog is rendered
       setTimeout(() => {
-        if (sourceMode === 'scratch') {
-          inputRef.current?.focus();
-        } else if (sourceMode === 'paste') {
-          textareaRef.current?.focus();
-        } else if (sourceMode === 'url') {
-          urlInputRef.current?.focus();
-        }
+        inputRef.current?.focus();
       }, 100);
     }
-  }, [open, sourceMode]);
+  }, [open]);
 
   const handleSourceNext = () => {
     if (sourceMode === 'scratch') {
