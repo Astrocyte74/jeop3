@@ -257,7 +257,7 @@ export async function generateAI<T = unknown>(
   // Build headers with auth token if available
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) {
-    headers['Authorization'] = authToken;
+    headers['Authorization'] = `Bearer ${authToken}`;
   }
 
   const response = await fetch(`${apiBase}/ai/generate`, {
@@ -306,7 +306,7 @@ export async function fetchArticleContent(
     // Build headers with auth token if available
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (authToken) {
-      headers['Authorization'] = authToken;
+      headers['Authorization'] = `Bearer ${authToken}`;
     }
 
     const response = await fetch(`${apiBase}/fetch-article`, {
