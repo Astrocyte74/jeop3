@@ -46,3 +46,17 @@ export {
 
 // Re-export hook types
 export type { Toast, UseAIGenerationOptions } from './hooks';
+
+// Stats
+export {
+  getGenerationStats,
+  getModelStats,
+  recordGeneration,
+  getEstimatedTime,
+  getModelsBySpeed,
+  formatTime,
+  getHumanEstimate,
+  clearGenerationStats
+} from './stats';
+
+export type { GenerationStats } from './stats';

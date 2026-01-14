@@ -19,6 +19,7 @@ import {
   initAIService
 } from './service';
 import { validators } from './prompts';
+import { recordGeneration, getHumanEstimate } from './stats';
 
 // ============================================
 // AI TOAST HOOK
@@ -152,35 +153,43 @@ export function useAIGeneration() {
     setIsLoading(true);
     setError(null);
 
-    // Get loading message for action type
-    const loadingMessages: Record<AIPromptType, string> = {
-      'game-title': '⏳ Generating title options...',
-      'categories-generate': '⏳ Generating full game... This may take a moment...',
-      'category-rename': '⏳ Generating name options...',
-      'category-title-generate': '⏳ Generating category title...',
-      'category-generate-clues': '⏳ Generating clues...',
-      'category-replace-all': '⏳ Replacing all clues...',
-      'questions-generate-five': '⏳ Generating 5 questions...',
-      'question-generate-single': '⏳ Generating question...',
-      'editor-generate-clue': '⏳ Generating question...',
-      'editor-rewrite-clue': '⏳ Enhancing question...',
-      'editor-generate-answer': '⏳ Generating answer...',
-      'editor-validate': '⏳ Validating...',
-      'team-name-random': '⏳ Generating team names...',
-      'team-name-enhance': '⏳ Enhancing team name...'
+    // Get the selected model from localStorage first (for estimate)
+    const modelUsed = typeof window !== 'undefined'
+      ? localStorage.getItem('jeop3:aiModel') || undefined
+      : undefined;
+
+    // Get loading message for action type with estimate
+    const baseLoadingMessages: Record<AIPromptType, string> = {
+      'game-title': 'Generating title options...',
+      'categories-generate': 'Generating full game...',
+      'category-rename': 'Generating name options...',
+      'category-title-generate': 'Generating category title...',
+      'category-generate-clues': 'Generating clues...',
+      'category-replace-all': 'Replacing all clues...',
+      'questions-generate-five': 'Generating 5 questions...',
+      'question-generate-single': 'Generating question...',
+      'editor-generate-clue': 'Generating question...',
+      'editor-rewrite-clue': 'Enhancing question...',
+      'editor-generate-answer': 'Generating answer...',
+      'editor-validate': 'Validating...',
+      'team-name-random': 'Generating team names...',
+      'team-name-enhance': 'Enhancing team name...'
     };
 
-    const loader = loading(loadingMessages[promptType] || '⏳ Generating...');
+    // Add estimate to loading message if available
+    let loadingMessage = baseLoadingMessages[promptType] || 'Generating...';
+    if (modelUsed) {
+      const estimate = getHumanEstimate(modelUsed);
+      if (estimate !== 'Calculating...') {
+        loadingMessage += ` (~${estimate})`;
+      }
+    }
+
+    const loader = loading(`⏳ ${loadingMessage}`);
 
     const startTime = Date.now();
-    let modelUsed: string | undefined;
 
     try {
-      // Get the selected model from localStorage
-      modelUsed = typeof window !== 'undefined'
-        ? localStorage.getItem('jeop3:aiModel') || undefined
-        : undefined;
-
       const rawResult = await generateAI<string>(promptType, context, difficulty);
 
       // Parse with validator
@@ -192,6 +201,11 @@ export function useAIGeneration() {
       }
 
       const generationTimeMs = Date.now() - startTime;
+
+      // Record generation time for future estimates
+      if (modelUsed) {
+        recordGeneration(modelUsed, generationTimeMs);
+      }
 
       loader.dismiss();
       setIsLoading(false);

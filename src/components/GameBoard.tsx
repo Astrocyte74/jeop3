@@ -14,6 +14,7 @@ import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, MoreVertical, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
+import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 import { useState, useEffect } from 'react';
 
 interface GameBoardProps {
@@ -214,19 +215,31 @@ export function GameBoard({
                             <span className="text-blue-400 mr-2">🤖</span>
                             <span>OpenRouter</span>
                           </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
-                            {availableModels.filter(m => m.provider === 'openrouter').map((model) => (
-                              <DropdownMenuItem
-                                key={model.id}
-                                onClick={() => handleAIModelChange(model.id)}
-                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                              >
-                                <span className="flex-1 min-w-0 truncate">{model.name}</span>
-                                {aiModel === model.id && (
-                                  <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
-                                )}
-                              </DropdownMenuItem>
-                            ))}
+                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                            {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
+                              const stats = getModelStats(model.id);
+                              return (
+                                <DropdownMenuItem
+                                  key={model.id}
+                                  onClick={() => handleAIModelChange(model.id)}
+                                  className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="truncate">{model.name}</span>
+                                      {aiModel === model.id && (
+                                        <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                      )}
+                                    </div>
+                                    {stats && (
+                                      <div className="text-xs text-slate-500 mt-0.5">
+                                        {formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}
+                                      </div>
+                                    )}
+                                  </div>
+                                </DropdownMenuItem>
+                              );
+                            })}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
 
@@ -236,29 +249,59 @@ export function GameBoard({
                             <span className="text-green-400 mr-2">🦙</span>
                             <span>Ollama</span>
                           </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
-                            {availableModels.filter(m => m.provider === 'ollama').map((model) => (
-                              <DropdownMenuItem
-                                key={model.id}
-                                onClick={() => handleAIModelChange(model.id)}
-                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                              >
-                                <span className="flex-1 min-w-0 truncate">{model.name}</span>
-                                {aiModel === model.id && (
-                                  <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
-                                )}
-                              </DropdownMenuItem>
-                            ))}
+                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                            {availableModels.filter(m => m.provider === 'ollama').map((model) => {
+                              const stats = getModelStats(model.id);
+                              return (
+                                <DropdownMenuItem
+                                  key={model.id}
+                                  onClick={() => handleAIModelChange(model.id)}
+                                  className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="truncate">{model.name}</span>
+                                      {aiModel === model.id && (
+                                        <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                      )}
+                                    </div>
+                                    {stats && (
+                                      <div className="text-xs text-slate-500 mt-0.5">
+                                        {formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}
+                                      </div>
+                                    )}
+                                  </div>
+                                </DropdownMenuItem>
+                              );
+                            })}
                           </DropdownMenuSubContent>
                         </DropdownMenuSub>
 
                         <DropdownMenuSeparator />
 
-                        {/* Current selection */}
+                        {/* Current selection with stats */}
                         <DropdownMenuItem disabled className="focus:bg-transparent">
-                          <span className="text-xs text-slate-500">
-                            {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None selected'}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-slate-500">
+                              Selected: {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None'}
+                            </div>
+                            {(() => {
+                              const stats = aiModel ? getModelStats(aiModel) : null;
+                              const fastestModel = getModelsBySpeed()[0];
+                              return (
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  {stats && (
+                                    <span className="text-xs text-slate-600">
+                                      Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
+                                    </span>
+                                  )}
+                                  {fastestModel && fastestModel.modelId === aiModel && (
+                                    <span className="text-xs text-green-500">⚡ Fastest</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </DropdownMenuItem>
                       </>
                     )}
