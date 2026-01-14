@@ -473,6 +473,40 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           </div>
         </AlertDialogHeader>
 
+        {/* Progress Indicator - shows selected choices */}
+        {step !== 'creation-mode' && (
+          <div className="px-6 pb-4 border-b border-slate-700/50">
+            <div className="flex flex-wrap gap-2 text-xs">
+              {creationMode === 'ai' && (
+                <>
+                  <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-md">
+                    AI Generate
+                  </span>
+                  {step === 'theme' || step === 'difficulty' ? (
+                    sourceMode === 'scratch' ? (
+                      <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">From Scratch</span>
+                    ) : sourceMode === 'paste' ? (
+                      <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">Paste Content</span>
+                    ) : (
+                      <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">From URL</span>
+                    )
+                  ) : null}
+                  {step === 'difficulty' && theme && (
+                    <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">
+                      Theme: {theme || 'random'}
+                    </span>
+                  )}
+                  {step === 'difficulty' && (
+                    <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">
+                      Difficulty: {difficulty === 'easy' ? 'Easy' : difficulty === 'normal' ? 'Normal' : 'Hard'}
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
