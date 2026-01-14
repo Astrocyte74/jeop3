@@ -172,7 +172,15 @@ export function useAIGeneration() {
 
     const loader = loading(loadingMessages[promptType] || '⏳ Generating...');
 
+    const startTime = Date.now();
+    let modelUsed: string | undefined;
+
     try {
+      // Get the selected model from localStorage
+      modelUsed = typeof window !== 'undefined'
+        ? localStorage.getItem('jeop3:aiModel') || undefined
+        : undefined;
+
       const rawResult = await generateAI<string>(promptType, context, difficulty);
 
       // Parse with validator
@@ -183,10 +191,21 @@ export function useAIGeneration() {
         throw new Error('Failed to parse AI response');
       }
 
+      const generationTimeMs = Date.now() - startTime;
+
       loader.dismiss();
       setIsLoading(false);
       options?.onSuccess?.(result);
-      return result;
+
+      // Return result with metadata
+      return {
+        ...result,
+        _metadata: {
+          modelUsed,
+          generatedAt: new Date().toISOString(),
+          generationTimeMs
+        }
+      };
 
     } catch (err) {
       const error = err as Error;

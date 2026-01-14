@@ -13,6 +13,7 @@ import {
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, MoreVertical, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
+import { getAIApiBase } from '@/lib/ai/service';
 import { useState, useEffect } from 'react';
 
 interface GameBoardProps {
@@ -49,7 +50,8 @@ export function GameBoard({
 
   // Load available models on mount
   useEffect(() => {
-    fetch('http://localhost:7476/api/health')
+    const apiBase = getAIApiBase();
+    fetch(`${apiBase}/health`)
       .then(res => res.json())
       .then(data => {
         if (data.models) {
@@ -63,7 +65,7 @@ export function GameBoard({
           }
         }
       })
-      .catch(console.error);
+      .catch(err => console.error('Failed to load AI models:', err));
   }, []);
 
   const handleThemeChange = (themeKey: ThemeKey) => {
@@ -201,29 +203,64 @@ export function GameBoard({
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
                     {availableModels.length === 0 ? (
-                      <div className="px-3 py-2 text-sm text-slate-500">
-                        No models available
-                      </div>
+                      <DropdownMenuItem disabled>
+                        <span className="text-slate-500 text-xs">No models available</span>
+                      </DropdownMenuItem>
                     ) : (
-                      availableModels.map((model) => (
-                        <DropdownMenuItem
-                          key={model.id}
-                          onClick={() => handleAIModelChange(model.id)}
-                          className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                        >
-                          <span className="flex items-center gap-2 flex-1 min-w-0">
-                            {model.provider === 'ollama' ? (
-                              <span className="text-green-400">🦙</span>
-                            ) : (
-                              <span className="text-blue-400">🤖</span>
-                            )}
-                            <span className="truncate">{model.name}</span>
+                      <>
+                        {/* OpenRouter section */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span className="text-blue-400 mr-2">🤖</span>
+                            <span>OpenRouter</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                            {availableModels.filter(m => m.provider === 'openrouter').map((model) => (
+                              <DropdownMenuItem
+                                key={model.id}
+                                onClick={() => handleAIModelChange(model.id)}
+                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                              >
+                                <span className="flex-1 min-w-0 truncate">{model.name}</span>
+                                {aiModel === model.id && (
+                                  <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                )}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+
+                        {/* Ollama section */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span className="text-green-400 mr-2">🦙</span>
+                            <span>Ollama</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                            {availableModels.filter(m => m.provider === 'ollama').map((model) => (
+                              <DropdownMenuItem
+                                key={model.id}
+                                onClick={() => handleAIModelChange(model.id)}
+                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                              >
+                                <span className="flex-1 min-w-0 truncate">{model.name}</span>
+                                {aiModel === model.id && (
+                                  <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                )}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSeparator />
+
+                        {/* Current selection */}
+                        <DropdownMenuItem disabled className="focus:bg-transparent">
+                          <span className="text-xs text-slate-500">
+                            {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None selected'}
                           </span>
-                          {aiModel === model.id && (
-                            <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
-                          )}
                         </DropdownMenuItem>
-                      ))
+                      </>
                     )}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>

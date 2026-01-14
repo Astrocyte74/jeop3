@@ -18,7 +18,18 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Wand2, ArrowLeft } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from '@/components/ui/dropdown-menu';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown } from 'lucide-react';
+import { getAIApiBase } from '@/lib/ai/service';
 
 export interface WizardStep {
   type: 'theme' | 'difficulty';
@@ -59,7 +70,28 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
   const [theme, setTheme] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [showBack, setShowBack] = useState(false);
+  const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
+  const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load available AI models on mount
+  useEffect(() => {
+    const apiBase = getAIApiBase();
+    fetch(`${apiBase}/health`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.models) {
+          setAvailableModels(data.models);
+          const stored = localStorage.getItem('jeop3:aiModel');
+          if (stored && data.models.find((m: any) => m.id === stored)) {
+            setAIModel(stored);
+          } else if (data.models.length > 0) {
+            setAIModel(data.models[0].id);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to load AI models:', err));
+  }, []);
 
   // Reset state and auto-focus when wizard opens
   useEffect(() => {
@@ -84,6 +116,24 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
     setStep('theme');
   };
 
+  const handleAIModelChange = (modelId: string) => {
+    setAIModel(modelId);
+    localStorage.setItem('jeop3:aiModel', modelId);
+  };
+
+  const formatModelName = (modelId?: string): string => {
+    if (!modelId) return 'Unknown';
+    const parts = modelId.split(':');
+    const provider = parts[0];
+    const modelName = parts.slice(1).join(':');
+    if (provider === 'or' || provider === 'openrouter') {
+      return `🤖 ${modelName}`;
+    } else if (provider === 'ollama') {
+      return `🦙 ${modelName}`;
+    }
+    return modelName;
+  };
+
   const handleComplete = () => {
     onComplete(theme, difficulty);
     // Reset state
@@ -106,16 +156,96 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
     <AlertDialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <Wand2 className="w-5 h-5 text-purple-400" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-500/20 rounded-lg">
+                <Wand2 className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <AlertDialogTitle>Create New Game</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {step === 'theme' ? 'Choose a theme for your game' : 'Select difficulty level'}
+                </AlertDialogDescription>
+              </div>
             </div>
-            <div>
-              <AlertDialogTitle>Create New Game</AlertDialogTitle>
-              <AlertDialogDescription>
-                {step === 'theme' ? 'Choose a theme for your game' : 'Select difficulty level'}
-              </AlertDialogDescription>
-            </div>
+
+            {/* AI Model Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-700 bg-slate-900/50 h-8 px-2"
+                  disabled={isLoading}
+                >
+                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-400" />
+                  <span className="text-xs">{formatModelName(aiModel)}</span>
+                  <ChevronDown className="w-3 h-3 ml-1 text-slate-400" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {availableModels.length === 0 ? (
+                  <DropdownMenuItem disabled>
+                    <span className="text-slate-500 text-xs">No models available</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    {/* OpenRouter section */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span className="text-blue-400 mr-2">🤖</span>
+                        <span>OpenRouter</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                        {availableModels.filter(m => m.provider === 'openrouter').map((model) => (
+                          <DropdownMenuItem
+                            key={model.id}
+                            onClick={() => handleAIModelChange(model.id)}
+                            className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                          >
+                            <span className="flex-1 min-w-0 truncate">{model.name}</span>
+                            {aiModel === model.id && (
+                              <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    {/* Ollama section */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span className="text-green-400 mr-2">🦙</span>
+                        <span>Ollama</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                        {availableModels.filter(m => m.provider === 'ollama').map((model) => (
+                          <DropdownMenuItem
+                            key={model.id}
+                            onClick={() => handleAIModelChange(model.id)}
+                            className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                          >
+                            <span className="flex-1 min-w-0 truncate">{model.name}</span>
+                            {aiModel === model.id && (
+                              <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                            )}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Current selection */}
+                    <DropdownMenuItem disabled className="focus:bg-transparent">
+                      <span className="text-xs text-slate-500">
+                        {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None selected'}
+                      </span>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </AlertDialogHeader>
 

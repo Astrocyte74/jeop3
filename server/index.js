@@ -65,7 +65,11 @@ function selectModel(options = {}) {
 
   // If specific model requested, parse provider:model format
   if (model) {
-    const [modelProvider, modelName] = model.split(':');
+    const parts = model.split(':');
+    const modelProvider = parts[0];
+    // Join the rest with ':' in case the model name contains colons (e.g., gemma3:12b)
+    const modelName = parts.slice(1).join(':');
+
     if (modelProvider === 'or' || modelProvider === 'openrouter') {
       return { provider: 'openrouter', model: modelName || models.openrouter[0] };
     } else if (modelProvider === 'ollama') {

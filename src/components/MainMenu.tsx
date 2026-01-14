@@ -8,6 +8,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
@@ -22,6 +25,7 @@ import {
 import type { GameMeta, Team, Game, Category, Clue } from '@/lib/storage';
 import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, stateKey } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
+import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard } from '@/components/NewGameWizard';
@@ -47,6 +51,11 @@ interface GeneratedGameData {
   suggestedTeamNames: string[];
   theme: string;
   difficulty: AIDifficulty;
+  metadata?: {
+    modelUsed?: string;
+    generatedAt?: string;
+    generationTimeMs?: number;
+  };
 }
 
 export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave }: MainMenuProps) {
@@ -61,6 +70,8 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
   const [showIconSizePicker, setShowIconSizePicker] = useState(false);
+  const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
+  const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
 
   // AI Preview state
@@ -107,6 +118,25 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
         console.error('Failed to load stored game for AI preview:', error);
       }
     }
+  }, []);
+
+  // Load available AI models on mount
+  useEffect(() => {
+    const apiBase = getAIApiBase();
+    fetch(`${apiBase}/health`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.models) {
+          setAvailableModels(data.models);
+          const stored = localStorage.getItem('jeop3:aiModel');
+          if (stored && data.models.find((m: any) => m.id === stored)) {
+            setAIModel(stored);
+          } else if (data.models.length > 0) {
+            setAIModel(data.models[0].id);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to load AI models:', err));
   }, []);
 
   const loadGames = async () => {
@@ -190,6 +220,11 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
     // Force a reload of the icon matcher data
     (iconMatcher as any).loaded = false;
     await iconMatcher.load();
+  };
+
+  const handleAIModelChange = (modelId: string) => {
+    setAIModel(modelId);
+    localStorage.setItem('jeop3:aiModel', modelId);
   };
 
   const handleStartGame = () => {
@@ -424,6 +459,9 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
       clues: Array<{ value: number; clue: string; response: string }>;
     }>;
 
+    // Capture metadata from categories generation
+    const categoriesMetadata = (categoriesResult as any)._metadata;
+
     // Generate titles
     const titlesResult = await aiGenerate(
       'game-title',
@@ -472,6 +510,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
       categories: gameCategories,
       rows: 5,
       suggestedTeamNames: suggestedTeamNames,
+      metadata: categoriesMetadata,
     };
 
     // Store the generated game data for later use
@@ -482,6 +521,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
       suggestedTeamNames,
       theme,
       difficulty,
+      metadata: categoriesMetadata,
     });
 
     // Show preview dialog
@@ -534,6 +574,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
       title: selectedTitle.title,
       subtitle: selectedTitle.subtitle,
       suggestedTeamNames: generatedGameData.suggestedTeamNames,
+      metadata: generatedGameData.metadata,
       categories: categoriesToApply.map(cat => ({
         title: cat.title,
         clues: cat.clues.map(clue => ({
@@ -1549,6 +1590,82 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
                 <Image className="w-4 h-4 mr-2" />
                 Icon Size
               </Button>
+
+              {/* AI Model dropdown menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-700"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    AI Model
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  {availableModels.length === 0 ? (
+                    <DropdownMenuItem disabled>
+                      <span className="text-slate-500 text-xs">No models available</span>
+                    </DropdownMenuItem>
+                  ) : (
+                    <>
+                      {/* OpenRouter section */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <span className="text-blue-400 mr-2">🤖</span>
+                          <span>OpenRouter</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                          {availableModels.filter(m => m.provider === 'openrouter').map((model) => (
+                            <DropdownMenuItem
+                              key={model.id}
+                              onClick={() => handleAIModelChange(model.id)}
+                              className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                            >
+                              <span className="flex-1 min-w-0 truncate">{model.name}</span>
+                              {aiModel === model.id && (
+                                <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                              )}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+
+                      {/* Ollama section */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <span className="text-green-400 mr-2">🦙</span>
+                          <span>Ollama</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto">
+                          {availableModels.filter(m => m.provider === 'ollama').map((model) => (
+                            <DropdownMenuItem
+                              key={model.id}
+                              onClick={() => handleAIModelChange(model.id)}
+                              className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                            >
+                              <span className="flex-1 min-w-0 truncate">{model.name}</span>
+                              {aiModel === model.id && (
+                                <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
+                              )}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+
+                      <DropdownMenuSeparator />
+
+                      {/* Current selection */}
+                      <DropdownMenuItem disabled className="focus:bg-transparent">
+                        <span className="text-xs text-slate-500">
+                          {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None selected'}
+                        </span>
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {/* Theme picker */}
@@ -1738,6 +1855,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, editGame, onAIPreviewSave
         enhancingTitle={enhancingTitle}
         rewritingTeamName={rewritingTeamName}
         enhancingTeamName={enhancingTeamName}
+        metadata={generatedGameData?.metadata}
       />
 
       {/* Delete Game Confirmation Dialog */}

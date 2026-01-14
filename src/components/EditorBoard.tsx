@@ -58,6 +58,32 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   const teamCount = teams.length;
   const teamGridCols = teamCount <= 2 ? 1 : teamCount <= 4 ? 2 : 3;
 
+  // Helper functions for metadata display
+  const formatModelName = (modelId?: string): string => {
+    if (!modelId) return 'Unknown';
+    const parts = modelId.split(':');
+    const provider = parts[0];
+    const modelName = parts.slice(1).join(':');
+    if (provider === 'or' || provider === 'openrouter') {
+      return `🤖 ${modelName}`;
+    } else if (provider === 'ollama') {
+      return `🦙 ${modelName}`;
+    }
+    return modelName;
+  };
+
+  const formatGenerationTime = (ms?: number): string => {
+    if (!ms) return '';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  };
+
+  const formatTimestamp = (iso?: string): string => {
+    if (!iso) return '';
+    const date = new Date(iso);
+    return date.toLocaleString();
+  };
+
   // Check if game has changed from original
   useEffect(() => {
     const changed = JSON.stringify(editingGame) !== JSON.stringify(game);
@@ -433,6 +459,26 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               placeholder="Add a subtitle..."
               className="text-sm md:text-base text-center bg-transparent border-none text-slate-300 font-medium p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
             />
+            {/* Metadata display */}
+            {editingGame.metadata && (editingGame.metadata.modelUsed || editingGame.metadata.generatedAt || editingGame.metadata.generationTimeMs) && (
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-600">
+                {editingGame.metadata.modelUsed && (
+                  <span className="flex items-center gap-1">
+                    Model: <span className="font-medium text-slate-500">{formatModelName(editingGame.metadata.modelUsed)}</span>
+                  </span>
+                )}
+                {editingGame.metadata.generationTimeMs && (
+                  <span className="flex items-center gap-1">
+                    Time: <span className="font-medium text-slate-500">{formatGenerationTime(editingGame.metadata.generationTimeMs)}</span>
+                  </span>
+                )}
+                {editingGame.metadata.generatedAt && (
+                  <span className="flex items-center gap-1">
+                    Generated: <span className="font-medium text-slate-500">{formatTimestamp(editingGame.metadata.generatedAt)}</span>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

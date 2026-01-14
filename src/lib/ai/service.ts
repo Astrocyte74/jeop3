@@ -21,7 +21,7 @@ const DEFAULT_PORT = 7476;
 /**
  * Get AI API base URL from config or defaults
  */
-function getAIApiBase(config?: AIServerConfig): string {
+export function getAIApiBase(config?: AIServerConfig): string {
   if (config?.baseUrl) return config.baseUrl;
 
   const isLocal = typeof window !== 'undefined' &&

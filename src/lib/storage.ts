@@ -11,12 +11,19 @@ export type Category = {
   clues: Clue[];
 };
 
+export type GameMetadata = {
+  modelUsed?: string;  // e.g., "or:google/gemini-2.5-flash-lite" or "ollama:gemma3:12b"
+  generatedAt?: string;  // ISO timestamp
+  generationTimeMs?: number;  // Time taken to generate in milliseconds
+};
+
 export type Game = {
   title: string;
   subtitle?: string;
   categories: Category[];
   rows?: number;
   suggestedTeamNames?: string[];
+  metadata?: GameMetadata;
 };
 
 export type Team = {
