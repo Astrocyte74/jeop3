@@ -274,7 +274,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
 
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && handleClose()}>
-      <AlertDialogContent className="max-w-md">
+      <AlertDialogContent className="max-w-md max-h-[90vh] flex flex-col">
         <AlertDialogHeader>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -425,7 +425,7 @@ export function NewGameWizard({ open, onClose, onComplete, isLoading = false }: 
             <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
           </div>
         ) : (
-          <>
+          <div className="overflow-y-auto flex-1 -mx-6 px-6">
             {step === 'source' && (
               <div className="py-4 space-y-4">
                 <p className="text-sm text-slate-400">How would you like to create your game?</p>
