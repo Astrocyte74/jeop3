@@ -116,6 +116,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // Sign-in prompt dialog state
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
 
+  // AI Model button visibility (hidden by default, shown with keyboard shortcut)
+  const [showAIModelSelector, setShowAIModelSelector] = useState(false);
+
   const { generate: aiGenerate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
 
   // Ref to track if we need to open AI preview after component mounts
@@ -161,6 +164,20 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           console.warn('AI server not available - AI features disabled');
         }
       });
+  }, []);
+
+  // Keyboard shortcut to toggle AI Model selector (Cmd+Shift+S on Mac, Ctrl+Shift+S on Windows/Linux)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Cmd+Shift+S (Mac) or Ctrl+Shift+S (Windows/Linux)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'S') {
+        e.preventDefault();
+        setShowAIModelSelector(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const loadGames = async () => {
@@ -1815,7 +1832,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* AI Model dropdown menu */}
+              {/* AI Model dropdown menu - hidden by default, shown with Cmd/Ctrl+Shift+S */}
+              {showAIModelSelector && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1937,6 +1955,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              )}
             </div>
           </div>
 
