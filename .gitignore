@@ -16,6 +16,11 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+.env.save
+server/.env
+
+# Internal documentation
+docs/SHARING.md
 
 # AI server
 ai-server.log
