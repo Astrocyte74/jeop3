@@ -23,8 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { GameMeta, Team, Game, Category, Clue, GameState } from '@/lib/storage';
-import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey } from '@/lib/storage';
+import type { GameMeta, Team, Game, Category, Clue } from '@/lib/storage';
+import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
@@ -33,7 +33,7 @@ import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -79,6 +79,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [games, setGames] = useState<GameMeta[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [gameSort, setGameSort] = useState<'newest' | 'oldest' | 'recentlyPlayed' | 'mostPlayed' | 'inProgress' | 'notStarted' | 'completed'>('newest');
   const [teams, setTeams] = useState<Team[]>([
     { id: '1', name: 'Team 1', score: 0 },
     { id: '2', name: 'Team 2', score: 0 },
@@ -222,6 +223,78 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     game.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Sorting logic - apply sorting to filtered games
+  const sortedGames = [...filteredGames].sort((a, b) => {
+    switch (gameSort) {
+      case 'newest': {
+        // Sort by createdAt (newest first), fall back to ID (for AI games with timestamp IDs)
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : (a.source === 'custom' && a.id.startsWith('ai-') ? parseInt(a.id.replace('ai-', ''), 10) : 0);
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : (b.source === 'custom' && b.id.startsWith('ai-') ? parseInt(b.id.replace('ai-', ''), 10) : 0);
+        return bDate - aDate; // Newest first
+      }
+      case 'oldest': {
+        // Sort by createdAt (oldest first), fall back to ID
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : (a.source === 'custom' && a.id.startsWith('ai-') ? parseInt(a.id.replace('ai-', ''), 10) : 0);
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : (b.source === 'custom' && b.id.startsWith('ai-') ? parseInt(b.id.replace('ai-', ''), 10) : 0);
+        return aDate - bDate; // Oldest first
+      }
+      case 'recentlyPlayed': {
+        // Sort by lastPlayed timestamp
+        const aStats = getGamePlayStats(a.id);
+        const bStats = getGamePlayStats(b.id);
+        const aLast = aStats?.lastPlayed || 0;
+        const bLast = bStats?.lastPlayed || 0;
+        return bLast - aLast; // Most recent first
+      }
+      case 'mostPlayed': {
+        // Sort by play count
+        const aStats = getGamePlayStats(a.id);
+        const bStats = getGamePlayStats(b.id);
+        const aCount = aStats?.playCount || 0;
+        const bCount = bStats?.playCount || 0;
+        return bCount - aCount; // Most played first
+      }
+      case 'inProgress': {
+        // In progress games first, then by completion percentage (lowest first)
+        const aCompletion = calculateGameCompletion(a.id, a.game || null);
+        const bCompletion = calculateGameCompletion(b.id, b.game || null);
+        const aInProgress = aCompletion !== null && aCompletion.percentage < 100;
+        const bInProgress = bCompletion !== null && bCompletion.percentage < 100;
+
+        // If both are in progress, sort by percentage (least complete first)
+        if (aInProgress && bInProgress) {
+          return (aCompletion!.percentage) - (bCompletion!.percentage);
+        }
+        // If only a is in progress, it comes first
+        if (aInProgress) return -1;
+        // If only b is in progress, it comes first
+        if (bInProgress) return 1;
+        // Neither is in progress, keep original order
+        return 0;
+      }
+      case 'notStarted': {
+        // Games without saved state first, then by title
+        const aHasState = loadGameState(a.id) !== null;
+        const bHasState = loadGameState(b.id) !== null;
+
+        if (!aHasState && bHasState) return -1;
+        if (aHasState && !bHasState) return 1;
+        // Both have same state status, sort by title
+        return a.title.localeCompare(b.title);
+      }
+      case 'completed': {
+        // Sort by completion percentage (highest first)
+        const aCompletion = calculateGameCompletion(a.id, a.game || null);
+        const bCompletion = calculateGameCompletion(b.id, b.game || null);
+        const aPct = aCompletion?.percentage ?? 0;
+        const bPct = bCompletion?.percentage ?? 0;
+        return bPct - aPct; // Most complete first
+      }
+      default:
+        return 0;
+    }
+  });
+
   const handleAddTeam = () => {
     if (teams.length >= 4) return; // Maximum 4 teams
 
@@ -273,6 +346,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const game = games.find((g) => g.id === selectedGameId);
     if (!game) return;
     setSelectedGameId(selectedGameId);
+    // Record that this game was played
+    recordGamePlay(selectedGameId);
     onSelectGame(selectedGameId, game.game, teams);
   };
 
@@ -377,6 +452,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           subtitle: gameData.subtitle || '',
           source: 'custom',
           game: gameData,
+          createdAt: new Date().toISOString(),
         };
 
         // Save to localStorage
@@ -784,6 +860,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       subtitle: finalGame.subtitle,
       source: 'custom',
       game: finalGame,
+      createdAt: new Date().toISOString(),
     };
 
     // Save to localStorage
@@ -1640,9 +1717,51 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 <Gamepad2 className="w-5 h-5 text-yellow-500" />
                 <h2 className="text-lg font-semibold">Select Game</h2>
               </div>
-              <Badge variant="outline" className="text-xs">
-                {filteredGames.length} games
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {sortedGames.length} games
+                </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-slate-400 hover:text-slate-300 hover:bg-slate-700">
+                      <ArrowUpDown className="w-3 h-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
+                      Sort by
+                    </div>
+                    <DropdownMenuItem onClick={() => setGameSort('newest')} className={gameSort === 'newest' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">Newest First</span>
+                      {gameSort === 'newest' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGameSort('oldest')} className={gameSort === 'oldest' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">Oldest First</span>
+                      {gameSort === 'oldest' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGameSort('recentlyPlayed')} className={gameSort === 'recentlyPlayed' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">Recently Played</span>
+                      {gameSort === 'recentlyPlayed' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGameSort('mostPlayed')} className={gameSort === 'mostPlayed' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">Most Played</span>
+                      {gameSort === 'mostPlayed' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGameSort('inProgress')} className={gameSort === 'inProgress' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">In Progress First</span>
+                      {gameSort === 'inProgress' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGameSort('notStarted')} className={gameSort === 'notStarted' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">Not Started First</span>
+                      {gameSort === 'notStarted' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setGameSort('completed')} className={gameSort === 'completed' ? 'bg-yellow-500/10' : ''}>
+                      <span className="flex-1">% Completed</span>
+                      {gameSort === 'completed' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </div>
 
             <Input
@@ -1653,7 +1772,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             />
 
             <div key={gameStateRefreshKey} className="space-y-2 max-h-80 overflow-y-auto pr-2">
-              {filteredGames.map((game) => {
+              {sortedGames.map((game) => {
                 const gameData = loadCustomGames().find(g => g.id === game.id);
                 const savedState = loadGameState(game.id);
                 const inProgress = savedState && savedState.teams && savedState.teams.length > 0;
@@ -1709,6 +1828,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                             categories: [],
                             rows: 5,
                           };
+                          recordGamePlay(game.id);
                           onSelectGame(game.id, fullGame, teams);
                         }}>
                           <Play className="w-4 h-4 mr-2 text-green-400" />
