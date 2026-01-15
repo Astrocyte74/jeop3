@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth, useUser, SignInButton, SignedIn, SignedOut } from '@clerk/clerk-react';
+import { useAuth, useUser, SignInButton, SignedIn, SignedOut } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';

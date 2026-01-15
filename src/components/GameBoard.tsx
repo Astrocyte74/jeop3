@@ -16,7 +16,7 @@ import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type Them
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth } from '@/lib/auth';
 
 interface GameBoardProps {
   game: Game;

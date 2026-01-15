@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth } from '@/lib/auth';
 import type {
   AIPromptType,
   AIContext,
