@@ -23,8 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { GameMeta, Team, Game, Category, Clue } from '@/lib/storage';
-import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, stateKey } from '@/lib/storage';
+import type { GameMeta, Team, Game, Category, Clue, GameState } from '@/lib/storage';
+import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
@@ -33,7 +33,7 @@ import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -330,6 +330,30 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleResetGame = (gameId: string) => {
+    // Load the current game state for this game
+    const savedState = loadGameState(gameId);
+
+    if (savedState) {
+      // Reset the game state - clear used clues, reset scores to 0
+      const resetState: GameState = {
+        used: {},
+        teams: savedState.teams.map(team => ({ ...team, score: 0 })),
+        activeTeamId: savedState.teams[0]?.id || '',
+        currentRound: 1,
+      };
+
+      // Save the reset state
+      saveGameState(gameId, resetState);
+
+      // Show feedback
+      console.log(`[MainMenu] Reset game state for ${gameId}`);
+    } else {
+      // No saved state - nothing to reset
+      console.log(`[MainMenu] No saved state found for ${gameId} - nothing to reset`);
+    }
   };
 
   const handleImportGame = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1723,6 +1747,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                         <DropdownMenuItem onClick={() => handleExportGame(game)}>
                           <Download className="w-4 h-4 mr-2 text-green-400" />
                           <span>Export to File</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleResetGame(game.id)}>
+                          <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
+                          <span>Reset Game</span>
                         </DropdownMenuItem>
                         {game.source === 'custom' && (
                           <>
