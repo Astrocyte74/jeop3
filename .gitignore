@@ -36,3 +36,4 @@ server/node_modules
 *.njsproj
 *.sln
 *.sw?
+public/icons
