@@ -641,3 +641,8 @@ The key insights from this implementation:
 8. **Placeholder key detection** - Check for "add_your_key_here" to disable features locally
 
 This approach provides secure authentication with minimal dependencies while keeping public access for gameplay and supporting both local development (without auth) and production (with auth).
+
+## Local Icon Setup
+
+Local development uses symlink from `/public/icons` to `/Users/markdarby/projects/icons`
+for faster loading. Production uses Cloudflare R2 via `VITE_ICON_BASE_URL`.
