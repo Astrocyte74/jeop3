@@ -239,10 +239,11 @@ class IconMatcher {
         }
       }
 
-      // For clue-only matches, require at least 2 matched tokens or higher single score
+      // For clue-only matches, require at least 2 matched tokens OR a high single score
       const hasMultipleMatches = matchedTokens.length >= 2;
+      const hasHighScore = score >= 6;  // Strong single token match (e.g., slug match)
       const meetsThreshold = score >= minScore;
-      const validMatch = answer ? meetsThreshold : (meetsThreshold && hasMultipleMatches);
+      const validMatch = answer ? meetsThreshold : (meetsThreshold && (hasMultipleMatches || hasHighScore));
 
       if (validMatch) {
         scored.push({ icon, score, matchedTokens });
