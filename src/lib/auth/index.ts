@@ -7,6 +7,10 @@
 
 import React from 'react'
 
+// Import Clerk hooks - these will only work when wrapped in ClerkProvider
+import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-react'
+import { SignedIn as ClerkSignedIn, SignedOut as ClerkSignedOut, SignInButton as ClerkSignInButton, SignOutButton as ClerkSignOutButton, UserButton as ClerkUserButton } from '@clerk/clerk-react'
+
 // Check if Clerk is properly configured (not a placeholder key)
 function isClerkConfigured(): boolean {
   if (typeof import.meta === 'undefined' || !import.meta.env) {
@@ -31,8 +35,7 @@ export function useAuth() {
     }
   }
 
-  // Clerk configured - use real hook (lazy import)
-  const { useAuth: useClerkAuth } = require('@clerk/clerk-react')
+  // Clerk configured - use real hook
   return useClerkAuth()
 }
 
@@ -45,7 +48,6 @@ export function useUser() {
     }
   }
 
-  const { useUser: useClerkUser } = require('@clerk/clerk-react')
   return useClerkUser()
 }
 
@@ -91,49 +93,9 @@ function createClerkWrapper(Component: React.ComponentType<any>) {
   }
 }
 
-// Lazy load Clerk components and wrap them
-let SignedIn_: React.ComponentType<any> | null = null
-let SignedOut_: React.ComponentType<any> | null = null
-let SignInButton_: React.ComponentType<any> | null = null
-let SignOutButton_: React.ComponentType<any> | null = null
-let UserButton_: React.ComponentType<any> | null = null
-
-export const SignedIn = createClerkWrapper(function(props: any) {
-  if (!SignedIn_) {
-    const { SignedIn: ClerkSignedIn } = require('@clerk/clerk-react')
-    SignedIn_ = ClerkSignedIn
-  }
-  return React.createElement(SignedIn_!, props)
-})
-
-export const SignedOut = createClerkWrapper(function(props: any) {
-  if (!SignedOut_) {
-    const { SignedOut: ClerkSignedOut } = require('@clerk/clerk-react')
-    SignedOut_ = ClerkSignedOut
-  }
-  return React.createElement(SignedOut_!, props)
-})
-
-export const SignInButton = createClerkWrapper(function(props: any) {
-  if (!SignInButton_) {
-    const { SignInButton: ClerkSignInButton } = require('@clerk/clerk-react')
-    SignInButton_ = ClerkSignInButton
-  }
-  return React.createElement(SignInButton_!, props)
-})
-
-export const SignOutButton = createClerkWrapper(function(props: any) {
-  if (!SignOutButton_) {
-    const { SignOutButton: ClerkSignOutButton } = require('@clerk/clerk-react')
-    SignOutButton_ = ClerkSignOutButton
-  }
-  return React.createElement(SignOutButton_!, props)
-})
-
-export const UserButton = createClerkWrapper(function(props: any) {
-  if (!UserButton_) {
-    const { UserButton: ClerkUserButton } = require('@clerk/clerk-react')
-    UserButton_ = ClerkUserButton
-  }
-  return React.createElement(UserButton_!, props)
-})
+// Export wrapped Clerk components
+export const SignedIn = createClerkWrapper(ClerkSignedIn)
+export const SignedOut = createClerkWrapper(ClerkSignedOut)
+export const SignInButton = createClerkWrapper(ClerkSignInButton)
+export const SignOutButton = createClerkWrapper(ClerkSignOutButton)
+export const UserButton = createClerkWrapper(ClerkUserButton)
