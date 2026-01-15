@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload, AlertCircle, RefreshCw } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
+import { useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 
 export interface WizardStep {
@@ -136,6 +137,9 @@ const MIN_CHARS = 40;
 const MAX_CHARS = 100000;
 
 export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, error }: NewGameWizardProps) {
+  // Clerk auth - needed for fetch-article endpoint
+  const { getToken } = useAuth();
+
   const [step, setStep] = useState<'creation-mode' | 'manual-confirm' | 'source' | 'theme' | 'difficulty'>('creation-mode');
   const [creationMode, setCreationMode] = useState<'ai' | 'manual' | 'import-json'>('ai');
   const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url'>('scratch');
@@ -224,13 +228,21 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setFetchError('');
 
     try {
-      const result = await fetchArticleContent(referenceUrl.trim());
+      // Get auth token for protected endpoint
+      const authToken = await getToken().catch(() => null);
+
+      const result = await fetchArticleContent(referenceUrl.trim(), authToken);
       if (result.success && result.text) {
         setReferenceMaterial(result.text);
         setShowBack(true);
         setStep('theme');
       } else {
-        setFetchError(result.error || 'Failed to fetch content from URL');
+        // Check if error is auth-related
+        if (result.error?.includes('403') || result.error?.includes('auth') || result.error?.includes('token')) {
+          setFetchError('Please sign in to fetch content from URLs');
+        } else {
+          setFetchError(result.error || 'Failed to fetch content from URL');
+        }
       }
     } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
