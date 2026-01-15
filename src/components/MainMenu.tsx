@@ -98,6 +98,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [isRegenerating] = useState(false);
   const [regeneratedItems, setRegeneratedItems] = useState<Set<string>>(new Set());
   const [isWizardGenerating, setIsWizardGenerating] = useState(false);
+  const [wizardError, setWizardError] = useState<string | null>(null);
   const [regeneratingCounts] = useState<{ categories: number; clues: number } | undefined>(undefined);
   const [rewritingCategory, setRewritingCategory] = useState<number | null>(null);
   const [rewritingClue, setRewritingClue] = useState<{ catIndex: number; clueIndex: number } | null>(null);
@@ -557,41 +558,42 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
     // Reset regenerated items for new game
     setRegeneratedItems(new Set());
-
+    setWizardError(null); // Clear any previous errors
     setIsWizardGenerating(true);
 
-    // Determine prompt type and build context based on source mode
-    const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
-      ? 'categories-generate-from-content'
-      : 'categories-generate';
+    try {
+      // Determine prompt type and build context based on source mode
+      const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
+        ? 'categories-generate-from-content'
+        : 'categories-generate';
 
-    const context: Record<string, any> = {
-      theme: theme || 'random',
-      count: 6,
-    };
+      const context: Record<string, any> = {
+        theme: theme || 'random',
+        count: 6,
+      };
 
-    // Add reference material for content-based generation
-    if (sourceMode !== 'scratch' && referenceMaterial) {
-      context.referenceMaterial = referenceMaterial;
-      context.referenceUrl = referenceUrl;
-      context.sourceCharacters = referenceMaterial.length;
-    }
+      // Add reference material for content-based generation
+      if (sourceMode !== 'scratch' && referenceMaterial) {
+        context.referenceMaterial = referenceMaterial;
+        context.referenceUrl = referenceUrl;
+        context.sourceCharacters = referenceMaterial.length;
+      }
 
-    // Generate categories
-    const categoriesResult = await aiGenerate(
-      promptType,
-      context,
-      difficulty
-    );
+      // Generate categories
+      const categoriesResult = await aiGenerate(
+        promptType,
+        context,
+        difficulty
+      );
 
-    console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
+      console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
 
-    if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
-      console.error('[MainMenu] Invalid categories result:', categoriesResult);
-      setIsWizardGenerating(false);
-      setShowWizard(false);
-      return;
-    }
+      if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
+        console.error('[MainMenu] Invalid categories result:', categoriesResult);
+        setWizardError('Failed to generate categories. The AI returned an invalid response. Please try again.');
+        setIsWizardGenerating(false);
+        return; // Keep wizard open
+      }
 
     const categoriesList = (categoriesResult as any).categories as Array<{
       title: string;
@@ -627,24 +629,22 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       existingNames: [],
     };
     if (sourceMode !== 'scratch' && referenceMaterial) {
-      // For content-based games, include a snippet to inspire themed names
-      teamNamesContext.referenceMaterial = referenceMaterial.substring(0, 500);
+      teamNamesContext.contentHint = referenceMaterial.substring(0, 500);
     }
-    teamNamesContext.gameTopic = theme || '';
+    const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
 
-    const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext);
+    let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
+    if (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult) {
+      const names = (teamNamesResult as any).names as string[];
+      if (Array.isArray(names) && names.length === 4) {
+        suggestedTeamNames = names;
+      }
+    }
 
-    const suggestedTeamNames = (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult)
-      ? (teamNamesResult as any).names as string[]
-      : [];
-
-    setIsWizardGenerating(false);
-    setShowWizard(false);
-
-    // Build categories for the Game object
-    const gameCategories: Category[] = [];
+    // Build game structure
+    const gameCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> = [];
     for (const cat of categoriesList) {
-      const categoryClues: Clue[] = [];
+      const categoryClues: Array<{ value: number; clue: string; response: string }> = [];
       for (const clue of cat.clues) {
         categoryClues.push({
           value: clue.value,
@@ -681,10 +681,21 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       metadata: categoriesMetadata,
     });
 
-    // Show preview dialog
+    // Success! Close wizard and show preview dialog
+    setIsWizardGenerating(false);
+    setShowWizard(false);
+
     setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
     setAiPreviewType('categories-generate');
     setAiPreviewOpen(true);
+
+    } catch (error) {
+      console.error('[MainMenu] AI generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate game. Please try again.';
+      setWizardError(errorMessage);
+      setIsWizardGenerating(false);
+      // Keep wizard open on error
+    }
   };
 
   // ==================== AI PREVIEW HANDLERS ====================
@@ -2050,6 +2061,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         onOpenEditor={onOpenEditor}
         onImportJSON={handleCreateGameImport}
         isLoading={isWizardGenerating}
+        error={wizardError}
       />
 
       {/* Hidden file input for import */}

@@ -29,7 +29,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload } from 'lucide-react';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload, AlertCircle, RefreshCw } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 
@@ -60,6 +60,7 @@ interface NewGameWizardProps {
   onOpenEditor?: () => void;
   onImportJSON?: () => void;
   isLoading?: boolean;
+  error?: string | null;
 }
 
 const difficultyOptions = [
@@ -134,7 +135,7 @@ const creationModeOptions = [
 const MIN_CHARS = 40;
 const MAX_CHARS = 100000;
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, error }: NewGameWizardProps) {
   const [step, setStep] = useState<'creation-mode' | 'manual-confirm' | 'source' | 'theme' | 'difficulty'>('creation-mode');
   const [creationMode, setCreationMode] = useState<'ai' | 'manual' | 'import-json'>('ai');
   const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url'>('scratch');
@@ -853,6 +854,30 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           </div>
         )}
 
+        {/* Error display */}
+        {error && (
+          <div className="px-6 pb-4">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-300 mb-1">Generation Failed</p>
+                  <p className="text-xs text-red-400/80 mb-3">{error}</p>
+                  <Button
+                    onClick={handleComplete}
+                    size="sm"
+                    variant="outline"
+                    className="text-xs border-red-500/30 text-red-300 hover:bg-red-500/20 hover:text-red-200"
+                  >
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Try Again
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <AlertDialogFooter>
           <div className="flex gap-2 w-full">
             {showBack ? (
@@ -900,7 +925,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               <Button
                 onClick={handleComplete}
                 className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white"
-                disabled={isLoading}
+                disabled={isLoading || !!error}
               >
                 <Wand2 className="w-4 h-4 mr-2" />
                 Generate Game
