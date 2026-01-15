@@ -78,7 +78,8 @@ class IconMatcher {
   private loaded = false;
 
   async load(): Promise<boolean> {
-    if (this.loaded) return true;
+    // Allow retry if icons are empty (may have failed before symlink was ready)
+    if (this.loaded && this.icons.length > 0) return true;
 
     try {
       const size = getIconSize();
@@ -93,12 +94,20 @@ class IconMatcher {
       // Silent fail - icon service not configured
       this.icons = [];
       this.loaded = true;
+      console.warn('IconMatcher: Failed to load icons - icon service not available');
       return false;
     }
   }
 
   isLoaded(): boolean {
-    return this.loaded;
+    return this.loaded && this.icons.length > 0;
+  }
+
+  // Force reload (useful for debugging or after symlink changes)
+  async reload(): Promise<boolean> {
+    this.loaded = false;
+    this.icons = [];
+    return this.load();
   }
 
   findMatch(clue: string, answer?: string, category?: string): IconMatch | null {
