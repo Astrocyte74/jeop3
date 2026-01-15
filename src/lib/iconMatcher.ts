@@ -90,7 +90,7 @@ class IconMatcher {
       console.log(`Loaded ${this.icons.length} icons from ${ICON_BASE_URL} (size: ${size}px)`);
       return true;
     } catch (error) {
-      console.warn('Failed to load icons:', error);
+      // Silent fail - icon service not configured
       this.icons = [];
       this.loaded = true;
       return false;

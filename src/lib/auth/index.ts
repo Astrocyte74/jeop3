@@ -32,6 +32,7 @@ export function useAuth() {
       userId: null,
       sessionId: null,
       getToken: async () => null,
+      signOut: async () => {}, // no-op for local dev
     }
   }
 
