@@ -88,6 +88,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
+  const [gameStateRefreshKey, setGameStateRefreshKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // AI Preview state
@@ -337,19 +338,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const savedState = loadGameState(gameId);
 
     if (savedState) {
-      // Reset the game state - clear used clues, reset scores to 0
-      const resetState: GameState = {
-        used: {},
-        teams: savedState.teams.map(team => ({ ...team, score: 0 })),
-        activeTeamId: savedState.teams[0]?.id || '',
-        currentRound: 1,
-      };
+      // Remove the saved game state entirely (this removes the "in progress" badge)
+      localStorage.removeItem(stateKey(gameId));
 
-      // Save the reset state
-      saveGameState(gameId, resetState);
+      // Force re-render to update the UI
+      setGameStateRefreshKey(prev => prev + 1);
 
       // Show feedback
-      console.log(`[MainMenu] Reset game state for ${gameId}`);
+      console.log(`[MainMenu] Reset game state for ${gameId} - removed "in progress" badge`);
     } else {
       // No saved state - nothing to reset
       console.log(`[MainMenu] No saved state found for ${gameId} - nothing to reset`);
@@ -1656,7 +1652,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               className="mb-4 bg-slate-800/50 border-slate-700"
             />
 
-            <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+            <div key={gameStateRefreshKey} className="space-y-2 max-h-80 overflow-y-auto pr-2">
               {filteredGames.map((game) => {
                 const gameData = loadCustomGames().find(g => g.id === game.id);
                 const savedState = loadGameState(game.id);
