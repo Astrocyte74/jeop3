@@ -280,7 +280,74 @@ npm install @clerk/clerk-react
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 ```
 
-#### App Setup
+#### Auth Wrapper Module (`src/lib/auth/index.ts`)
+
+**Why we need this:** Clerk's React hooks (`useAuth`, `useUser`, etc.) require the app to be wrapped in `ClerkProvider`. For local development without Clerk, we need safe wrappers that return defaults when Clerk isn't configured.
+
+```tsx
+// src/lib/auth/index.ts
+import React from 'react'
+import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-react'
+import { SignedIn as ClerkSignedIn, SignedOut as ClerkSignedOut, SignInButton as ClerkSignInButton, SignOutButton as ClerkSignOutButton, UserButton as ClerkUserButton } from '@clerk/clerk-react'
+
+// Check if Clerk is properly configured (not a placeholder key)
+function isClerkConfigured(): boolean {
+  if (typeof import.meta === 'undefined' || !import.meta.env) {
+    return false
+  }
+  const key = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+  return !!key &&
+    !key.includes('add_your_key_here') &&
+    !key.includes('YOUR_KEY')
+}
+
+// Safe wrapper for useAuth - returns defaults when Clerk not configured
+export function useAuth() {
+  if (!isClerkConfigured()) {
+    return {
+      isSignedIn: false,
+      isLoaded: true,
+      userId: null,
+      sessionId: null,
+      getToken: async () => null,
+    }
+  }
+  return useClerkAuth()
+}
+
+// Safe wrapper for useUser
+export function useUser() {
+  if (!isClerkConfigured()) {
+    return { isLoaded: true, user: null }
+  }
+  return useClerkUser()
+}
+
+// Create wrapper components that only render Clerk components when configured
+function createClerkWrapper(Component: React.ComponentType<any>) {
+  return function ClerkWrapper(props: any) {
+    if (!isClerkConfigured()) {
+      return null  // Hide when Clerk not configured
+    }
+    return React.createElement(Component, props)
+  }
+}
+
+// Export wrapped Clerk components
+export const SignedIn = createClerkWrapper(ClerkSignedIn)
+export const SignedOut = createClerkWrapper(ClerkSignedOut)
+export const SignInButton = createClerkWrapper(ClerkSignInButton)
+export const SignOutButton = createClerkWrapper(ClerkSignOutButton)
+export const UserButton = createClerkWrapper(ClerkUserButton)
+```
+
+**Key points:**
+- Always import from `@/lib/auth` instead of `@clerk/clerk-react`
+- Use ES module imports (not `require()`) for Vite compatibility
+- Placeholder keys like `pk_test_add_your_key_here` disable Clerk features
+- Real keys enable full authentication
+
+#### App Setup (with optional Clerk support)
 
 ```tsx
 // main.tsx
@@ -291,24 +358,42 @@ import App from "./App"
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
-if (!PUBLISHABLE_KEY) {
-  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY environment variable")
+// Check if Clerk is properly configured (not a placeholder key)
+const isClerkConfigured = PUBLISHABLE_KEY &&
+  !PUBLISHABLE_KEY.includes("add_your_key_here") &&
+  !PUBLISHABLE_KEY.includes("YOUR_KEY")
+
+function Root() {
+  // If Clerk is configured, wrap app in ClerkProvider
+  // Otherwise, run app without Clerk (for local development)
+  if (isClerkConfigured) {
+    return (
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
+        <App />
+      </ClerkProvider>
+    )
+  }
+
+  // No Clerk - run app directly (local Node.js server mode)
+  return <App />
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
-      <App />
-    </ClerkProvider>
+    <Root />
   </React.StrictMode>
 )
 ```
+
+**Why this matters:** This allows local development with the Node.js AI server (no auth) while enabling full Clerk authentication when real keys are present. Use placeholder keys like `pk_test_add_your_key_here` for local dev to disable auth features.
 
 #### Sign-In/Sign-Out Button
 
 ```tsx
 // MainMenu.tsx
-import { useAuth, useUser, SignInButton, SignedIn, SignedOut } from '@clerk/clerk-react';
+// IMPORTANT: Import from @/lib/auth wrapper, NOT @clerk/clerk-react directly
+// This ensures the app works without Clerk configured (local dev mode)
+import { useAuth, useUser, SignInButton, SignedIn, SignedOut } from '@/lib/auth';
 import { LogOut } from 'lucide-react';
 
 export function MainMenu() {
@@ -351,7 +436,8 @@ export function MainMenu() {
 
 ```tsx
 // hooks.ts
-import { useAuth } from '@clerk/clerk-react';
+// IMPORTANT: Import from @/lib/auth wrapper
+import { useAuth } from '@/lib/auth';
 
 export function useAIGeneration() {
   const { getToken } = useAuth();
@@ -389,7 +475,8 @@ export function useAIGeneration() {
 
 ```tsx
 // GameBoard.tsx
-import { useAuth } from '@clerk/clerk-react';
+// IMPORTANT: Import from @/lib/auth wrapper
+import { useAuth } from '@/lib/auth';
 
 export function GameBoard() {
   const { isSignedIn } = useAuth();
@@ -481,6 +568,27 @@ cannot import name 'PyJWKClient' from 'jwt.algorithms'
 **Solution:**
 Add fallback for older PyJWT versions or ensure you're using PyJWT >= 2.0.
 
+### Issue 6: "require is not defined" (Vite/ES modules)
+
+**Error:**
+```
+Uncaught ReferenceError: require is not defined
+    at useAuth (index.ts:35:37)
+```
+
+**Solution:**
+Use ES module imports instead of `require()`. In Vite projects, `require()` is not available. Use static imports at the top of the file:
+
+```tsx
+// WRONG - won't work in Vite
+const { useAuth: useClerkAuth } = require('@clerk/clerk-react')
+
+// CORRECT - use ES module imports
+import { useAuth as useClerkAuth } from '@clerk/clerk-react'
+```
+
+The auth wrapper module in `src/lib/auth/index.ts` handles this correctly by using ES module imports and runtime checks for whether Clerk is configured.
+
 ## Security Considerations
 
 1. **Always verify JWT signature** - Never trust unverified tokens
@@ -528,5 +636,8 @@ The key insights from this implementation:
 3. **API domains** - Backend API is `api.clerk.com`, not accounts domain
 4. **JWK to PEM** - PyJWT needs PEM format, requires conversion
 5. **Token caching** - Cache user info, not tokens themselves
+6. **Auth wrapper pattern** - Use wrapper module (`@/lib/auth`) for optional Clerk support
+7. **ES modules** - Vite requires ES imports, not `require()` calls
+8. **Placeholder key detection** - Check for "add_your_key_here" to disable features locally
 
-This approach provides secure authentication with minimal dependencies while keeping public access for gameplay.
+This approach provides secure authentication with minimal dependencies while keeping public access for gameplay and supporting both local development (without auth) and production (with auth).
