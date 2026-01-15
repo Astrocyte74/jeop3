@@ -203,11 +203,28 @@ export function safeJsonParse<T>(
 
   // Validate schema if validator provided
   if (validator && !validator(parsed)) {
-    console.error('[safeJsonParse] Validation failed', {
-      parsed,
-      parsedKeys: typeof parsed === 'object' && parsed ? Object.keys(parsed) : 'not an object',
-      parsedCategories: typeof parsed === 'object' && parsed && 'categories' in parsed ? (parsed as any).categories : 'no categories'
-    });
+    // Detailed validation error logging
+    if (parsed && typeof parsed === 'object' && 'categories' in parsed && Array.isArray((parsed as any).categories)) {
+      const cats = (parsed as any).categories;
+      console.error('[safeJsonParse] Validation failed - checking each category:', {
+        totalCategories: cats.length,
+        categoryDetails: cats.map((cat: any, idx: number) => ({
+          idx,
+          title: cat.title,
+          hasClues: Array.isArray(cat.clues),
+          cluesCount: Array.isArray(cat.clues) ? cat.clues.length : 0,
+          firstClue: Array.isArray(cat.clues) && cat.clues[0] ? {
+            hasValue: 'value' in cat.clues[0],
+            hasClue: 'clue' in cat.clues[0],
+            hasResponse: 'response' in cat.clues[0],
+            value: cat.clues[0].value,
+            cluePreview: cat.clues[0].clue?.substring(0, 50),
+            responsePreview: cat.clues[0].response?.substring(0, 50)
+          } : null
+        }))
+      });
+    }
+
     throw new AISchemaError(
       'SCHEMA_VALIDATION_ERROR',
       'AI response does not match expected format',
