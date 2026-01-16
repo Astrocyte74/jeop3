@@ -1861,7 +1861,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setVisibilityFilter('mine')} className={visibilityFilter === 'mine' ? 'bg-yellow-500/10' : ''}>
                       <Gamepad2 className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">All My Games</span>
+                      <span className="flex-1">My Private & Public Games</span>
                       {visibilityFilter === 'mine' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
