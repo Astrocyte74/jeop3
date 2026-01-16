@@ -222,6 +222,7 @@ export function isAdmin(email: string | null | undefined): boolean {
  * - Admin can view all games
  * - Users can view public games or their own private games
  * - Index games are always visible to everyone
+ * - Games without createdBy (created before tracking) are treated as owned by current user
  */
 export function canViewGame(game: GameMeta, userEmail: string | null): boolean {
   // Admin can see everything
@@ -235,7 +236,9 @@ export function canViewGame(game: GameMeta, userEmail: string | null): boolean {
 
   // Private games are only visible to creator
   if (game.visibility === 'private') {
-    return game.createdBy === userEmail;
+    // Backward compatibility: games without createdBy are treated as owned by current user
+    const isMyGame = !game.createdBy || game.createdBy === userEmail;
+    return isMyGame;
   }
 
   // Default: treat as private (don't show)
@@ -247,6 +250,7 @@ export function canViewGame(game: GameMeta, userEmail: string | null): boolean {
  * - Admin can edit all games
  * - Users can only edit their own games
  * - Index games cannot be edited by anyone (they're read-only)
+ * - Games without createdBy (created before tracking) are treated as owned by current user
  */
 export function canEditGame(game: GameMeta, userEmail: string | null): boolean {
   // Index games are read-only
@@ -256,7 +260,8 @@ export function canEditGame(game: GameMeta, userEmail: string | null): boolean {
   if (isAdmin(userEmail)) return true;
 
   // Users can only edit their own games
-  return game.createdBy === userEmail;
+  // Backward compatibility: games without createdBy are treated as owned by current user
+  return !game.createdBy || game.createdBy === userEmail;
 }
 
 /**

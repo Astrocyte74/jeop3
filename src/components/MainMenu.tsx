@@ -228,6 +228,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // Visibility filter
     const userEmail = user?.emailAddresses?.[0]?.emailAddress || null;
     const matchesVisibility = (() => {
+      // For custom games without createdBy (created before tracking), treat as owned by current user
+      // This provides backward compatibility for existing games
+      const isMyGame = game.source === 'custom' && (!game.createdBy || game.createdBy === userEmail);
+
       switch (visibilityFilter) {
         case 'all':
           // Admin: see all games
@@ -238,10 +242,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           return game.visibility === 'public' || game.source === 'index';
         case 'private':
           // Only my private games
-          return game.visibility === 'private' && game.createdBy === userEmail;
+          return game.visibility === 'private' && isMyGame;
         case 'mine':
           // All my games (public + private)
-          return game.createdBy === userEmail;
+          return isMyGame;
         default:
           return true;
       }
