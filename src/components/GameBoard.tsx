@@ -343,80 +343,23 @@ export function GameBoard({
         </DropdownMenu>
       </div>
 
-      {/* Header with teams and title */}
-      <div className="max-w-7xl mx-auto mb-12">
-        <div className="relative">
-          {/* Title - centered */}
-          <div className="text-center pr-12">
-            <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-              {game.title}
-            </h1>
-            {game.subtitle && (
-              <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
-            )}
-          </div>
+      {/* Scoreboard Top Bar */}
+      <div className="w-full bg-slate-900/80 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            {state.teams.map((team) => {
+              const rank = state.teams.findIndex(t => t.id === team.id) + 1;
+              const isLeader = state.teams[0]?.score === team.score && team.score > 0 && rank === 1;
 
-          {/* Scoreboard - absolute top left */}
-          <div className="absolute top-0 left-0 bg-slate-900/50 backdrop-blur-sm rounded-lg p-1.5">
-            <div className="grid grid-cols-2 gap-x-1.5 gap-y-0.5">
-              {state.teams.map((team) => (
+              return (
                 <div
                   key={team.id}
-                  className={`flex items-center gap-1 px-1 py-0.5 rounded transition-all text-left relative group ${
+                  className={`relative group rounded-lg border transition-all ${
                     state.activeTeamId === team.id
-                      ? 'bg-yellow-500/20'
-                      : 'hover:bg-slate-800/50'
-                  } ${editingTeamId === team.id ? 'ring-1 ring-yellow-500' : ''}`}
+                      ? 'bg-yellow-500/20 border-yellow-500/50 shadow-lg shadow-yellow-500/10'
+                      : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600'
+                  } ${editingTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
                 >
-                  {/* Rank */}
-                  <span className="text-xs font-semibold text-slate-500 w-3 flex-shrink-0">
-                    {state.teams.findIndex(t => t.id === team.id) + 1}
-                  </span>
-
-                  {/* Team name - editable or display */}
-                  {editingTeamId === team.id ? (
-                    <div className="flex items-center gap-0.5 flex-1 min-w-0">
-                      <Input
-                        value={editingTeamName}
-                        onChange={(e) => setEditingTeamName(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        onBlur={handleSaveTeamName}
-                        className="text-xs font-semibold leading-tight bg-slate-800 border-slate-600 px-1 py-0 h-auto min-h-[20px] max-w-[140px]"
-                        autoFocus
-                        autoComplete="off"
-                      />
-                      <button
-                        onClick={handleSaveTeamName}
-                        className="w-4 h-4 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded flex-shrink-0"
-                      >
-                        <Check className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={handleCancelEditingTeam}
-                        className="w-4 h-4 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded flex-shrink-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => onSetActiveTeam(team.id)}
-                      onDoubleClick={() => onUpdateTeamName && handleStartEditingTeam(team.id, team.name)}
-                      className={`text-xs font-semibold leading-tight line-clamp-2 max-w-[140px] text-left ${
-                        state.activeTeamId === team.id ? 'text-yellow-500' : 'text-slate-300'
-                      }`}
-                    >
-                      {team.name}
-                    </button>
-                  )}
-
-                  {/* Score */}
-                  <span className={`text-sm font-black ml-auto flex-shrink-0 ${
-                    team.score >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    ${team.score}
-                  </span>
-
                   {/* Edit button - shown on hover when not editing */}
                   {onUpdateTeamName && editingTeamId !== team.id && (
                     <button
@@ -424,15 +367,88 @@ export function GameBoard({
                         e.stopPropagation();
                         handleStartEditingTeam(team.id, team.name);
                       }}
-                      className="absolute top-0.5 right-12 w-4 h-4 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     >
                       <Edit className="w-2.5 h-2.5" />
                     </button>
                   )}
+
+                  {/* Team Card Content */}
+                  <div className="px-4 py-2 min-w-[140px]">
+                    {/* Rank and Crown for leader */}
+                    <div className="flex items-center gap-1 mb-1">
+                      <span className="text-xs font-bold text-slate-500">#{rank}</span>
+                      {isLeader && <span className="text-sm">👑</span>}
+                      {state.activeTeamId === team.id && (
+                        <span className="text-xs text-yellow-500 ml-auto">⭐ Active</span>
+                      )}
+                    </div>
+
+                    {/* Team name - editable or display */}
+                    {editingTeamId === team.id ? (
+                      <div className="space-y-1.5">
+                        <Input
+                          value={editingTeamName}
+                          onChange={(e) => setEditingTeamName(e.target.value)}
+                          onKeyDown={handleKeyDown}
+                          onBlur={handleSaveTeamName}
+                          className="text-sm font-semibold bg-slate-900 border-slate-600 px-2 py-1 h-auto min-h-[28px]"
+                          autoFocus
+                          autoComplete="off"
+                        />
+                        <div className="flex gap-1">
+                          <button
+                            onClick={handleSaveTeamName}
+                            className="flex-1 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded py-1 text-xs font-medium"
+                          >
+                            <Check className="w-3 h-3 mr-1" />
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEditingTeam}
+                            className="flex-1 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded py-1 text-xs font-medium"
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => onSetActiveTeam(team.id)}
+                        onDoubleClick={() => onUpdateTeamName && handleStartEditingTeam(team.id, team.name)}
+                        className="block w-full text-left"
+                      >
+                        <div className={`text-sm font-bold truncate ${
+                          state.activeTeamId === team.id ? 'text-yellow-400' : 'text-slate-200'
+                        }`}>
+                          {team.name}
+                        </div>
+                        <div className={`text-lg font-black mt-0.5 ${
+                          team.score >= 0 ? 'text-green-400' : 'text-red-400'
+                        }`}>
+                          ${team.score.toLocaleString()}
+                        </div>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
+        </div>
+      </div>
+
+      {/* Header with title */}
+      <div className="max-w-7xl mx-auto mb-8">
+        {/* Title - centered */}
+        <div className="text-center">
+          <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+            {game.title}
+          </h1>
+          {game.subtitle && (
+            <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
+          )}
         </div>
       </div>
 
