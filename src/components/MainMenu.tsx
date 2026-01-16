@@ -478,6 +478,16 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Require sign-in to import games (consistent with AI creation)
+    if (!isSignedIn) {
+      setShowSignInPrompt(true);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -492,6 +502,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         // Create a unique ID
         const gameId = `imported-${Date.now()}`;
 
+        // Get user email (should be available since we checked isSignedIn)
+        const userEmail = user?.emailAddresses?.[0]?.emailAddress;
+
         // Create game metadata
         const gameMeta: GameMeta = {
           id: gameId,
@@ -500,8 +513,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           source: 'custom',
           game: gameData,
           createdAt: new Date().toISOString(),
-          createdBy: user?.emailAddresses?.[0]?.emailAddress,
-          visibility: 'private',
+          createdBy: userEmail,
+          // Default to public if no user email (shouldn't happen, but safe fallback)
+          visibility: userEmail ? 'private' : 'public',
         };
 
         // Save to localStorage
@@ -902,6 +916,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // Generate a unique ID for this game
     const gameId = `ai-${Date.now()}`;
 
+    // Get user email (should be available since AI creation requires auth)
+    const userEmail = user?.emailAddresses?.[0]?.emailAddress;
+
     // Create game metadata and save to localStorage
     const gameMeta: GameMeta = {
       id: gameId,
@@ -910,8 +927,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       source: 'custom',
       game: finalGame,
       createdAt: new Date().toISOString(),
-      createdBy: user?.emailAddresses?.[0]?.emailAddress,
-      visibility: 'private',
+      createdBy: userEmail,
+      // Default to private if signed in, public as safe fallback
+      visibility: userEmail ? 'private' : 'public',
     };
 
     // Save to localStorage
