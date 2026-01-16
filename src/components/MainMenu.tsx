@@ -1851,17 +1851,17 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setVisibilityFilter('public')} className={visibilityFilter === 'public' ? 'bg-yellow-500/10' : ''}>
                       <Unlock className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">Public Only</span>
+                      <span className="flex-1">Public Games</span>
                       {visibilityFilter === 'public' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setVisibilityFilter('private')} className={visibilityFilter === 'private' ? 'bg-yellow-500/10' : ''}>
                       <Lock className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">Private Only</span>
+                      <span className="flex-1">My Private Games</span>
                       {visibilityFilter === 'private' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setVisibilityFilter('mine')} className={visibilityFilter === 'mine' ? 'bg-yellow-500/10' : ''}>
                       <Gamepad2 className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">My Games</span>
+                      <span className="flex-1">All My Games</span>
                       {visibilityFilter === 'mine' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
