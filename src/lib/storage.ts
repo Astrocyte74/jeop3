@@ -39,6 +39,11 @@ export type GameState = {
   currentRound: number;
 };
 
+export type GameVisibility = 'public' | 'private';
+
+// Admin email - hardcoded for now, could be env variable later
+export const ADMIN_EMAIL = 'markcdarby@gmail.com';
+
 export type GameMeta = {
   id: string;
   title: string;
@@ -47,6 +52,8 @@ export type GameMeta = {
   path?: string;
   game?: Game;
   createdAt?: string;  // ISO timestamp for sorting
+  createdBy?: string;   // Email of user who created the game
+  visibility?: GameVisibility; // 'public' or 'private' (default: 'private' for user-created games, 'public' for index games)
 };
 
 export type GamePlayStats = {
@@ -84,6 +91,9 @@ export function loadCustomGames(): GameMeta[] {
       subtitle: String(g.subtitle ?? ''),
       source: 'custom' as const,
       game: g.game ?? undefined,
+      createdAt: g.createdAt,
+      createdBy: g.createdBy,
+      visibility: g.visibility ?? 'private', // Default to private for user-created games
     }))
     .filter((g) => g.id && g.game && typeof g.game === 'object');
 }
@@ -196,4 +206,64 @@ export function calculateGameCompletion(gameId: string, game: Game | null): { co
     total: totalClues,
     percentage: Math.round((usedCount / totalClues) * 100),
   };
+}
+
+// ==================== GAME PERMISSIONS & VISIBILITY ====================
+
+/**
+ * Check if a user is an admin
+ */
+export function isAdmin(email: string | null | undefined): boolean {
+  return email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
+/**
+ * Check if a user can view a game
+ * - Admin can view all games
+ * - Users can view public games or their own private games
+ * - Index games are always visible to everyone
+ */
+export function canViewGame(game: GameMeta, userEmail: string | null): boolean {
+  // Admin can see everything
+  if (isAdmin(userEmail)) return true;
+
+  // Index games are always public
+  if (game.source === 'index') return true;
+
+  // Public games are visible to everyone
+  if (game.visibility === 'public') return true;
+
+  // Private games are only visible to creator
+  if (game.visibility === 'private') {
+    return game.createdBy === userEmail;
+  }
+
+  // Default: treat as private (don't show)
+  return false;
+}
+
+/**
+ * Check if a user can edit/delete a game
+ * - Admin can edit all games
+ * - Users can only edit their own games
+ * - Index games cannot be edited by anyone (they're read-only)
+ */
+export function canEditGame(game: GameMeta, userEmail: string | null): boolean {
+  // Index games are read-only
+  if (game.source === 'index') return false;
+
+  // Admin can edit everything
+  if (isAdmin(userEmail)) return true;
+
+  // Users can only edit their own games
+  return game.createdBy === userEmail;
+}
+
+/**
+ * Update game visibility
+ */
+export function updateGameVisibility(gameId: string, games: GameMeta[], newVisibility: GameVisibility): GameMeta[] {
+  return games.map(g =>
+    g.id === gameId ? { ...g, visibility: newVisibility } : g
+  );
 }
