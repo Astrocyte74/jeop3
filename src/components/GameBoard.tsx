@@ -11,10 +11,11 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X } from 'lucide-react';
+import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
+import { useAIGeneration } from '@/lib/ai/hooks';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 
@@ -28,6 +29,7 @@ interface GameBoardProps {
   onSetActiveTeam: (teamId: string) => void;
   onResetBoard?: () => void;
   onUpdateTeamName?: (teamId: string, name: string) => void;
+  onUpdateTeamScore?: (teamId: string, score: number) => void;
 }
 
 export function GameBoard({
@@ -40,6 +42,7 @@ export function GameBoard({
   onSetActiveTeam,
   onResetBoard,
   onUpdateTeamName,
+  onUpdateTeamScore,
 }: GameBoardProps) {
   // Clerk auth
   const { isSignedIn } = useAuth();
@@ -50,8 +53,14 @@ export function GameBoard({
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
+  const [editingScoreTeamId, setEditingScoreTeamId] = useState<string | null>(null);
+  const [editingScoreValue, setEditingScoreValue] = useState<string>('');
+  const [aiOperationTeamId, setAiOperationTeamId] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
+
+  // AI generation hook
+  const { generate: generateAI } = useAIGeneration();
 
   // Load available models on mount
   useEffect(() => {
@@ -121,6 +130,82 @@ export function GameBoard({
       handleSaveTeamName();
     } else if (e.key === 'Escape') {
       handleCancelEditingTeam();
+    }
+  };
+
+  const handleStartEditingScore = (teamId: string, currentScore: number) => {
+    setEditingScoreTeamId(teamId);
+    setEditingScoreValue(currentScore.toString());
+  };
+
+  const handleSaveScore = () => {
+    if (editingScoreTeamId && onUpdateTeamScore) {
+      const newScore = parseInt(editingScoreValue, 10);
+      if (!isNaN(newScore)) {
+        onUpdateTeamScore(editingScoreTeamId, newScore);
+      }
+    }
+    setEditingScoreTeamId(null);
+    setEditingScoreValue('');
+  };
+
+  const handleCancelEditingScore = () => {
+    setEditingScoreTeamId(null);
+    setEditingScoreValue('');
+  };
+
+  const handleAdjustScore = (delta: number) => {
+    const currentValue = parseInt(editingScoreValue, 10);
+    if (!isNaN(currentValue)) {
+      setEditingScoreValue((currentValue + delta).toString());
+    }
+  };
+
+  const handleAIEnhanceName = async (teamId: string) => {
+    const team = state.teams.find(t => t.id === teamId);
+    if (!team) return;
+
+    setAiOperationTeamId(teamId);
+    try {
+      const result = await generateAI(
+        'team-name-enhance',
+        { currentName: team.name },
+        'normal'
+      );
+
+      if (result && typeof result === 'object' && 'name' in result) {
+        const enhancedName = (result as any).name;
+        if (enhancedName && typeof enhancedName === 'string') {
+          onUpdateTeamName?.(teamId, enhancedName);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to enhance team name:', error);
+    } finally {
+      setAiOperationTeamId(null);
+    }
+  };
+
+  const handleAIGenerateName = async (teamId: string) => {
+    setAiOperationTeamId(teamId);
+    try {
+      const result = await generateAI(
+        'team-name-random',
+        {},
+        'normal'
+      );
+
+      if (result && typeof result === 'object' && 'names' in result) {
+        const names = (result as any).names;
+        if (Array.isArray(names) && names.length > 0) {
+          // Use the first generated name
+          onUpdateTeamName?.(teamId, names[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to generate team name:', error);
+    } finally {
+      setAiOperationTeamId(null);
     }
   };
 
@@ -423,22 +508,80 @@ export function GameBoard({
                     state.activeTeamId === team.id
                       ? 'bg-yellow-500/20 border-yellow-500/50 shadow-lg shadow-yellow-500/10'
                       : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600'
-                  } ${editingTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
+                  } ${editingTeamId === team.id || editingScoreTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
                 >
-                  {/* Edit button - shown on hover when not editing */}
-                  {onUpdateTeamName && editingTeamId !== team.id && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStartEditingTeam(team.id, team.name);
-                      }}
-                      className="absolute -top-2 -right-2 w-5 h-5 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                    >
-                      <Edit className="w-2.5 h-2.5" />
-                    </button>
+                  {/* Dropdown menu button - shown on hover when not editing */}
+                  {(onUpdateTeamName || onUpdateTeamScore) && editingTeamId !== team.id && editingScoreTeamId !== team.id && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                        >
+                          <MoreVertical className="w-3 h-3" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {/* Edit Name */}
+                        <DropdownMenuItem onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEditingTeam(team.id, team.name);
+                        }}>
+                          <Edit className="w-4 h-4 mr-2" />
+                          <span>Edit Name</span>
+                        </DropdownMenuItem>
+
+                        {/* AI Enhance Name - only for signed in users */}
+                        {isSignedIn && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAIEnhanceName(team.id);
+                            }}
+                            disabled={aiOperationTeamId === team.id}
+                          >
+                            <Wand2 className="w-4 h-4 mr-2 text-purple-400" />
+                            <span>Enhance Name</span>
+                            {aiOperationTeamId === team.id && (
+                              <span className="ml-auto text-xs text-slate-500">...</span>
+                            )}
+                          </DropdownMenuItem>
+                        )}
+
+                        {/* AI Generate New Name - only for signed in users */}
+                        {isSignedIn && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAIGenerateName(team.id);
+                            }}
+                            disabled={aiOperationTeamId === team.id}
+                          >
+                            <Sparkles className="w-4 h-4 mr-2 text-yellow-400" />
+                            <span>Generate New Name</span>
+                            {aiOperationTeamId === team.id && (
+                              <span className="ml-auto text-xs text-slate-500">...</span>
+                            )}
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuSeparator />
+
+                        {/* Edit Score */}
+                        {onUpdateTeamScore && (
+                          <DropdownMenuItem onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEditingScore(team.id, team.score);
+                          }}>
+                            <Edit className="w-4 h-4 mr-2 text-orange-400" />
+                            <span>Edit Score</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
 
-                  {/* Entire card is clickable */}
+                  {/* Edit Name Mode */}
                   {editingTeamId === team.id ? (
                     <div className="px-4 py-2 min-w-[140px] space-y-1.5">
                       <Input
@@ -467,10 +610,53 @@ export function GameBoard({
                         </button>
                       </div>
                     </div>
+                  ) : editingScoreTeamId === team.id ? (
+                    /* Edit Score Mode */
+                    <div className="px-4 py-2 min-w-[180px] space-y-1.5">
+                      <div className="text-xs text-slate-400 text-center">Edit Score</div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAdjustScore(-100)}
+                          className="w-8 h-8 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <Input
+                          type="number"
+                          value={editingScoreValue}
+                          onChange={(e) => setEditingScoreValue(e.target.value)}
+                          className="flex-1 text-base font-semibold bg-slate-900 border-slate-600 px-2 py-1 h-auto min-h-[28px] text-center"
+                          autoFocus
+                          autoComplete="off"
+                        />
+                        <button
+                          onClick={() => handleAdjustScore(100)}
+                          className="w-8 h-8 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={handleSaveScore}
+                          className="flex-1 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded py-1 text-xs font-medium"
+                        >
+                          <Check className="w-3 h-3 mr-1" />
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEditingScore}
+                          className="flex-1 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded py-1 text-xs font-medium"
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   ) : (
+                    /* Normal Display Mode */
                     <button
                       onClick={() => onSetActiveTeam(team.id)}
-                      onDoubleClick={() => onUpdateTeamName && handleStartEditingTeam(team.id, team.name)}
                       className="px-4 py-2 min-w-[140px] block w-full text-left"
                     >
                       {/* Team name - larger font */}

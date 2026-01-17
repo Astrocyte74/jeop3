@@ -182,6 +182,18 @@ export function App() {
     });
   }, []);
 
+  const handleUpdateTeamScore = useCallback((teamId: string, score: number) => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        teams: prev.teams.map((t) =>
+          t.id === teamId ? { ...t, score } : t
+        ),
+      };
+    });
+  }, []);
+
   const handleExitToMenu = useCallback(() => {
     setMode('menu');
     setCurrentGame(null);
@@ -304,6 +316,7 @@ export function App() {
             onSetActiveTeam={handleSetActiveTeam}
             onResetBoard={handleResetBoard}
             onUpdateTeamName={handleUpdateTeamName}
+            onUpdateTeamScore={handleUpdateTeamScore}
           />
           {currentClue && (
             <ClueDialog
