@@ -438,65 +438,56 @@ export function GameBoard({
                     </button>
                   )}
 
-                  {/* Team Card Content */}
-                  <div className="px-4 py-2 min-w-[140px]">
-                    {/* Rank and Crown for leader */}
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="text-xs font-bold text-slate-500">#{rank}</span>
-                      {isLeader && <span className="text-sm">👑</span>}
-                      {state.activeTeamId === team.id && (
-                        <span className="text-xs text-yellow-500 ml-auto">⭐ Active</span>
-                      )}
-                    </div>
-
-                    {/* Team name - editable or display */}
-                    {editingTeamId === team.id ? (
-                      <div className="space-y-1.5">
-                        <Input
-                          value={editingTeamName}
-                          onChange={(e) => setEditingTeamName(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          onBlur={handleSaveTeamName}
-                          className="text-sm font-semibold bg-slate-900 border-slate-600 px-2 py-1 h-auto min-h-[28px]"
-                          autoFocus
-                          autoComplete="off"
-                        />
-                        <div className="flex gap-1">
-                          <button
-                            onClick={handleSaveTeamName}
-                            className="flex-1 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded py-1 text-xs font-medium"
-                          >
-                            <Check className="w-3 h-3 mr-1" />
-                            Save
-                          </button>
-                          <button
-                            onClick={handleCancelEditingTeam}
-                            className="flex-1 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded py-1 text-xs font-medium"
-                          >
-                            <X className="w-3 h-3 mr-1" />
-                            Cancel
-                          </button>
-                        </div>
+                  {/* Entire card is clickable */}
+                  {editingTeamId === team.id ? (
+                    <div className="px-4 py-2 min-w-[140px] space-y-1.5">
+                      <Input
+                        value={editingTeamName}
+                        onChange={(e) => setEditingTeamName(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onBlur={handleSaveTeamName}
+                        className="text-base font-semibold bg-slate-900 border-slate-600 px-2 py-1 h-auto min-h-[28px]"
+                        autoFocus
+                        autoComplete="off"
+                      />
+                      <div className="flex gap-1">
+                        <button
+                          onClick={handleSaveTeamName}
+                          className="flex-1 flex items-center justify-center bg-green-500/20 hover:bg-green-500/40 text-green-500 rounded py-1 text-xs font-medium"
+                        >
+                          <Check className="w-3 h-3 mr-1" />
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEditingTeam}
+                          className="flex-1 flex items-center justify-center bg-red-500/20 hover:bg-red-500/40 text-red-500 rounded py-1 text-xs font-medium"
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Cancel
+                        </button>
                       </div>
-                    ) : (
-                      <button
-                        onClick={() => onSetActiveTeam(team.id)}
-                        onDoubleClick={() => onUpdateTeamName && handleStartEditingTeam(team.id, team.name)}
-                        className="block w-full text-left"
-                      >
-                        <div className={`text-sm font-bold truncate ${
-                          state.activeTeamId === team.id ? 'text-yellow-400' : 'text-slate-200'
-                        }`}>
-                          {team.name}
-                        </div>
-                        <div className={`text-lg font-black mt-0.5 ${
-                          team.score >= 0 ? 'text-green-400' : 'text-red-400'
-                        }`}>
-                          ${team.score.toLocaleString()}
-                        </div>
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => onSetActiveTeam(team.id)}
+                      onDoubleClick={() => onUpdateTeamName && handleStartEditingTeam(team.id, team.name)}
+                      className="px-4 py-2 min-w-[140px] block w-full text-left"
+                    >
+                      {/* Team name - larger font */}
+                      <div className={`text-base font-black leading-tight ${
+                        state.activeTeamId === team.id ? 'text-yellow-400' : 'text-slate-100'
+                      }`}>
+                        {isLeader && <span className="mr-1">👑</span>}
+                        {team.name}
+                      </div>
+                      {/* Score */}
+                      <div className={`text-lg font-black mt-1 ${
+                        team.score >= 0 ? 'text-green-400' : 'text-red-400'
+                      }`}>
+                        ${team.score.toLocaleString()}
+                      </div>
+                    </button>
+                  )}
                 </div>
               );
             })}
