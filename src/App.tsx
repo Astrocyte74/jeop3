@@ -89,9 +89,14 @@ export function App() {
     setGameId(selectedGameId);
     setSelectedGameId(selectedGameId);
 
-    // If teams are passed from MainMenu, store them for use in game state initialization
-    if (teams && teams.length > 0) {
-      // Create a new game state with the passed teams
+    // Check if there's an existing saved game state
+    const savedState = loadGameState(selectedGameId);
+
+    if (savedState) {
+      // Load the saved game state
+      setGameState(savedState);
+    } else if (teams && teams.length > 0) {
+      // Only create new state if teams are passed AND no saved state exists
       const initialState = {
         used: {},
         teams: teams.map(t => ({ ...t, score: 0 })), // Reset scores to 0

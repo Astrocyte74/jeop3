@@ -462,6 +462,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // Save the reset state
     saveGameState(gameId, resetState);
 
+    // Update local teams state to match reset state
+    setTeams(resetTeams);
+
     // Force re-render to update the UI
     setGameStateRefreshKey(prev => prev + 1);
 
