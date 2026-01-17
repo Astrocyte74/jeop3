@@ -194,6 +194,17 @@ export function App() {
     });
   }, []);
 
+  const handleAddTeam = useCallback((name: string) => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      const newTeamId = Date.now().toString(); // Simple ID generation
+      return {
+        ...prev,
+        teams: [...prev.teams, { id: newTeamId, name, score: 0 }],
+      };
+    });
+  }, []);
+
   const handleExitToMenu = useCallback(() => {
     setMode('menu');
     setCurrentGame(null);
@@ -317,6 +328,7 @@ export function App() {
             onResetBoard={handleResetBoard}
             onUpdateTeamName={handleUpdateTeamName}
             onUpdateTeamScore={handleUpdateTeamScore}
+            onAddTeam={handleAddTeam}
           />
           {currentClue && (
             <ClueDialog

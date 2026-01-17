@@ -30,6 +30,7 @@ interface GameBoardProps {
   onResetBoard?: () => void;
   onUpdateTeamName?: (teamId: string, name: string) => void;
   onUpdateTeamScore?: (teamId: string, score: number) => void;
+  onAddTeam?: (name: string) => void;
 }
 
 export function GameBoard({
@@ -43,6 +44,7 @@ export function GameBoard({
   onResetBoard,
   onUpdateTeamName,
   onUpdateTeamScore,
+  onAddTeam,
 }: GameBoardProps) {
   // Clerk auth
   const { isSignedIn } = useAuth();
@@ -56,6 +58,8 @@ export function GameBoard({
   const [editingScoreTeamId, setEditingScoreTeamId] = useState<string | null>(null);
   const [editingScoreValue, setEditingScoreValue] = useState<string>('');
   const [aiOperationTeamId, setAiOperationTeamId] = useState<string | null>(null);
+  const [addTeamDialogOpen, setAddTeamDialogOpen] = useState(false);
+  const [newTeamName, setNewTeamName] = useState('');
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
 
@@ -225,6 +229,28 @@ export function GameBoard({
     } finally {
       setAiOperationTeamId(null);
     }
+  };
+
+  const handleOpenAddTeamDialog = () => {
+    // Use suggested team names if available, otherwise use default
+    const nextTeamNumber = state.teams.length + 1;
+    const suggestedName = game.suggestedTeamNames?.[nextTeamNumber - 1] || `Team ${nextTeamNumber}`;
+    setNewTeamName(suggestedName);
+    setAddTeamDialogOpen(true);
+  };
+
+  const handleAddTeam = () => {
+    const trimmedName = newTeamName.trim();
+    if (trimmedName && onAddTeam) {
+      onAddTeam(trimmedName);
+      setAddTeamDialogOpen(false);
+      setNewTeamName('');
+    }
+  };
+
+  const handleCancelAddTeam = () => {
+    setAddTeamDialogOpen(false);
+    setNewTeamName('');
   };
 
   return (
@@ -695,7 +721,57 @@ export function GameBoard({
                 </div>
               );
             })}
+
+            {/* Add Team Button */}
+            {onAddTeam && (
+              <button
+                onClick={handleOpenAddTeamDialog}
+                className="px-4 py-2 min-w-[140px] rounded-lg border-2 border-dashed border-slate-600 hover:border-slate-500 bg-slate-800/30 hover:bg-slate-800/50 text-slate-400 hover:text-slate-300 transition-all flex flex-col items-center justify-center gap-1"
+              >
+                <Plus className="w-6 h-6" />
+                <span className="text-sm font-medium">Add Team</span>
+              </button>
+            )}
           </div>
+
+          {/* Add Team Dialog */}
+          {addTeamDialogOpen && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full shadow-xl">
+                <h3 className="text-lg font-bold text-white mb-4">Add New Team</h3>
+                <Input
+                  value={newTeamName}
+                  onChange={(e) => setNewTeamName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddTeam();
+                    else if (e.key === 'Escape') handleCancelAddTeam();
+                  }}
+                  placeholder="Team name"
+                  className="bg-slate-800 border-slate-600 text-white mb-4"
+                  autoFocus
+                  autoComplete="off"
+                />
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAddTeam}
+                    disabled={!newTeamName.trim()}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    Add Team
+                  </Button>
+                  <Button
+                    onClick={handleCancelAddTeam}
+                    variant="outline"
+                    className="flex-1 border-slate-600 hover:bg-slate-800"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
