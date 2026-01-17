@@ -12,6 +12,11 @@ import type {
   AIValidator,
   AIResponses
 } from './types';
+import {
+  chunkReferenceText,
+  calculateChunkQuestionGoals,
+  getRecommendedChunkSize
+} from './chunking';
 
 // Consistent system instruction for all AI calls
 const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.`;
@@ -137,15 +142,61 @@ Return JSON format:
       system: SYSTEM_INSTRUCTION,
       user: (() => {
         const referenceMaterial = context.referenceMaterial || '';
-        const maxReferenceChars = 50000;
-        const referenceSnippet = referenceMaterial.length > maxReferenceChars
-          ? referenceMaterial.substring(0, maxReferenceChars) + '\n\n[Content truncated for length...]'
-          : referenceMaterial;
 
-        return `Generate ${context.count || 6} Jeopardy categories based on the following source material.
+        // Use chunking for large content
+        if (referenceMaterial.length > 15000) {
+          const chunkSize = getRecommendedChunkSize(referenceMaterial.length);
+          const chunked = chunkReferenceText(referenceMaterial, chunkSize);
+          const questionGoals = calculateChunkQuestionGoals(chunked, context.count || 6);
+
+          // For chunked content, provide special instruction
+          const chunkInfo = chunked.totalChunks > 1
+            ? `\n\nNOTE: This is part 1 of ${chunked.totalChunks} chunks. Each chunk is approximately ${chunkSize.toLocaleString()} characters.\nFor this chunk, generate approximately ${questionGoals[0] || Math.ceil((context.count || 6) / chunked.totalChunks)} categories.`
+            : '';
+
+          return `Generate Jeopardy categories based on the following source material.
+
+${context.theme ? `Theme: ${context.theme}` : ''}
+${difficultyText}
+${valueGuidanceText}
+${chunkInfo}
+
+Source material (chunk 1${chunked.totalChunks > 1 ? ` of ${chunked.totalChunks}` : ''}):
+"""${referenceMaterial.substring(0, chunkSize)}"""
+${referenceMaterial.length > chunkSize ? `\n\n[Note: Content continues - this is ${chunkSize.toLocaleString()} of ${referenceMaterial.length.toLocaleString()} total characters]` : ''}
+
+IMPORTANT INSTRUCTIONS:
+1. Create categories that cover the key topics, people, events, places, and concepts from the source material above
+2. All clues must be answerable using ONLY the information provided in the source material
+3. Do NOT fabricate facts or include outside knowledge
+4. Each category needs TWO names:
+   - "title" - A creative, catchy display name for players (e.g., "Historical Events", "Famous Figures")
+   - "contentTopic" - The descriptive topic name for AI context (e.g., "World War II Battles", "Scientists")
+
+The title should be fun and creative while the contentTopic should be clear and descriptive.
+
+Return JSON format:
+{
+  "categories": [
+    {
+      "title": "Creative Display Name",
+      "contentTopic": "Descriptive Topic Name",
+      "clues": [
+        { "value": 200, "clue": "...", "response": "..." },
+        { "value": 400, "clue": "...", "response": "..." },
+        { "value": 600, "clue": "...", "response": "..." },
+        { "value": 800, "clue": "...", "response": "..." },
+        { "value": 1000, "clue": "...", "response": "..." }
+      ]
+    }
+  ]
+}`;
+        } else {
+          // Original prompt for smaller content
+          return `Generate ${context.count || 6} Jeopardy categories based on the following source material.
 
 Source material:
-"""${referenceSnippet}"""
+"""${referenceMaterial}"""
 
 Theme: ${context.theme || 'general'}
 ${difficultyText}
@@ -177,6 +228,7 @@ Return JSON format:
     }
   ]
 }`;
+        }
       })()
     },
 
