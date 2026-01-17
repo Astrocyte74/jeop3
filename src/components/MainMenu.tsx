@@ -23,8 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { GameMeta, Team, Game, Category, Clue, GameVisibility } from '@/lib/storage';
-import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion, canViewGame, canEditGame, updateGameVisibility, isAdmin } from '@/lib/storage';
+import type { GameMeta, Team, Game, Category, Clue, GameVisibility, GameState } from '@/lib/storage';
+import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion, canViewGame, canEditGame, updateGameVisibility, isAdmin } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
@@ -440,22 +440,32 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   };
 
   const handleResetGame = (gameId: string) => {
-    // Load the current game state for this game
-    const savedState = loadGameState(gameId);
+    // Get the game to access suggested team names
+    const game = games.find(g => g.id === gameId);
+    if (!game?.game) return;
 
-    if (savedState) {
-      // Remove the saved game state entirely (this removes the "in progress" badge)
-      localStorage.removeItem(stateKey(gameId));
+    // Reset to 2 teams with suggested names or defaults
+    const suggestedNames = game.game.suggestedTeamNames || [];
+    const resetTeams: Array<{ id: string; name: string; score: number }> = [
+      { id: '1', name: suggestedNames[0] || 'Team 1', score: 0 },
+      { id: '2', name: suggestedNames[1] || 'Team 2', score: 0 },
+    ];
 
-      // Force re-render to update the UI
-      setGameStateRefreshKey(prev => prev + 1);
+    // Create fresh game state
+    const resetState: GameState = {
+      used: {},
+      teams: resetTeams,
+      activeTeamId: '1',
+      currentRound: 1,
+    };
 
-      // Show feedback
-      console.log(`[MainMenu] Reset game state for ${gameId} - removed "in progress" badge`);
-    } else {
-      // No saved state - nothing to reset
-      console.log(`[MainMenu] No saved state found for ${gameId} - nothing to reset`);
-    }
+    // Save the reset state
+    saveGameState(gameId, resetState);
+
+    // Force re-render to update the UI
+    setGameStateRefreshKey(prev => prev + 1);
+
+    console.log(`[MainMenu] Reset game state for ${gameId} - reset to 2 teams: ${resetTeams.map(t => t.name).join(', ')}`);
   };
 
   const handleToggleVisibility = (gameId: string) => {

@@ -31,6 +31,7 @@ interface GameBoardProps {
   onUpdateTeamName?: (teamId: string, name: string) => void;
   onUpdateTeamScore?: (teamId: string, score: number) => void;
   onAddTeam?: (name: string) => void;
+  onRemoveTeam?: (teamId: string) => void;
 }
 
 export function GameBoard({
@@ -45,6 +46,7 @@ export function GameBoard({
   onUpdateTeamName,
   onUpdateTeamScore,
   onAddTeam,
+  onRemoveTeam,
 }: GameBoardProps) {
   // Clerk auth
   const { isSignedIn } = useAuth();
@@ -60,6 +62,8 @@ export function GameBoard({
   const [aiOperationTeamId, setAiOperationTeamId] = useState<string | null>(null);
   const [addTeamDialogOpen, setAddTeamDialogOpen] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
+  const [removeTeamDialogOpen, setRemoveTeamDialogOpen] = useState(false);
+  const [teamToRemove, setTeamToRemove] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
 
@@ -253,6 +257,24 @@ export function GameBoard({
   const handleCancelAddTeam = () => {
     setAddTeamDialogOpen(false);
     setNewTeamName('');
+  };
+
+  const handleOpenRemoveTeamDialog = (teamId: string) => {
+    setTeamToRemove(teamId);
+    setRemoveTeamDialogOpen(true);
+  };
+
+  const handleRemoveTeam = () => {
+    if (teamToRemove && onRemoveTeam) {
+      onRemoveTeam(teamToRemove);
+      setRemoveTeamDialogOpen(false);
+      setTeamToRemove(null);
+    }
+  };
+
+  const handleCancelRemoveTeam = () => {
+    setRemoveTeamDialogOpen(false);
+    setTeamToRemove(null);
   };
 
   return (
@@ -623,6 +645,20 @@ export function GameBoard({
                             <span>Edit Score</span>
                           </DropdownMenuItem>
                         )}
+
+                        {/* Remove Team - only show if more than 2 teams */}
+                        {onRemoveTeam && state.teams.length > 2 && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenRemoveTeamDialog(team.id);
+                            }}
+                            className="text-red-400 focus:text-red-400"
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            <span>Remove Team</span>
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -768,6 +804,34 @@ export function GameBoard({
                     className="flex-1 border-slate-600 hover:bg-slate-800"
                   >
                     <X className="w-4 h-4 mr-2" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Remove Team Confirmation Dialog */}
+          {removeTeamDialogOpen && teamToRemove && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-md w-full shadow-xl">
+                <h3 className="text-lg font-bold text-white mb-2">Remove Team</h3>
+                <p className="text-slate-300 mb-6">
+                  Are you sure you want to remove <span className="font-semibold text-white">{state.teams.find(t => t.id === teamToRemove)?.name}</span>? This action cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleRemoveTeam}
+                    className="flex-1 bg-red-600 hover:bg-red-700"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Remove Team
+                  </Button>
+                  <Button
+                    onClick={handleCancelRemoveTeam}
+                    variant="outline"
+                    className="flex-1 border-slate-600 hover:bg-slate-800"
+                  >
                     Cancel
                   </Button>
                 </div>

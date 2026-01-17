@@ -205,6 +205,25 @@ export function App() {
     });
   }, []);
 
+  const handleRemoveTeam = useCallback((teamId: string) => {
+    setGameState((prev) => {
+      if (!prev) return prev;
+      const newTeams = prev.teams.filter(t => t.id !== teamId);
+
+      // If we removed the active team, set a new active team
+      let newActiveTeamId = prev.activeTeamId;
+      if (prev.activeTeamId === teamId && newTeams.length > 0) {
+        newActiveTeamId = newTeams[0].id;
+      }
+
+      return {
+        ...prev,
+        teams: newTeams,
+        activeTeamId: newActiveTeamId,
+      };
+    });
+  }, []);
+
   const handleExitToMenu = useCallback(() => {
     setMode('menu');
     setCurrentGame(null);
@@ -329,6 +348,7 @@ export function App() {
             onUpdateTeamName={handleUpdateTeamName}
             onUpdateTeamScore={handleUpdateTeamScore}
             onAddTeam={handleAddTeam}
+            onRemoveTeam={handleRemoveTeam}
           />
           {currentClue && (
             <ClueDialog
