@@ -644,7 +644,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       .map((t, i) => (i === teamIndex ? null : t.name))
       .filter((n): n is string => Boolean(n?.trim()));
     const selectedGame = games.find((g) => g.id === selectedGameId);
-    const gameTopic = selectedGame?.title || selectedGame?.subtitle || '';
+
+    // Build game topic with categories for better context
+    const categoryTopics = selectedGame?.game?.categories.map(c => c.title).join(', ') || '';
+    const gameTopic = selectedGame?.game
+      ? `${selectedGame.game.title}${selectedGame.game.subtitle ? ': ' + selectedGame.game.subtitle : ''}${categoryTopics ? '. Categories: ' + categoryTopics : ''}`
+      : selectedGame?.title || selectedGame?.subtitle || '';
 
     const result = await aiGenerate('team-name-random', {
       count: 1,
@@ -669,7 +674,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       .map((t, i) => (i === teamIndex ? null : t.name))
       .filter((n): n is string => Boolean(n?.trim()));
     const selectedGame = games.find((g) => g.id === selectedGameId);
-    const gameTopic = selectedGame?.title || selectedGame?.subtitle || '';
+
+    // Build game topic with categories for better context
+    const categoryTopics = selectedGame?.game?.categories.map(c => c.title).join(', ') || '';
+    const gameTopic = selectedGame?.game
+      ? `${selectedGame.game.title}${selectedGame.game.subtitle ? ': ' + selectedGame.game.subtitle : ''}${categoryTopics ? '. Categories: ' + categoryTopics : ''}`
+      : selectedGame?.title || selectedGame?.subtitle || '';
 
     const result = await aiGenerate('team-name-enhance', {
       currentName,
@@ -690,7 +700,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const handleAIGenerateAllTeamNames = async () => {
     if (!aiAvailable) return;
     const selectedGame = games.find((g) => g.id === selectedGameId);
-    const gameTopic = selectedGame?.title || selectedGame?.subtitle || '';
+
+    // Build game topic with categories for better context
+    const categoryTopics = selectedGame?.game?.categories.map(c => c.title).join(', ') || '';
+    const gameTopic = selectedGame?.game
+      ? `${selectedGame.game.title}${selectedGame.game.subtitle ? ': ' + selectedGame.game.subtitle : ''}${categoryTopics ? '. Categories: ' + categoryTopics : ''}`
+      : selectedGame?.title || selectedGame?.subtitle || '';
 
     const result = await aiGenerate('team-name-random', {
       count: teams.length,

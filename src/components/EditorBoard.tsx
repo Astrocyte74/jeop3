@@ -189,7 +189,9 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
       .map((t, i) => (i === teamIndex ? null : t.name))
       .filter((n): n is string => Boolean(n?.trim()));
 
-    const gameTopic = editingGame.title || editingGame.subtitle || '';
+    // Build game topic with categories for better context
+    const categoryTopics = editingGame.categories.map(c => c.title).join(', ') || '';
+    const gameTopic = `${editingGame.title}${editingGame.subtitle ? ': ' + editingGame.subtitle : ''}${categoryTopics ? '. Categories: ' + categoryTopics : ''}`;
 
     const result = await generate('team-name-random', {
       count: 1,
@@ -215,7 +217,9 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
       .map((t, i) => (i === teamIndex ? null : t.name))
       .filter((n): n is string => Boolean(n?.trim()));
 
-    const gameTopic = editingGame.title || editingGame.subtitle || '';
+    // Build game topic with categories for better context
+    const categoryTopics = editingGame.categories.map(c => c.title).join(', ') || '';
+    const gameTopic = `${editingGame.title}${editingGame.subtitle ? ': ' + editingGame.subtitle : ''}${categoryTopics ? '. Categories: ' + categoryTopics : ''}`;
 
     const result = await generate('team-name-enhance', {
       currentName,
@@ -236,7 +240,9 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   const handleAIGenerateAllTeamNames = async () => {
     if (!aiAvailable) return;
 
-    const gameTopic = editingGame.title || editingGame.subtitle || '';
+    // Build game topic with categories for better context
+    const categoryTopics = editingGame.categories.map(c => c.title).join(', ') || '';
+    const gameTopic = `${editingGame.title}${editingGame.subtitle ? ': ' + editingGame.subtitle : ''}${categoryTopics ? '. Categories: ' + categoryTopics : ''}`;
 
     const result = await generate('team-name-random', {
       count: teams.length,

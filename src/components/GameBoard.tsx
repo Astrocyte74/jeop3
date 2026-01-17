@@ -167,9 +167,16 @@ export function GameBoard({
 
     setAiOperationTeamId(teamId);
     try {
+      // Build game topic from title and categories for context
+      const categoryTopics = game.categories.map(c => c.title).join(', ');
+      const gameTopic = `${game.title}${game.subtitle ? ': ' + game.subtitle : ''}. Categories: ${categoryTopics}`;
+
       const result = await generateAI(
         'team-name-enhance',
-        { currentName: team.name },
+        {
+          currentName: team.name,
+          gameTopic
+        },
         'normal'
       );
 
@@ -189,9 +196,20 @@ export function GameBoard({
   const handleAIGenerateName = async (teamId: string) => {
     setAiOperationTeamId(teamId);
     try {
+      // Build game topic from title and categories for context
+      const categoryTopics = game.categories.map(c => c.title).join(', ');
+      const gameTopic = `${game.title}${game.subtitle ? ': ' + game.subtitle : ''}. Categories: ${categoryTopics}`;
+
+      // Get existing team names to avoid duplicates
+      const existingNames = state.teams.map(t => t.name);
+
       const result = await generateAI(
         'team-name-random',
-        {},
+        {
+          gameTopic,
+          existingNames,
+          count: 1
+        },
         'normal'
       );
 
