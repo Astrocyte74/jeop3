@@ -239,6 +239,8 @@ export function GameBoard({
     setAddTeamDialogOpen(true);
   };
 
+  const canAddTeam = state.teams.length < 4;
+
   const handleAddTeam = () => {
     const trimmedName = newTeamName.trim();
     if (trimmedName && onAddTeam) {
@@ -540,7 +542,7 @@ export function GameBoard({
       {/* Scoreboard Bottom Bar (TV Style) */}
       <div className="w-full bg-slate-900/80 backdrop-blur-sm border-t border-slate-700 sticky bottom-0 z-50 mt-8">
         <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-center gap-3 flex-wrap">
+          <div className="group flex items-center justify-center gap-3 flex-wrap">
             {state.teams.map((team) => {
               const rank = state.teams.findIndex(t => t.id === team.id) + 1;
               const isLeader = state.teams[0]?.score === team.score && team.score > 0 && rank === 1;
@@ -722,14 +724,14 @@ export function GameBoard({
               );
             })}
 
-            {/* Add Team Button */}
-            {onAddTeam && (
+            {/* Add Team Button - only shows on hover, max 4 teams */}
+            {onAddTeam && canAddTeam && (
               <button
                 onClick={handleOpenAddTeamDialog}
-                className="px-4 py-2 min-w-[140px] rounded-lg border-2 border-dashed border-slate-600 hover:border-slate-500 bg-slate-800/30 hover:bg-slate-800/50 text-slate-400 hover:text-slate-300 transition-all flex flex-col items-center justify-center gap-1"
+                className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 rounded border border-dashed border-slate-700 hover:border-slate-600 bg-slate-800/50 hover:bg-slate-800/70 text-slate-500 hover:text-slate-400 text-xs flex items-center gap-1"
               >
-                <Plus className="w-6 h-6" />
-                <span className="text-sm font-medium">Add Team</span>
+                <Plus className="w-3 h-3" />
+                <span>Add Team</span>
               </button>
             )}
           </div>
