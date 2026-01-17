@@ -343,8 +343,73 @@ export function GameBoard({
         </DropdownMenu>
       </div>
 
-      {/* Scoreboard Top Bar */}
-      <div className="w-full bg-slate-900/80 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-50">
+      {/* Header with title */}
+      <div className="max-w-7xl mx-auto mb-8">
+        {/* Title - centered */}
+        <div className="text-center">
+          <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+            {game.title}
+          </h1>
+          {game.subtitle && (
+            <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
+          )}
+        </div>
+      </div>
+
+      {/* Game board */}
+      <div className="max-w-7xl mx-auto mb-8">
+        <div className="board-wrap">
+          <div
+            className="game-board"
+            style={{
+              gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
+            }}
+          >
+            {/* Category headers */}
+            {categories.map((category) => (
+              <div
+                key={category.title}
+                className="cell cell-header"
+              >
+                {category.title}
+              </div>
+            ))}
+
+            {/* Clue cells */}
+            {Array.from({ length: rowCount }).map((_, rowIndex) =>
+              categories.map((category, categoryIndex) => {
+                const clue = category.clues?.[rowIndex];
+                const clueId = `${categoryIndex}:${rowIndex}`;
+                const used = Boolean(state.used[clueId]);
+
+                if (!clue) {
+                  return (
+                    <div
+                      key={`${categoryIndex}-${rowIndex}`}
+                      className="cell"
+                    />
+                  );
+                }
+
+                return (
+                  <div key={`${categoryIndex}-${rowIndex}`} className="cell">
+                    <button
+                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex)}
+                      disabled={used}
+                      className="clue-btn"
+                    >
+                      ${clue.value}
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Scoreboard Bottom Bar (TV Style) */}
+      <div className="w-full bg-slate-900/80 backdrop-blur-sm border-t border-slate-700 sticky bottom-0 z-50 mt-8">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-center gap-3 flex-wrap">
             {state.teams.map((team) => {
@@ -435,71 +500,6 @@ export function GameBoard({
                 </div>
               );
             })}
-          </div>
-        </div>
-      </div>
-
-      {/* Header with title */}
-      <div className="max-w-7xl mx-auto mb-8">
-        {/* Title - centered */}
-        <div className="text-center">
-          <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-            {game.title}
-          </h1>
-          {game.subtitle && (
-            <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Game board */}
-      <div className="max-w-7xl mx-auto">
-        <div className="board-wrap">
-          <div
-            className="game-board"
-            style={{
-              gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
-            }}
-          >
-            {/* Category headers */}
-            {categories.map((category) => (
-              <div
-                key={category.title}
-                className="cell cell-header"
-              >
-                {category.title}
-              </div>
-            ))}
-
-            {/* Clue cells */}
-            {Array.from({ length: rowCount }).map((_, rowIndex) =>
-              categories.map((category, categoryIndex) => {
-                const clue = category.clues?.[rowIndex];
-                const clueId = `${categoryIndex}:${rowIndex}`;
-                const used = Boolean(state.used[clueId]);
-
-                if (!clue) {
-                  return (
-                    <div
-                      key={`${categoryIndex}-${rowIndex}`}
-                      className="cell"
-                    />
-                  );
-                }
-
-                return (
-                  <div key={`${categoryIndex}-${rowIndex}`} className="cell">
-                    <button
-                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex)}
-                      disabled={used}
-                      className="clue-btn"
-                    >
-                      ${clue.value}
-                    </button>
-                  </div>
-                );
-              })
-            )}
           </div>
         </div>
       </div>
