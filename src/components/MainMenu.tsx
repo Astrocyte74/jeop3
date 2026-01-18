@@ -814,14 +814,21 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
     console.log('[MainMenu] Generated titles:', titlesList);
 
-    // Generate team names - include theme or content hint
+    // Generate team names - include theme and category context for themed names
     const teamNamesContext: Record<string, any> = {
       count: 4,
       existingNames: [],
     };
-    if (sourceMode !== 'scratch' && referenceMaterial) {
-      teamNamesContext.contentHint = referenceMaterial.substring(0, 500);
+
+    // Build game topic from theme and category titles for better themed team names
+    let gameTopic = theme || 'general trivia';
+    if (categoriesList.length > 0) {
+      const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
+      gameTopic += ` (categories: ${categoryTitles})`;
     }
+    teamNamesContext.gameTopic = gameTopic;
+
+    console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
     const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
 
     let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];

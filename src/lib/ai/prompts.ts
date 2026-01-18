@@ -395,16 +395,30 @@ Return JSON format:
 
     'team-name-random': {
       system: `You are a creative team name generator. Always respond with valid JSON only, no prose.`,
-      user: `Generate ${context.count || 1} creative and fun team name(s) for a trivia game.
+      user: (() => {
+        const hasGameTopic = context.gameTopic && context.gameTopic.trim() !== '' && context.gameTopic !== 'general trivia';
 
+        return `Generate ${context.count || 1} creative and fun team name(s) for a trivia game.
+${hasGameTopic ? `
+CRITICAL: The game has a specific theme. You MUST create team names that are DIRECTLY themed to this topic.
+
+Game theme/topic: "${context.gameTopic}"
+
+Requirements:
+- ALL team names MUST be themed to "${context.gameTopic}"
+- Use references, characters, places, quotes, or wordplay related to this specific theme
+- AVOID generic trivia/knowledge names (no "Quiztopher", "Brainiacs", etc.)
+- Make them clever and specific to this game's theme
+` : `
 Make them memorable, clever, and fun. Use wordplay, puns, or creative concepts related to knowledge, trivia, or competition.
-${context.gameTopic ? `\n\nGame theme/topic: "${context.gameTopic}"\nConsider making the team names thematically related to this game topic.` : ''}
+`}
 ${context.existingNames && context.existingNames.length > 0 ? `\n\nIMPORTANT: Do NOT use these existing team names: ${context.existingNames.map(n => `"${n}"`).join(', ')}` : ''}
 
 Return JSON format:
 {
   "names": ["Team Name 1"${context.count && context.count > 1 ? ', "Team Name 2", "Team Name 3"' : ''}]
-}`
+}`;
+      })()
     },
 
     'team-name-enhance': {
