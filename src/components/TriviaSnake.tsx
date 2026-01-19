@@ -77,20 +77,17 @@ export function TriviaSnake({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number | undefined>(undefined);
   const lastUpdateTimeRef = useRef<number>(0);
-  const attemptsRef = useRef(0);
-  const maxAttempts = 2; // Max attempts per clue
 
-  // Game state
-  const [snake, setSnake] = useState<Position[]>(() => {
-    const length = getSnakeLengthForValue(currentValue);
-    return Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 }));
-  });
-  const [direction, setDirection] = useState<Position>({ x: 1, y: 0 });
-  const [apples, setApples] = useState<Apple[]>([]);
+  // Game state - ONLY for UI, not gameplay loop
   const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([]);
   const [gameStatus, setGameStatus] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready');
-  const [attempts, setAttempts] = useState(0);
-  const [eatenAppleLabels, setEatenAppleLabels] = useState<Set<string>>(new Set());
+
+  // Gameplay refs - immediate updates, no React re-renders
+  const directionRef = useRef<Position>({ x: 1, y: 0 });
+  const lastDirectionRef = useRef<Position>({ x: 1, y: 0 }); // Prevent 180° turns
+  const snakeRef = useRef<Position[]>(Array.from({ length: getSnakeLengthForValue(currentValue) }, (_, i) => ({ x: 5 - i, y: 5 })));
+  const applesRef = useRef<Apple[]>([]);
+  const eatenAppleLabelsRef = useRef<Set<string>>(new Set());
 
   // Board configuration
   const BOARD_SIZE = 20; // 20x20 grid
@@ -148,149 +145,12 @@ export function TriviaSnake({
         newApples.push({ position, label });
       });
 
-      setApples(newApples);
+      applesRef.current = newApples;
     }
   }, [isOpen, currentCategoryIndex, categories]);
 
-  // Game loop
-  const gameLoop = useCallback(() => {
-    setSnake(prevSnake => {
-      // Calculate new head position
-      const newHead = {
-        x: prevSnake[0].x + direction.x,
-        y: prevSnake[0].y + direction.y,
-      };
-
-      // Wrap around board
-      const wrappedHead = {
-        x: (newHead.x + BOARD_SIZE) % BOARD_SIZE,
-        y: (newHead.y + BOARD_SIZE) % BOARD_SIZE,
-      };
-
-      // Check if snake hits itself
-      if (prevSnake.some(seg => seg.x === wrappedHead.x && seg.y === wrappedHead.y)) {
-        setGameStatus('lost');
-        return prevSnake;
-      }
-
-      // Check if snake eats an apple
-      const eatenAppleIndex = apples.findIndex(
-        apple => apple.position.x === wrappedHead.x && apple.position.y === wrappedHead.y
-      );
-
-      if (eatenAppleIndex !== -1) {
-        const eatenApple = apples[eatenAppleIndex];
-
-        // Skip if this apple was already eaten
-        if (eatenAppleLabels.has(eatenApple.label)) {
-          // Just move, don't grow
-          return [wrappedHead, ...prevSnake.slice(0, -1)];
-        }
-
-        // Find the answer for this letter
-        const selectedAnswer = answerOptions.find(opt => opt.label === eatenApple.label);
-
-        if (selectedAnswer) {
-          // Mark this apple as eaten
-          setEatenAppleLabels(prev => new Set([...prev, eatenApple.label]));
-
-          // Check if it's the correct answer
-          if (selectedAnswer.response === currentResponse) {
-            setGameStatus('won');
-            onCorrect();
-            // Close after showing result
-            setTimeout(() => onClose(), 2000);
-          } else {
-            // Wrong answer - immediate game over
-            onIncorrect();
-            setGameStatus('lost');
-            // Close after showing result
-            setTimeout(() => onClose(), 2000);
-          }
-        }
-
-        // Grow snake when eating
-        return [wrappedHead, ...prevSnake];
-      }
-
-      // Move snake (remove tail if no apple eaten)
-      return [wrappedHead, ...prevSnake.slice(0, -1)];
-    });
-  }, [direction, apples, answerOptions, currentResponse, onCorrect, onIncorrect, onClose, maxAttempts, BOARD_SIZE, eatenAppleLabels]);
-
-  // Start game loop
-  useEffect(() => {
-    if (gameStatus === 'playing') {
-      const speed = getSpeedForValue(currentValue);
-      lastUpdateTimeRef.current = performance.now();
-
-      const animationLoop = (currentTime: number) => {
-        const deltaTime = currentTime - lastUpdateTimeRef.current;
-
-        // Update snake position based on speed
-        if (deltaTime >= speed) {
-          gameLoop();
-          lastUpdateTimeRef.current = currentTime;
-        }
-
-        // Continue animation loop
-        gameLoopRef.current = requestAnimationFrame(animationLoop);
-      };
-
-      gameLoopRef.current = requestAnimationFrame(animationLoop);
-
-      return () => {
-        if (gameLoopRef.current) {
-          cancelAnimationFrame(gameLoopRef.current);
-        }
-      };
-    }
-  }, [gameStatus, gameLoop, currentValue]);
-
-  // Keyboard controls
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-
-      // Arrow keys for direction
-      switch (e.key) {
-        case 'ArrowUp':
-          e.preventDefault();
-          setDirection(prev => prev.y === 0 ? { x: 0, y: -1 } : prev);
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          setDirection(prev => prev.y === 0 ? { x: 0, y: 1 } : prev);
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          setDirection(prev => prev.x === 0 ? { x: -1, y: 0 } : prev);
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          setDirection(prev => prev.x === 0 ? { x: 1, y: 0 } : prev);
-          break;
-        case ' ':
-          e.preventDefault();
-          if (gameStatus === 'ready' || gameStatus === 'lost') {
-            startGame();
-          } else if (gameStatus === 'playing') {
-            setGameStatus('ready');
-          }
-          break;
-        case 'Escape':
-          e.preventDefault();
-          onClose();
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, gameStatus, onClose]);
-
-  // Draw game
-  useEffect(() => {
+  // Render game to canvas (imperative, no React re-renders)
+  const render = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -315,21 +175,18 @@ export function TriviaSnake({
       ctx.stroke();
     }
 
-    // Draw apples (just letters, no text)
-    apples.forEach(apple => {
-      // Skip already eaten apples
-      if (eatenAppleLabels.has(apple.label)) return;
+    // Draw apples (just letters, skip eaten ones)
+    applesRef.current.forEach(apple => {
+      if (eatenAppleLabelsRef.current.has(apple.label)) return;
 
       const x = apple.position.x * CELL_SIZE;
       const y = apple.position.y * CELL_SIZE;
 
-      // Apple circle - use color from letter mapping
       ctx.fillStyle = LETTER_COLORS[apple.label] || '#ef4444';
       ctx.beginPath();
       ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, CELL_SIZE / 2 - 2, 0, Math.PI * 2);
       ctx.fill();
 
-      // Apple label (A, B, C, D, E)
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px Arial';
       ctx.textAlign = 'center';
@@ -338,15 +195,13 @@ export function TriviaSnake({
     });
 
     // Draw snake
-    snake.forEach((segment, index) => {
+    snakeRef.current.forEach((segment, index) => {
       const x = segment.x * CELL_SIZE;
       const y = segment.y * CELL_SIZE;
 
-      // Snake body
       ctx.fillStyle = index === 0 ? '#22c55e' : '#16a34a';
       ctx.fillRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
 
-      // Snake eyes on head
       if (index === 0) {
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
@@ -355,28 +210,191 @@ export function TriviaSnake({
         ctx.fill();
       }
     });
-  }, [snake, apples, eatenAppleLabels, BOARD_SIZE, CELL_SIZE]);
+  }, [BOARD_SIZE, CELL_SIZE]);
 
-  const startGame = () => {
+  // Game tick - updates game logic (not rendering)
+  const gameTick = useCallback(() => {
+    const snake = snakeRef.current;
+    const direction = directionRef.current;
+
+    // Calculate new head position
+    const newHead = {
+      x: snake[0].x + direction.x,
+      y: snake[0].y + direction.y,
+    };
+
+    // Wrap around board
+    const wrappedHead = {
+      x: (newHead.x + BOARD_SIZE) % BOARD_SIZE,
+      y: (newHead.y + BOARD_SIZE) % BOARD_SIZE,
+    };
+
+    // Check if snake hits itself
+    if (snake.some(seg => seg.x === wrappedHead.x && seg.y === wrappedHead.y)) {
+      setGameStatus('lost');
+      return;
+    }
+
+    // Check if snake eats an apple
+    const eatenAppleIndex = applesRef.current.findIndex(
+      apple => apple.position.x === wrappedHead.x && apple.position.y === wrappedHead.y
+    );
+
+    if (eatenAppleIndex !== -1) {
+      const eatenApple = applesRef.current[eatenAppleIndex];
+
+      // Skip if already eaten
+      if (eatenAppleLabelsRef.current.has(eatenApple.label)) {
+        snakeRef.current = [wrappedHead, ...snake.slice(0, -1)];
+        return;
+      }
+
+      // Find the answer for this letter
+      const selectedAnswer = answerOptions.find(opt => opt.label === eatenApple.label);
+
+      if (selectedAnswer) {
+        // Mark as eaten
+        eatenAppleLabelsRef.current = new Set([...eatenAppleLabelsRef.current, eatenApple.label]);
+
+        if (selectedAnswer.response === currentResponse) {
+          setGameStatus('won');
+          onCorrect();
+          setTimeout(() => onClose(), 1500);
+        } else {
+          setGameStatus('lost');
+          onIncorrect();
+          setTimeout(() => onClose(), 1500);
+        }
+        return;
+      }
+
+      // Grow snake
+      snakeRef.current = [wrappedHead, ...snake];
+    } else {
+      // Move snake
+      snakeRef.current = [wrappedHead, ...snake.slice(0, -1)];
+    }
+  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE]);
+
+  // Animation loop - smooth rendering with fixed timestep for logic
+  useEffect(() => {
+    if (gameStatus === 'playing') {
+      const speed = getSpeedForValue(currentValue);
+      const gracePeriod = 120; // 120ms grace period
+      const startTime = performance.now();
+      lastUpdateTimeRef.current = startTime;
+
+      const animationLoop = (currentTime: number) => {
+        // Stop if game ended
+        if (gameStatus !== 'playing') return;
+
+        const deltaTime = currentTime - lastUpdateTimeRef.current;
+        const elapsedTime = currentTime - startTime;
+
+        // Only update game logic after grace period and at fixed intervals
+        if (elapsedTime >= gracePeriod && deltaTime >= speed) {
+          gameTick();
+          lastUpdateTimeRef.current = currentTime;
+        }
+
+        // Render every frame for smoothness
+        render();
+
+        gameLoopRef.current = requestAnimationFrame(animationLoop);
+      };
+
+      gameLoopRef.current = requestAnimationFrame(animationLoop);
+
+      return () => {
+        if (gameLoopRef.current) {
+          cancelAnimationFrame(gameLoopRef.current);
+        }
+      };
+    }
+  }, [gameStatus, gameTick, render, currentValue]);
+
+  // Game control functions
+  const startGame = useCallback(() => {
     const length = getSnakeLengthForValue(currentValue);
-    setSnake(Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 })));
-    setDirection({ x: 1, y: 0 });
+    snakeRef.current = Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 }));
+    directionRef.current = { x: 1, y: 0 };
+    lastDirectionRef.current = { x: 1, y: 0 };
+    eatenAppleLabelsRef.current = new Set();
     setGameStatus('playing');
-    setAttempts(0);
-    attemptsRef.current = 0;
-    setEatenAppleLabels(new Set());
-    lastUpdateTimeRef.current = performance.now();
-  };
+  }, [currentValue]);
 
-  const resetGame = () => {
+  const resetGame = useCallback(() => {
     const length = getSnakeLengthForValue(currentValue);
-    setSnake(Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 })));
-    setDirection({ x: 1, y: 0 });
+    snakeRef.current = Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 }));
+    directionRef.current = { x: 1, y: 0 };
+    lastDirectionRef.current = { x: 1, y: 0 };
+    eatenAppleLabelsRef.current = new Set();
     setGameStatus('ready');
-    setAttempts(0);
-    attemptsRef.current = 0;
-    setEatenAppleLabels(new Set());
-  };
+    render(); // Render initial state
+  }, [currentValue, render]);
+
+  // Keyboard controls - IMMEDIATE updates via ref
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      const currentDir = lastDirectionRef.current;
+
+      // Arrow keys for direction - prevent 180° turns and use ref for immediate updates
+      switch (e.key) {
+        case 'ArrowUp':
+          e.preventDefault();
+          if (currentDir.y === 0) {
+            directionRef.current = { x: 0, y: -1 };
+            lastDirectionRef.current = { x: 0, y: -1 };
+          }
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          if (currentDir.y === 0) {
+            directionRef.current = { x: 0, y: 1 };
+            lastDirectionRef.current = { x: 0, y: 1 };
+          }
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (currentDir.x === 0) {
+            directionRef.current = { x: -1, y: 0 };
+            lastDirectionRef.current = { x: -1, y: 0 };
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (currentDir.x === 0) {
+            directionRef.current = { x: 1, y: 0 };
+            lastDirectionRef.current = { x: 1, y: 0 };
+          }
+          break;
+        case ' ':
+          e.preventDefault();
+          if (gameStatus === 'ready' || gameStatus === 'lost') {
+            startGame();
+          } else if (gameStatus === 'playing') {
+            resetGame();
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          onClose();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, gameStatus, onClose, startGame, resetGame]);
+
+  // Initial render when game opens
+  useEffect(() => {
+    if (isOpen) {
+      render();
+    }
+  }, [isOpen, render]);
 
   if (!isOpen) return null;
 
@@ -471,7 +489,7 @@ export function TriviaSnake({
               <p className="font-bold text-white mb-1">Goal:</p>
               <p>Eat the apple with the correct answer!</p>
               <p>Find the matching answer from above, then eat its letter.</p>
-              <p className="text-yellow-400 mt-1">Attempts left: {maxAttempts - attempts}/{maxAttempts}</p>
+              <p className="text-red-400 mt-1">One wrong apple and it's game over!</p>
             </div>
           </div>
         </div>
