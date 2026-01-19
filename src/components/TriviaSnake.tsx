@@ -38,6 +38,30 @@ const LETTER_COLORS: Record<string, string> = {
   'E': '#ec4899', // Pink
 };
 
+// Calculate game speed based on clue value (lower = faster)
+const getSpeedForValue = (value: number): number => {
+  const speeds: Record<number, number> = {
+    200: 200,  // Slowest
+    400: 175,
+    600: 150,
+    800: 125,
+    1000: 100, // Fastest
+  };
+  return speeds[value] || 150;
+};
+
+// Calculate initial snake length based on clue value
+const getSnakeLengthForValue = (value: number): number => {
+  const lengths: Record<number, number> = {
+    200: 3,
+    400: 4,
+    600: 5,
+    800: 6,
+    1000: 7,
+  };
+  return lengths[value] || 3;
+};
+
 export function TriviaSnake({
   isOpen,
   categoryTitle,
@@ -56,11 +80,10 @@ export function TriviaSnake({
   const maxAttempts = 2; // Max attempts per clue
 
   // Game state
-  const [snake, setSnake] = useState<Position[]>([
-    { x: 5, y: 5 },
-    { x: 4, y: 5 },
-    { x: 3, y: 5 },
-  ]);
+  const [snake, setSnake] = useState<Position[]>(() => {
+    const length = getSnakeLengthForValue(currentValue);
+    return Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 }));
+  });
   const [direction, setDirection] = useState<Position>({ x: 1, y: 0 });
   const [apples, setApples] = useState<Apple[]>([]);
   const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([]);
@@ -177,21 +200,11 @@ export function TriviaSnake({
             // Close after showing result
             setTimeout(() => onClose(), 2000);
           } else {
-            // Wrong answer - subtract points immediately
+            // Wrong answer - immediate game over
             onIncorrect();
-            attemptsRef.current += 1;
-            setAttempts(attemptsRef.current);
-
-            if (attemptsRef.current >= maxAttempts) {
-              // Max attempts reached, mark as lost
-              setGameStatus('lost');
-              // Close after showing result
-              setTimeout(() => onClose(), 2000);
-            } else {
-              // Decrement snake length (penalty) but continue
-              // Return snake without growing (remove tail to shrink slightly)
-              return prevSnake.length > 3 ? [wrappedHead, ...prevSnake.slice(0, -2)] : [wrappedHead, ...prevSnake.slice(0, -1)];
-            }
+            setGameStatus('lost');
+            // Close after showing result
+            setTimeout(() => onClose(), 2000);
           }
         }
 
@@ -207,9 +220,10 @@ export function TriviaSnake({
   // Start game loop
   useEffect(() => {
     if (gameStatus === 'playing') {
+      const speed = getSpeedForValue(currentValue);
       gameLoopRef.current = window.setInterval(() => {
         gameLoop();
-      }, 150); // Speed: 150ms per tick
+      }, speed);
 
       return () => {
         if (gameLoopRef.current) {
@@ -217,7 +231,7 @@ export function TriviaSnake({
         }
       };
     }
-  }, [gameStatus, gameLoop]);
+  }, [gameStatus, gameLoop, currentValue]);
 
   // Keyboard controls
   useEffect(() => {
@@ -330,11 +344,8 @@ export function TriviaSnake({
   }, [snake, apples, eatenAppleLabels, BOARD_SIZE, CELL_SIZE]);
 
   const startGame = () => {
-    setSnake([
-      { x: 5, y: 5 },
-      { x: 4, y: 5 },
-      { x: 3, y: 5 },
-    ]);
+    const length = getSnakeLengthForValue(currentValue);
+    setSnake(Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 })));
     setDirection({ x: 1, y: 0 });
     setGameStatus('playing');
     setAttempts(0);
@@ -343,11 +354,8 @@ export function TriviaSnake({
   };
 
   const resetGame = () => {
-    setSnake([
-      { x: 5, y: 5 },
-      { x: 4, y: 5 },
-      { x: 3, y: 5 },
-    ]);
+    const length = getSnakeLengthForValue(currentValue);
+    setSnake(Array.from({ length }, (_, i) => ({ x: 5 - i, y: 5 })));
     setDirection({ x: 1, y: 0 });
     setGameStatus('ready');
     setAttempts(0);
