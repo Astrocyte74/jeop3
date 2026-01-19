@@ -121,6 +121,14 @@ export function TriviaSnake({
 
       setAnswerOptions(newAnswerOptions);
 
+      // Reset snake for new clue value (handles component reuse)
+      const snakeLength = getSnakeLengthForValue(currentValue);
+      snakeRef.current = Array.from({ length: snakeLength }, (_, i) => ({ x: 5 - i, y: 5 }));
+      directionRef.current = { x: 1, y: 0 };
+      lastDirectionRef.current = { x: 1, y: 0 };
+      eatenAppleLabelsRef.current = new Set();
+      setGameStatus('ready');
+
       // Generate random apple positions on the right side of board
       const newApples: Apple[] = [];
       const usedPositions = new Set<string>();
