@@ -29,6 +29,15 @@ interface AnswerOption {
   response: string;
 }
 
+// Color mapping for each letter
+const LETTER_COLORS: Record<string, string> = {
+  'A': '#3b82f6', // Blue
+  'B': '#22c55e', // Green
+  'C': '#f59e0b', // Amber
+  'D': '#a855f7', // Purple
+  'E': '#ec4899', // Pink
+};
+
 export function TriviaSnake({
   isOpen,
   categoryTitle,
@@ -286,8 +295,8 @@ export function TriviaSnake({
       const x = apple.position.x * CELL_SIZE;
       const y = apple.position.y * CELL_SIZE;
 
-      // Apple circle
-      ctx.fillStyle = '#ef4444';
+      // Apple circle - use color from letter mapping
+      ctx.fillStyle = LETTER_COLORS[apple.label] || '#ef4444';
       ctx.beginPath();
       ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, CELL_SIZE / 2 - 2, 0, Math.PI * 2);
       ctx.fill();
@@ -406,9 +415,10 @@ export function TriviaSnake({
             {answerOptions.map(option => (
               <div
                 key={option.label}
-                className="bg-slate-700 rounded p-2 text-center"
+                className="rounded p-2 text-center"
+                style={{ backgroundColor: LETTER_COLORS[option.label] }}
               >
-                <div className="text-yellow-400 font-bold text-lg">{option.label}</div>
+                <div className="text-white font-bold text-lg">{option.label}</div>
                 <div className="text-white text-sm mt-1">{option.response}</div>
               </div>
             ))}
