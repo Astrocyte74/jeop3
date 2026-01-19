@@ -22,7 +22,7 @@ import { useAuth } from '@/lib/auth';
 interface GameBoardProps {
   game: Game;
   state: GameState;
-  onOpenClue: (categoryId: number, clueIndex: number) => void;
+  onOpenClue: (categoryId: number, clueIndex: number, snakeMode?: boolean) => void;
   onExit: () => void;
   onToggleEditor: () => void;
   onToggleAIPreviewEditor?: () => void;
@@ -66,6 +66,7 @@ export function GameBoard({
   const [teamToRemove, setTeamToRemove] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
+  const [snakeMode, setSnakeMode] = useState(false);
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
@@ -284,6 +285,18 @@ export function GameBoard({
         {/* Home button */}
         <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit}>
           <Home className="w-5 h-5" />
+        </Button>
+
+        {/* Snake Mode Toggle */}
+        <Button
+          variant={snakeMode ? "default" : "outline"}
+          size="sm"
+          className={snakeMode ? "bg-green-600 hover:bg-green-700" : "border-slate-700 bg-slate-900/50"}
+          onClick={() => setSnakeMode(!snakeMode)}
+          title={snakeMode ? "Snake Mode ON - Click to disable" : "Snake Mode OFF - Click to enable"}
+        >
+          <span className="mr-1">🐍</span>
+          <span className="hidden sm:inline">{snakeMode ? 'ON' : 'OFF'}</span>
         </Button>
 
         <DropdownMenu>
@@ -547,7 +560,7 @@ export function GameBoard({
                 return (
                   <div key={`${categoryIndex}-${rowIndex}`} className="cell">
                     <button
-                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex)}
+                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex, snakeMode)}
                       disabled={used}
                       className="clue-btn"
                     >

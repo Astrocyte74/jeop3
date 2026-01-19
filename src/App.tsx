@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { MainMenu } from '@/components/MainMenu';
 import { GameBoard } from '@/components/GameBoard';
 import { ClueDialog } from '@/components/ClueDialog';
+import { TriviaSnake } from '@/components/TriviaSnake';
 import { EditorBoard } from '@/components/EditorBoard';
 import { AIToastContainer } from '@/components/ai';
 import { useAIToast } from '@/lib/ai';
@@ -30,6 +31,12 @@ export function App() {
     isOpen: boolean;
     clueId: string;
   }>({ isOpen: false, clueId: '' });
+
+  const [triviaSnake, setTriviaSnake] = useState<{
+    isOpen: boolean;
+    categoryIndex: number;
+    clueIndex: number;
+  }>({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
 
   // AI toast system
   const { toasts, dismiss } = useAIToast();
@@ -110,7 +117,7 @@ export function App() {
     setMode('playing');
   }, []);
 
-  const handleOpenClue = useCallback((categoryId: number, clueIndex: number) => {
+  const handleOpenClue = useCallback((categoryId: number, clueIndex: number, snakeMode = false) => {
     if (!currentGame || !gameState) return;
 
     const category = currentGame.categories[categoryId];
@@ -120,10 +127,20 @@ export function App() {
     const clueId = `${categoryId}:${clueIndex}`;
     if (gameState.used[clueId]) return;
 
-    setClueDialog({
-      isOpen: true,
-      clueId,
-    });
+    if (snakeMode) {
+      // Open Trivia Snake game
+      setTriviaSnake({
+        isOpen: true,
+        categoryIndex: categoryId,
+        clueIndex: clueIndex,
+      });
+    } else {
+      // Open regular Clue Dialog
+      setClueDialog({
+        isOpen: true,
+        clueId,
+      });
+    }
   }, [currentGame, gameState]);
 
   const handleMarkCorrect = useCallback((teamId: string) => {
@@ -229,6 +246,53 @@ export function App() {
     });
   }, []);
 
+  // Trivia Snake handlers
+  const handleSnakeCorrect = useCallback(() => {
+    if (!gameState || !currentGame || !triviaSnake.isOpen) return;
+
+    const { categoryIndex, clueIndex } = triviaSnake;
+    const clue = currentGame.categories[categoryIndex]?.clues[clueIndex];
+    if (!clue) return;
+
+    const clueId = `${categoryIndex}:${clueIndex}`;
+    const activeTeamId = gameState.activeTeamId;
+
+    setGameState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        used: { ...prev.used, [clueId]: true },
+        teams: prev.teams.map((t) =>
+          t.id === activeTeamId ? { ...t, score: t.score + clue.value } : t
+        ),
+      };
+    });
+
+    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+  }, [gameState, currentGame, triviaSnake]);
+
+  const handleSnakeIncorrect = useCallback(() => {
+    if (!gameState || !currentGame || !triviaSnake.isOpen) return;
+
+    const { categoryIndex, clueIndex } = triviaSnake;
+    const clue = currentGame.categories[categoryIndex]?.clues[clueIndex];
+    if (!clue) return;
+
+    const activeTeamId = gameState.activeTeamId;
+
+    setGameState((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        teams: prev.teams.map((t) =>
+          t.id === activeTeamId ? { ...t, score: t.score - clue.value } : t
+        ),
+      };
+    });
+
+    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+  }, [gameState, currentGame, triviaSnake]);
+
   const handleExitToMenu = useCallback(() => {
     setMode('menu');
     setCurrentGame(null);
@@ -311,6 +375,28 @@ export function App() {
 
   const currentClue = getCurrentClue();
 
+  // Get current trivia snake data
+  const getCurrentSnakeData = useCallback(() => {
+    if (!triviaSnake.isOpen || !currentGame) return null;
+
+    const { categoryIndex, clueIndex } = triviaSnake;
+    const category = currentGame.categories[categoryIndex];
+    const clue = category?.clues[clueIndex];
+
+    if (!category || !clue) return null;
+
+    return {
+      categoryTitle: category.title,
+      categories: currentGame.categories,
+      currentCategoryIndex: categoryIndex,
+      currentValue: clue.value,
+      currentClue: clue.clue,
+      currentResponse: clue.response,
+    };
+  }, [triviaSnake, currentGame]);
+
+  const currentSnakeData = getCurrentSnakeData();
+
   return (
     <>
       {/* AI Toast Container */}
@@ -368,6 +454,20 @@ export function App() {
               onMarkCorrect={handleMarkCorrect}
               onMarkIncorrect={handleMarkIncorrect}
               onSetActiveTeam={handleSetActiveTeam}
+            />
+          )}
+          {currentSnakeData && (
+            <TriviaSnake
+              isOpen={triviaSnake.isOpen}
+              categoryTitle={currentSnakeData.categoryTitle}
+              categories={currentSnakeData.categories}
+              currentCategoryIndex={currentSnakeData.currentCategoryIndex}
+              currentValue={currentSnakeData.currentValue}
+              currentClue={currentSnakeData.currentClue}
+              currentResponse={currentSnakeData.currentResponse}
+              onClose={() => setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 })}
+              onCorrect={handleSnakeCorrect}
+              onIncorrect={handleSnakeIncorrect}
             />
           )}
         </>
