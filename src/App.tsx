@@ -10,6 +10,7 @@ import type { Game, GameState } from '@/lib/storage';
 import { loadGameState, saveGameState, setSelectedGameId, saveCustomGames, loadCustomGames } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
 import { iconMatcher } from '@/lib/iconMatcher';
+import { type GameMode } from '@/components/GameModeMenu';
 
 type AppMode = 'menu' | 'playing' | 'editing' | 'ai-preview-editing';
 
@@ -37,6 +38,11 @@ export function App() {
     categoryIndex: number;
     clueIndex: number;
   }>({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+
+  // Helper to get current global game mode from localStorage
+  const getGlobalGameMode = useCallback((): GameMode => {
+    return (localStorage.getItem('gameMode') as GameMode) || 'regular';
+  }, []);
 
   // AI toast system
   const { toasts, dismiss } = useAIToast();
@@ -127,23 +133,12 @@ export function App() {
     const clueId = `${categoryId}:${clueIndex}`;
     if (gameState.used[clueId]) return;
 
-    // Check if global game mode is set to snake
-    const globalGameMode = (localStorage.getItem('gameMode') as 'regular' | 'snake') || 'regular';
-
-    if (globalGameMode === 'snake') {
-      // Snake mode: open TriviaSnake directly
-      setTriviaSnake({
-        isOpen: true,
-        categoryIndex: categoryId,
-        clueIndex: clueIndex,
-      });
-    } else {
-      // Regular mode: open ClueDialog with option to switch to Snake
-      setClueDialog({
-        isOpen: true,
-        clueId,
-      });
-    }
+    // Always open ClueDialog first to allow per-clue game mode selection
+    // The GameModeMenu will show the global mode preference
+    setClueDialog({
+      isOpen: true,
+      clueId,
+    });
   }, [currentGame, gameState]);
 
   const handleSwitchToSnake = useCallback(() => {
@@ -466,6 +461,7 @@ export function App() {
               response={currentClue.response}
               teams={gameState.teams}
               activeTeamId={gameState.activeTeamId}
+              globalGameMode={getGlobalGameMode()}
               onClose={() => setClueDialog({ isOpen: false, clueId: '' })}
               onMarkCorrect={handleMarkCorrect}
               onMarkIncorrect={handleMarkIncorrect}

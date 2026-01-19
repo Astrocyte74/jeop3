@@ -3,7 +3,7 @@ import type { Team } from '@/lib/storage';
 import { X, Eye, Check, X as XIcon, Info } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { getIconSize } from '@/lib/themes';
-import { GameModeMenu } from '@/components/GameModeMenu';
+import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 
 interface ClueDialogProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface ClueDialogProps {
   response: string;
   teams: Team[];
   activeTeamId: string;
+  globalGameMode?: GameMode;
   onClose: () => void;
   onMarkCorrect: (teamId: string) => void;
   onMarkIncorrect: (teamId: string) => void;
@@ -28,6 +29,7 @@ export function ClueDialog({
   response,
   teams,
   activeTeamId,
+  globalGameMode,
   onClose,
   onMarkCorrect,
   onMarkIncorrect,
@@ -117,9 +119,13 @@ export function ClueDialog({
           <div className="flex items-center gap-2">
             {onSwitchToSnake && (
               <GameModeMenu
-                onSwitchToSnake={() => {
-                  onClose();
-                  onSwitchToSnake();
+                currentMode={globalGameMode}
+                onModeChange={(mode) => {
+                  if (mode === 'snake') {
+                    onClose();
+                    onSwitchToSnake();
+                  }
+                  // If regular is selected, just stay in ClueDialog (already there)
                 }}
               />
             )}
