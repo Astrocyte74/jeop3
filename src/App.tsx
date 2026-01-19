@@ -291,10 +291,13 @@ export function App() {
     const clue = currentGame.categories[categoryIndex]?.clues[clueIndex];
     if (!clue) return;
 
+    const clueId = `${categoryIndex}:${clueIndex}`;
+
     setGameState((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
+        used: { ...prev.used, [clueId]: true },
         teams: prev.teams.map((t) =>
           t.id === teamId ? { ...t, score: t.score - clue.value } : t
         ),
