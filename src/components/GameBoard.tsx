@@ -295,6 +295,46 @@ export function GameBoard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            {/* Game Mode - Top Level */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Gamepad2 className="w-4 h-4 mr-2" />
+                <span>Game Mode</span>
+                <span className="ml-auto text-lg">{gameMode === 'snake' ? '🐍' : gameMode === 'regular' ? '📝' : '❓'}</span>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent sideOffset={5}>
+                <DropdownMenuItem
+                  onClick={() => setGameMode('regular')}
+                  className={gameMode === 'regular' ? 'bg-yellow-500/10' : ''}
+                >
+                  <span className="mr-2">📝</span>
+                  <span>Regular Mode</span>
+                  <span className="ml-auto text-xs text-slate-500">Classic Jeopardy</span>
+                  {gameMode === 'regular' && (
+                    <span className="ml-auto text-xs text-yellow-500">✓</span>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setGameMode('snake')}
+                  className={gameMode === 'snake' ? 'bg-yellow-500/10' : ''}
+                >
+                  <span className="mr-2">🐍</span>
+                  <span>Snake Mode</span>
+                  <span className="ml-auto text-xs text-slate-500">Navigate to answer</span>
+                  {gameMode === 'snake' && (
+                    <span className="ml-auto text-xs text-yellow-500">✓</span>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled className="opacity-50">
+                  <span className="mr-2">❓</span>
+                  <span>Trivia Mode</span>
+                  <span className="ml-auto text-xs text-slate-500">Coming soon</span>
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+
             {/* Editor Options */}
             {isSignedIn && (
               <DropdownMenuItem onClick={onToggleEditor}>
@@ -364,43 +404,6 @@ export function GameBoard({
                         )}
                       </DropdownMenuItem>
                     ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-
-                {/* Game Mode Submenu */}
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>
-                    <Gamepad2 className="w-4 h-4 mr-2" />
-                    <span>Game Mode</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent sideOffset={5}>
-                    <DropdownMenuItem
-                      onClick={() => setGameMode('regular')}
-                      className={gameMode === 'regular' ? 'bg-yellow-500/10' : ''}
-                    >
-                      <span className="mr-2">📝</span>
-                      <span>Regular Mode</span>
-                      <span className="ml-auto text-xs text-slate-500">Classic Jeopardy</span>
-                      {gameMode === 'regular' && (
-                        <span className="ml-auto text-xs text-yellow-500">✓</span>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => setGameMode('snake')}
-                      className={gameMode === 'snake' ? 'bg-yellow-500/10' : ''}
-                    >
-                      <span className="mr-2">🐍</span>
-                      <span>Snake Mode</span>
-                      <span className="ml-auto text-xs text-slate-500">Navigate to answer</span>
-                      {gameMode === 'snake' && (
-                        <span className="ml-auto text-xs text-yellow-500">✓</span>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem disabled className="opacity-50">
-                      <span className="mr-2">❓</span>
-                      <span>Trivia Mode</span>
-                      <span className="ml-auto text-xs text-slate-500">Coming soon</span>
-                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
 
@@ -539,11 +542,19 @@ export function GameBoard({
       <div className="max-w-7xl mx-auto mb-8">
         {/* Title - centered */}
         <div className="text-center">
-          <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
-            {game.title}
-          </h1>
+          <div className="flex items-center justify-center gap-4">
+            <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+              {game.title}
+            </h1>
+            {gameMode === 'snake' && (
+              <span className="text-4xl animate-pulse" title="Snake Mode Active">🐍</span>
+            )}
+          </div>
           {game.subtitle && (
             <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
+          )}
+          {gameMode === 'snake' && (
+            <p className="text-xs text-green-400 font-medium mt-1">🐍 Snake Mode: Navigate to the correct answer!</p>
           )}
         </div>
       </div>
