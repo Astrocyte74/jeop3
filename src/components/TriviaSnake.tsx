@@ -129,25 +129,38 @@ export function TriviaSnake({
       eatenAppleLabelsRef.current = new Set();
       setGameStatus('ready');
 
-      // Generate random apple positions on the right side of board
+      // Generate random apple positions anywhere on board
       const newApples: Apple[] = [];
       const usedPositions = new Set<string>();
 
-      // Add snake starting position to avoid spawning on it
-      const snakeStart = { x: 5, y: 5 };
-      usedPositions.add(`${snakeStart.x},${snakeStart.y}`);
+      // Add ALL snake segments to avoid spawning on or near snake
+      for (let i = 0; i < snakeLength; i++) {
+        const seg = { x: 5 - i, y: 5 };
+        // Mark the segment itself
+        usedPositions.add(`${seg.x},${seg.y}`);
+        // Mark buffer zone around segment (1 cell radius)
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const bx = seg.x + dx;
+            const by = seg.y + dy;
+            if (bx >= 0 && bx < BOARD_SIZE && by >= 0 && by < BOARD_SIZE) {
+              usedPositions.add(`${bx},${by}`);
+            }
+          }
+        }
+      }
 
       labels.forEach((label) => {
         let position: Position;
         let placeAttempts = 0;
         do {
-          // Random position on right half of board (x: 12-19, y: 2-17)
+          // Random position anywhere on board (except edges)
           position = {
-            x: 12 + Math.floor(Math.random() * 8),
-            y: 2 + Math.floor(Math.random() * 16),
+            x: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2)),
+            y: 1 + Math.floor(Math.random() * (BOARD_SIZE - 2)),
           };
           placeAttempts++;
-        } while (usedPositions.has(`${position.x},${position.y}`) && placeAttempts < 50);
+        } while (usedPositions.has(`${position.x},${position.y}`) && placeAttempts < 100);
 
         usedPositions.add(`${position.x},${position.y}`);
         newApples.push({ position, label });
