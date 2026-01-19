@@ -10,9 +10,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
+import { type GameMode } from '@/components/GameModeMenu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus } from 'lucide-react';
+import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2 } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -288,12 +288,6 @@ export function GameBoard({
           <Home className="w-5 h-5" />
         </Button>
 
-        {/* Game Mode Dropdown */}
-        <GameModeMenu
-          currentMode={gameMode}
-          onModeChange={setGameMode}
-        />
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50">
@@ -370,6 +364,43 @@ export function GameBoard({
                         )}
                       </DropdownMenuItem>
                     ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+
+                {/* Game Mode Submenu */}
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Gamepad2 className="w-4 h-4 mr-2" />
+                    <span>Game Mode</span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent sideOffset={5}>
+                    <DropdownMenuItem
+                      onClick={() => setGameMode('regular')}
+                      className={gameMode === 'regular' ? 'bg-yellow-500/10' : ''}
+                    >
+                      <span className="mr-2">📝</span>
+                      <span>Regular Mode</span>
+                      <span className="ml-auto text-xs text-slate-500">Classic Jeopardy</span>
+                      {gameMode === 'regular' && (
+                        <span className="ml-auto text-xs text-yellow-500">✓</span>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setGameMode('snake')}
+                      className={gameMode === 'snake' ? 'bg-yellow-500/10' : ''}
+                    >
+                      <span className="mr-2">🐍</span>
+                      <span>Snake Mode</span>
+                      <span className="ml-auto text-xs text-slate-500">Navigate to answer</span>
+                      {gameMode === 'snake' && (
+                        <span className="ml-auto text-xs text-yellow-500">✓</span>
+                      )}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled className="opacity-50">
+                      <span className="mr-2">❓</span>
+                      <span>Trivia Mode</span>
+                      <span className="ml-auto text-xs text-slate-500">Coming soon</span>
+                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
 
