@@ -143,6 +143,20 @@ export function App() {
     }
   }, [currentGame, gameState]);
 
+  const handleSwitchToSnake = useCallback(() => {
+    if (!clueDialog.isOpen) return;
+
+    const [categoryId, clueIndex] = clueDialog.clueId.split(':').map(Number);
+
+    // Close clue dialog and open snake game
+    setClueDialog({ isOpen: false, clueId: '' });
+    setTriviaSnake({
+      isOpen: true,
+      categoryIndex: categoryId,
+      clueIndex: clueIndex,
+    });
+  }, [clueDialog]);
+
   const handleMarkCorrect = useCallback((teamId: string) => {
     if (!gameState || !currentGame || !clueDialog.isOpen) return;
 
@@ -386,7 +400,6 @@ export function App() {
     if (!category || !clue) return null;
 
     return {
-      categoryTitle: category.title,
       categories: currentGame.categories,
       currentCategoryIndex: categoryIndex,
       currentValue: clue.value,
@@ -454,12 +467,12 @@ export function App() {
               onMarkCorrect={handleMarkCorrect}
               onMarkIncorrect={handleMarkIncorrect}
               onSetActiveTeam={handleSetActiveTeam}
+              onSwitchToSnake={handleSwitchToSnake}
             />
           )}
           {currentSnakeData && (
             <TriviaSnake
               isOpen={triviaSnake.isOpen}
-              categoryTitle={currentSnakeData.categoryTitle}
               categories={currentSnakeData.categories}
               currentCategoryIndex={currentSnakeData.currentCategoryIndex}
               currentValue={currentSnakeData.currentValue}

@@ -16,6 +16,7 @@ interface ClueDialogProps {
   onMarkCorrect: (teamId: string) => void;
   onMarkIncorrect: (teamId: string) => void;
   onSetActiveTeam: (teamId: string) => void;
+  onSwitchToSnake?: () => void;
 }
 
 export function ClueDialog({
@@ -30,6 +31,7 @@ export function ClueDialog({
   onMarkCorrect,
   onMarkIncorrect,
   onSetActiveTeam,
+  onSwitchToSnake,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
@@ -111,12 +113,27 @@ export function ClueDialog({
             <div className="text-2xl font-bold text-yellow-500">${value}</div>
             <h2 className="text-lg font-semibold text-slate-300">{categoryTitle}</h2>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors p-2"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onSwitchToSnake && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onSwitchToSnake();
+                }}
+                className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-all text-sm font-medium"
+                title="Play as Snake Game"
+              >
+                <span className="text-lg">🐍</span>
+                <span className="hidden sm:inline">Snake Mode</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors p-2"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Matched Icon */}

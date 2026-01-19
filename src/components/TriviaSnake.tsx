@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Play, Pause, RotateCcw } from 'lucide-react';
+import { X, Play, Pause, RotateCcw, Info } from 'lucide-react';
 
 interface TriviaSnakeProps {
   isOpen: boolean;
-  categoryTitle: string;
   categories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }>;
   currentCategoryIndex: number;
   currentValue: number;
@@ -64,7 +63,6 @@ const getSnakeLengthForValue = (value: number): number => {
 
 export function TriviaSnake({
   isOpen,
-  categoryTitle,
   categories,
   currentCategoryIndex,
   currentValue,
@@ -81,6 +79,7 @@ export function TriviaSnake({
   // Game state - ONLY for UI, not gameplay loop
   const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([]);
   const [gameStatus, setGameStatus] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready');
+  const [showInfo, setShowInfo] = useState(false);
 
   // Gameplay refs - immediate updates, no React re-renders
   const directionRef = useRef<Position>({ x: 1, y: 0 });
@@ -359,6 +358,13 @@ export function TriviaSnake({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!isOpen) return;
 
+      // Press 'i' to toggle info
+      if (e.key === 'i' || e.key === 'I') {
+        e.preventDefault();
+        setShowInfo(prev => !prev);
+        return;
+      }
+
       const currentDir = lastDirectionRef.current;
 
       // Arrow keys for direction - prevent 180° turns and use ref for immediate updates
@@ -420,99 +426,126 @@ export function TriviaSnake({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
+    <div className="clue-dialog-backdrop" onClick={onClose}>
+      <div className="clue-dialog-card" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-700">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🐍</span>
-            <div>
-              <h2 className="text-xl font-bold text-white">Trivia Snake</h2>
-              <p className="text-sm text-slate-400">{categoryTitle}</p>
+            <span className="text-2xl font-bold text-yellow-500">${currentValue}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🐍</span>
+              <h2 className="text-lg font-semibold text-slate-300">Trivia Snake</h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
-          >
-            <X size={24} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowInfo(!showInfo)}
+              className="text-slate-400 hover:text-white transition-colors p-2"
+              title="How to play (press 'i')"
+            >
+              <Info className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="text-slate-400 hover:text-white transition-colors p-2"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        {/* Clue Display */}
-        <div className="p-4 bg-slate-800 border-b border-slate-700">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-yellow-400 font-bold text-lg">${currentValue}</span>
-            <div className="flex gap-2">
-              {gameStatus === 'ready' && (
-                <button
-                  onClick={startGame}
-                  className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-                >
-                  <Play size={16} /> Start
-                </button>
-              )}
-              {gameStatus === 'playing' && (
-                <button
-                  onClick={() => setGameStatus('ready')}
-                  className="flex items-center gap-1 px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700 transition-colors"
-                >
-                  <Pause size={16} /> Pause
-                </button>
-              )}
-              {(gameStatus === 'won' || gameStatus === 'lost') && (
-                <button
-                  onClick={resetGame}
-                  className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                >
-                  <RotateCcw size={16} /> Retry
-                </button>
-              )}
+        {/* Instructions Modal */}
+        {showInfo && (
+          <div className="absolute inset-0 bg-slate-900/95 rounded-lg p-6 overflow-auto z-10">
+            <button
+              onClick={() => setShowInfo(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors p-2"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-xl font-bold text-white mb-4">How to Play</h3>
+            <div className="text-slate-300 space-y-4">
+              <div>
+                <p className="font-semibold text-white mb-2">Controls:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>⬆️⬇️⬅️➡️ Arrow Keys - Move snake</li>
+                  <li>Space - Start/Pause game</li>
+                  <li>Escape - Close</li>
+                  <li>Press 'i' - Toggle these instructions</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-white mb-2">Goal:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>Eat the apple with the correct answer!</li>
+                  <li>Match the letter (A-E) from the game board to the answer above</li>
+                  <li><span className="text-red-400 font-semibold">One wrong apple and it's game over!</span></li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-semibold text-white mb-2">Difficulty:</p>
+                <ul className="list-disc list-inside space-y-1 text-sm">
+                  <li>Higher values = Faster snake speed</li>
+                  <li>Higher values = Longer snake (harder to maneuver)</li>
+                </ul>
+              </div>
             </div>
           </div>
-          <p className="text-white text-lg mb-3">{currentClue}</p>
+        )}
 
-          {/* Answer Options */}
-          <div className="grid grid-cols-5 gap-2 mt-3">
-            {answerOptions.map(option => (
-              <div
-                key={option.label}
-                className="rounded p-2 text-center"
-                style={{ backgroundColor: LETTER_COLORS[option.label] }}
-              >
-                <div className="text-white font-bold text-lg">{option.label}</div>
-                <div className="text-white text-sm mt-1">{option.response}</div>
-              </div>
-            ))}
-          </div>
+        {/* Game Controls */}
+        <div className="flex items-center justify-center gap-3 py-3">
+          {gameStatus === 'ready' && (
+            <button
+              onClick={startGame}
+              className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition-all"
+            >
+              <Play size={20} /> Start Game
+            </button>
+          )}
+          {gameStatus === 'playing' && (
+            <button
+              onClick={() => setGameStatus('ready')}
+              className="flex items-center gap-2 px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-lg transition-all"
+            >
+              <Pause size={20} /> Pause
+            </button>
+          )}
+          {(gameStatus === 'won' || gameStatus === 'lost') && (
+            <button
+              onClick={resetGame}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all"
+            >
+              <RotateCcw size={20} /> Try Again
+            </button>
+          )}
+        </div>
+
+        {/* Clue */}
+        <div className="clue-text">{currentClue}</div>
+
+        {/* Answer Options */}
+        <div className="grid grid-cols-5 gap-2">
+          {answerOptions.map(option => (
+            <div
+              key={option.label}
+              className="rounded-lg p-3 text-center transition-transform hover:scale-105"
+              style={{ backgroundColor: LETTER_COLORS[option.label] }}
+            >
+              <div className="text-white font-bold text-xl">{option.label}</div>
+              <div className="text-white text-sm mt-1">{option.response}</div>
+            </div>
+          ))}
         </div>
 
         {/* Game Canvas */}
-        <div className="p-4 flex justify-center bg-slate-950">
+        <div className="p-4 flex justify-center bg-slate-800/50 rounded-lg">
           <canvas
             ref={canvasRef}
             width={BOARD_SIZE * CELL_SIZE}
             height={BOARD_SIZE * CELL_SIZE}
-            className="border-2 border-slate-700 rounded"
+            className="border-2 border-slate-600 rounded"
           />
-        </div>
-
-        {/* Instructions */}
-        <div className="p-4 bg-slate-800 border-t border-slate-700">
-          <div className="grid grid-cols-2 gap-4 text-sm text-slate-300">
-            <div>
-              <p className="font-bold text-white mb-1">Controls:</p>
-              <p>⬆️⬇️⬅️➡️ Arrow Keys - Move snake</p>
-              <p>Space - Start/Pause</p>
-              <p>Escape - Close</p>
-            </div>
-            <div>
-              <p className="font-bold text-white mb-1">Goal:</p>
-              <p>Eat the apple with the correct answer!</p>
-              <p>Find the matching answer from above, then eat its letter.</p>
-              <p className="text-red-400 mt-1">One wrong apple and it's game over!</p>
-            </div>
-          </div>
         </div>
 
         {/* Game Status Overlay */}
