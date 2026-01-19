@@ -261,7 +261,7 @@ export function App() {
   }, []);
 
   // Trivia Snake handlers
-  const handleSnakeCorrect = useCallback(() => {
+  const handleSnakeCorrect = useCallback((teamId: string) => {
     if (!gameState || !currentGame || !triviaSnake.isOpen) return;
 
     const { categoryIndex, clueIndex } = triviaSnake;
@@ -269,7 +269,6 @@ export function App() {
     if (!clue) return;
 
     const clueId = `${categoryIndex}:${clueIndex}`;
-    const activeTeamId = gameState.activeTeamId;
 
     setGameState((prev) => {
       if (!prev) return prev;
@@ -277,7 +276,7 @@ export function App() {
         ...prev,
         used: { ...prev.used, [clueId]: true },
         teams: prev.teams.map((t) =>
-          t.id === activeTeamId ? { ...t, score: t.score + clue.value } : t
+          t.id === teamId ? { ...t, score: t.score + clue.value } : t
         ),
       };
     });
@@ -285,21 +284,19 @@ export function App() {
     // Note: TriviaSnake component handles closing with delay
   }, [gameState, currentGame, triviaSnake]);
 
-  const handleSnakeIncorrect = useCallback(() => {
+  const handleSnakeIncorrect = useCallback((teamId: string) => {
     if (!gameState || !currentGame || !triviaSnake.isOpen) return;
 
     const { categoryIndex, clueIndex } = triviaSnake;
     const clue = currentGame.categories[categoryIndex]?.clues[clueIndex];
     if (!clue) return;
 
-    const activeTeamId = gameState.activeTeamId;
-
     setGameState((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
         teams: prev.teams.map((t) =>
-          t.id === activeTeamId ? { ...t, score: t.score - clue.value } : t
+          t.id === teamId ? { ...t, score: t.score - clue.value } : t
         ),
       };
     });
@@ -478,6 +475,8 @@ export function App() {
               currentValue={currentSnakeData.currentValue}
               currentClue={currentSnakeData.currentClue}
               currentResponse={currentSnakeData.currentResponse}
+              teams={gameState.teams}
+              activeTeamId={gameState.activeTeamId}
               onClose={() => setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 })}
               onCorrect={handleSnakeCorrect}
               onIncorrect={handleSnakeIncorrect}

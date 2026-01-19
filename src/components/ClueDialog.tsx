@@ -3,6 +3,7 @@ import type { Team } from '@/lib/storage';
 import { X, Eye, Check, X as XIcon, Info } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { getIconSize } from '@/lib/themes';
+import { GameModeMenu } from '@/components/GameModeMenu';
 
 interface ClueDialogProps {
   isOpen: boolean;
@@ -115,17 +116,12 @@ export function ClueDialog({
           </div>
           <div className="flex items-center gap-2">
             {onSwitchToSnake && (
-              <button
-                onClick={() => {
+              <GameModeMenu
+                onSwitchToSnake={() => {
                   onClose();
                   onSwitchToSnake();
                 }}
-                className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-all text-sm font-medium"
-                title="Play as Snake Game"
-              >
-                <span className="text-lg">🐍</span>
-                <span className="hidden sm:inline">Snake Mode</span>
-              </button>
+              />
             )}
             <button
               onClick={onClose}

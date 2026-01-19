@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Play, Pause, RotateCcw, Info } from 'lucide-react';
+import { X, Play, Pause, RotateCcw, Info, ChevronDown } from 'lucide-react';
+import type { Team } from '@/lib/storage';
 
 interface TriviaSnakeProps {
   isOpen: boolean;
@@ -8,9 +9,11 @@ interface TriviaSnakeProps {
   currentValue: number;
   currentClue: string;
   currentResponse: string;
+  teams: Team[];
+  activeTeamId: string;
   onClose: () => void;
-  onCorrect: () => void;
-  onIncorrect: () => void;
+  onCorrect: (teamId: string) => void;
+  onIncorrect: (teamId: string) => void;
 }
 
 interface Position {
@@ -68,6 +71,8 @@ export function TriviaSnake({
   currentValue,
   currentClue,
   currentResponse,
+  teams,
+  activeTeamId,
   onClose,
   onCorrect,
   onIncorrect,
@@ -80,6 +85,7 @@ export function TriviaSnake({
   const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([]);
   const [gameStatus, setGameStatus] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready');
   const [showInfo, setShowInfo] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState(activeTeamId);
 
   // Gameplay refs - immediate updates, no React re-renders
   const directionRef = useRef<Position>({ x: 1, y: 0 });
@@ -127,6 +133,7 @@ export function TriviaSnake({
       lastDirectionRef.current = { x: 1, y: 0 };
       eatenAppleLabelsRef.current = new Set();
       setGameStatus('ready');
+      setSelectedTeamId(activeTeamId);
 
       // Generate random apple positions anywhere on board
       const newApples: Apple[] = [];
@@ -278,11 +285,11 @@ export function TriviaSnake({
 
         if (selectedAnswer.response === currentResponse) {
           setGameStatus('won');
-          onCorrect();
+          onCorrect(selectedTeamId);
           setTimeout(() => onClose(), 1500);
         } else {
           setGameStatus('lost');
-          onIncorrect();
+          onIncorrect(selectedTeamId);
           setTimeout(() => onClose(), 1500);
         }
         return;
@@ -294,7 +301,7 @@ export function TriviaSnake({
       // Move snake
       snakeRef.current = [wrappedHead, ...snake.slice(0, -1)];
     }
-  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE]);
+  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE, selectedTeamId]);
 
   // Animation loop - smooth rendering with fixed timestep for logic
   useEffect(() => {
@@ -492,6 +499,23 @@ export function TriviaSnake({
             </div>
           </div>
         )}
+
+        {/* Team Selection */}
+        <div className="scoring-panel">
+          <p className="text-sm text-slate-400 text-center mb-3 uppercase tracking-wide">Playing Team</p>
+          <div className="flex flex-wrap gap-2 justify-center">
+            {teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => setSelectedTeamId(team.id)}
+                className={`team-chip ${selectedTeamId === team.id ? 'selected' : ''}`}
+              >
+                <div className="font-medium">{team.name}</div>
+                <div className="text-sm text-slate-400">${team.score}</div>
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Game Controls */}
         <div className="flex items-center justify-center gap-3 py-3">
