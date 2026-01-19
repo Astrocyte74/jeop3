@@ -47,12 +47,17 @@ export function TriviaSnake({
   const maxAttempts = 2; // Max attempts per clue
 
   // Game state
-  const [snake, setSnake] = useState<Position[]>([{ x: 5, y: 5 }]);
+  const [snake, setSnake] = useState<Position[]>([
+    { x: 5, y: 5 },
+    { x: 4, y: 5 },
+    { x: 3, y: 5 },
+  ]);
   const [direction, setDirection] = useState<Position>({ x: 1, y: 0 });
   const [apples, setApples] = useState<Apple[]>([]);
   const [answerOptions, setAnswerOptions] = useState<AnswerOption[]>([]);
   const [gameStatus, setGameStatus] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready');
   const [attempts, setAttempts] = useState(0);
+  const [eatenAppleLabels, setEatenAppleLabels] = useState<Set<string>>(new Set());
 
   // Board configuration
   const BOARD_SIZE = 20; // 20x20 grid
@@ -143,14 +148,25 @@ export function TriviaSnake({
       if (eatenAppleIndex !== -1) {
         const eatenApple = apples[eatenAppleIndex];
 
+        // Skip if this apple was already eaten
+        if (eatenAppleLabels.has(eatenApple.label)) {
+          // Just move, don't grow
+          return [wrappedHead, ...prevSnake.slice(0, -1)];
+        }
+
         // Find the answer for this letter
         const selectedAnswer = answerOptions.find(opt => opt.label === eatenApple.label);
 
         if (selectedAnswer) {
+          // Mark this apple as eaten
+          setEatenAppleLabels(prev => new Set([...prev, eatenApple.label]));
+
           // Check if it's the correct answer
           if (selectedAnswer.response === currentResponse) {
             setGameStatus('won');
             onCorrect();
+            // Close after showing result
+            setTimeout(() => onClose(), 2000);
           } else {
             // Wrong answer - subtract points immediately
             onIncorrect();
@@ -160,6 +176,8 @@ export function TriviaSnake({
             if (attemptsRef.current >= maxAttempts) {
               // Max attempts reached, mark as lost
               setGameStatus('lost');
+              // Close after showing result
+              setTimeout(() => onClose(), 2000);
             } else {
               // Decrement snake length (penalty) but continue
               // Return snake without growing (remove tail to shrink slightly)
@@ -175,7 +193,7 @@ export function TriviaSnake({
       // Move snake (remove tail if no apple eaten)
       return [wrappedHead, ...prevSnake.slice(0, -1)];
     });
-  }, [direction, apples, answerOptions, currentResponse, onCorrect, onIncorrect, maxAttempts, BOARD_SIZE]);
+  }, [direction, apples, answerOptions, currentResponse, onCorrect, onIncorrect, onClose, maxAttempts, BOARD_SIZE, eatenAppleLabels]);
 
   // Start game loop
   useEffect(() => {
@@ -262,6 +280,9 @@ export function TriviaSnake({
 
     // Draw apples (just letters, no text)
     apples.forEach(apple => {
+      // Skip already eaten apples
+      if (eatenAppleLabels.has(apple.label)) return;
+
       const x = apple.position.x * CELL_SIZE;
       const y = apple.position.y * CELL_SIZE;
 
@@ -297,22 +318,32 @@ export function TriviaSnake({
         ctx.fill();
       }
     });
-  }, [snake, apples, BOARD_SIZE, CELL_SIZE]);
+  }, [snake, apples, eatenAppleLabels, BOARD_SIZE, CELL_SIZE]);
 
   const startGame = () => {
-    setSnake([{ x: 5, y: 5 }]);
+    setSnake([
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+      { x: 3, y: 5 },
+    ]);
     setDirection({ x: 1, y: 0 });
     setGameStatus('playing');
     setAttempts(0);
     attemptsRef.current = 0;
+    setEatenAppleLabels(new Set());
   };
 
   const resetGame = () => {
-    setSnake([{ x: 5, y: 5 }]);
+    setSnake([
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+      { x: 3, y: 5 },
+    ]);
     setDirection({ x: 1, y: 0 });
     setGameStatus('ready');
     setAttempts(0);
     attemptsRef.current = 0;
+    setEatenAppleLabels(new Set());
   };
 
   if (!isOpen) return null;

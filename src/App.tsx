@@ -268,7 +268,7 @@ export function App() {
       };
     });
 
-    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+    // Note: TriviaSnake component handles closing with delay
   }, [gameState, currentGame, triviaSnake]);
 
   const handleSnakeIncorrect = useCallback(() => {
@@ -290,7 +290,7 @@ export function App() {
       };
     });
 
-    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+    // Note: TriviaSnake component handles closing with delay after max attempts
   }, [gameState, currentGame, triviaSnake]);
 
   const handleExitToMenu = useCallback(() => {
