@@ -117,7 +117,7 @@ export function App() {
     setMode('playing');
   }, []);
 
-  const handleOpenClue = useCallback((categoryId: number, clueIndex: number, snakeMode = false) => {
+  const handleOpenClue = useCallback((categoryId: number, clueIndex: number) => {
     if (!currentGame || !gameState) return;
 
     const category = currentGame.categories[categoryId];
@@ -127,20 +127,11 @@ export function App() {
     const clueId = `${categoryId}:${clueIndex}`;
     if (gameState.used[clueId]) return;
 
-    if (snakeMode) {
-      // Open Trivia Snake game
-      setTriviaSnake({
-        isOpen: true,
-        categoryIndex: categoryId,
-        clueIndex: clueIndex,
-      });
-    } else {
-      // Open regular Clue Dialog
-      setClueDialog({
-        isOpen: true,
-        clueId,
-      });
-    }
+    // Always open ClueDialog to allow per-clue game mode selection
+    setClueDialog({
+      isOpen: true,
+      clueId,
+    });
   }, [currentGame, gameState]);
 
   const handleSwitchToSnake = useCallback(() => {

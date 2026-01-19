@@ -23,7 +23,7 @@ import { useAuth } from '@/lib/auth';
 interface GameBoardProps {
   game: Game;
   state: GameState;
-  onOpenClue: (categoryId: number, clueIndex: number, snakeMode?: boolean) => void;
+  onOpenClue: (categoryId: number, clueIndex: number) => void;
   onExit: () => void;
   onToggleEditor: () => void;
   onToggleAIPreviewEditor?: () => void;
@@ -597,7 +597,7 @@ export function GameBoard({
                 return (
                   <div key={`${categoryIndex}-${rowIndex}`} className="cell">
                     <button
-                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex, gameMode === 'snake')}
+                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex)}
                       disabled={used}
                       className="clue-btn"
                     >
