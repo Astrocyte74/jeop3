@@ -76,6 +76,7 @@ export function TriviaSnake({
 }: TriviaSnakeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number | undefined>(undefined);
+  const lastUpdateTimeRef = useRef<number>(0);
   const attemptsRef = useRef(0);
   const maxAttempts = 2; // Max attempts per clue
 
@@ -221,13 +222,26 @@ export function TriviaSnake({
   useEffect(() => {
     if (gameStatus === 'playing') {
       const speed = getSpeedForValue(currentValue);
-      gameLoopRef.current = window.setInterval(() => {
-        gameLoop();
-      }, speed);
+      lastUpdateTimeRef.current = performance.now();
+
+      const animationLoop = (currentTime: number) => {
+        const deltaTime = currentTime - lastUpdateTimeRef.current;
+
+        // Update snake position based on speed
+        if (deltaTime >= speed) {
+          gameLoop();
+          lastUpdateTimeRef.current = currentTime;
+        }
+
+        // Continue animation loop
+        gameLoopRef.current = requestAnimationFrame(animationLoop);
+      };
+
+      gameLoopRef.current = requestAnimationFrame(animationLoop);
 
       return () => {
         if (gameLoopRef.current) {
-          clearInterval(gameLoopRef.current);
+          cancelAnimationFrame(gameLoopRef.current);
         }
       };
     }
@@ -351,6 +365,7 @@ export function TriviaSnake({
     setAttempts(0);
     attemptsRef.current = 0;
     setEatenAppleLabels(new Set());
+    lastUpdateTimeRef.current = performance.now();
   };
 
   const resetGame = () => {
