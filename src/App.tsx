@@ -133,13 +133,25 @@ export function App() {
     const clueId = `${categoryId}:${clueIndex}`;
     if (gameState.used[clueId]) return;
 
-    // Always open ClueDialog first to allow per-clue game mode selection
-    // The GameModeMenu will show the global mode preference
-    setClueDialog({
-      isOpen: true,
-      clueId,
-    });
-  }, [currentGame, gameState]);
+    // Check global game mode
+    const globalGameMode = getGlobalGameMode();
+
+    if (globalGameMode === 'snake') {
+      // Global Snake mode: open TriviaSnake directly
+      // Store the clue info in case user wants to switch back to Regular mode
+      setTriviaSnake({
+        isOpen: true,
+        categoryIndex: categoryId,
+        clueIndex: clueIndex,
+      });
+    } else {
+      // Global Regular mode: open ClueDialog with option to switch to Snake
+      setClueDialog({
+        isOpen: true,
+        clueId,
+      });
+    }
+  }, [currentGame, gameState, getGlobalGameMode]);
 
   const handleSwitchToSnake = useCallback(() => {
     if (!clueDialog.isOpen) return;
@@ -154,6 +166,17 @@ export function App() {
       clueIndex: clueIndex,
     });
   }, [clueDialog]);
+
+  const handleSwitchToRegular = useCallback(() => {
+    if (!triviaSnake.isOpen) return;
+
+    const { categoryIndex, clueIndex } = triviaSnake;
+    const clueId = `${categoryIndex}:${clueIndex}`;
+
+    // Close snake game and open clue dialog for the same clue
+    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+    setClueDialog({ isOpen: true, clueId });
+  }, [triviaSnake]);
 
   const handleMarkCorrect = useCallback((teamId: string) => {
     if (!gameState || !currentGame || !clueDialog.isOpen) return;
@@ -482,6 +505,7 @@ export function App() {
               onClose={() => setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 })}
               onCorrect={handleSnakeCorrect}
               onIncorrect={handleSnakeIncorrect}
+              onSwitchToRegular={handleSwitchToRegular}
             />
           )}
         </>
