@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Play, Pause, RotateCcw, Info, FileText } from 'lucide-react';
+import { X, Play, Pause, RotateCcw, Info } from 'lucide-react';
 import type { Team } from '@/lib/storage';
+import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 
 interface TriviaSnakeProps {
   isOpen: boolean;
@@ -11,10 +12,11 @@ interface TriviaSnakeProps {
   currentResponse: string;
   teams: Team[];
   activeTeamId: string;
+  currentMode: GameMode;
   onClose: () => void;
   onCorrect: (teamId: string) => void;
   onIncorrect: (teamId: string) => void;
-  onSwitchToRegular?: () => void;
+  onModeChange?: (mode: GameMode) => void;
 }
 
 interface Position {
@@ -74,10 +76,11 @@ export function TriviaSnake({
   currentResponse,
   teams,
   activeTeamId,
+  currentMode,
   onClose,
   onCorrect,
   onIncorrect,
-  onSwitchToRegular,
+  onModeChange,
 }: TriviaSnakeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameLoopRef = useRef<number | undefined>(undefined);
@@ -447,18 +450,17 @@ export function TriviaSnake({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {onSwitchToRegular && (
-              <button
-                onClick={() => {
-                  onClose();
-                  onSwitchToRegular();
+            {onModeChange && (
+              <GameModeMenu
+                currentMode={currentMode}
+                onModeChange={(mode) => {
+                  if (mode === 'regular') {
+                    onClose();
+                    onModeChange(mode);
+                  }
+                  // If snake is selected, we're already in snake mode, so do nothing
                 }}
-                className="flex items-center gap-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-all text-sm font-medium"
-                title="Switch to Regular Mode"
-              >
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Regular Mode</span>
-              </button>
+              />
             )}
             <button
               onClick={() => setShowInfo(!showInfo)}

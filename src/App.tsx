@@ -167,15 +167,18 @@ export function App() {
     });
   }, [clueDialog]);
 
-  const handleSwitchToRegular = useCallback(() => {
+  const handleGameModeChange = useCallback((mode: GameMode) => {
     if (!triviaSnake.isOpen) return;
 
     const { categoryIndex, clueIndex } = triviaSnake;
     const clueId = `${categoryIndex}:${clueIndex}`;
 
-    // Close snake game and open clue dialog for the same clue
-    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
-    setClueDialog({ isOpen: true, clueId });
+    if (mode === 'regular') {
+      // Close snake game and open clue dialog for the same clue
+      setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+      setClueDialog({ isOpen: true, clueId });
+    }
+    // If mode is 'snake', we're already in snake mode, so nothing to do
   }, [triviaSnake]);
 
   const handleMarkCorrect = useCallback((teamId: string) => {
@@ -502,10 +505,11 @@ export function App() {
               currentResponse={currentSnakeData.currentResponse}
               teams={gameState.teams}
               activeTeamId={gameState.activeTeamId}
+              currentMode={getGlobalGameMode()}
               onClose={() => setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 })}
               onCorrect={handleSnakeCorrect}
               onIncorrect={handleSnakeIncorrect}
-              onSwitchToRegular={handleSwitchToRegular}
+              onModeChange={handleGameModeChange}
             />
           )}
         </>
