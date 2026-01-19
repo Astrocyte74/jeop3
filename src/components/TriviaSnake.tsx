@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Play, Pause, RotateCcw, Info, ChevronDown } from 'lucide-react';
+import { X, Play, Pause, RotateCcw, Info } from 'lucide-react';
 import type { Team } from '@/lib/storage';
 
 interface TriviaSnakeProps {
