@@ -10,6 +10,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
+import { GameModeMenu } from '@/components/GameModeMenu';
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
@@ -66,7 +67,7 @@ export function GameBoard({
   const [teamToRemove, setTeamToRemove] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
-  const [snakeMode, setSnakeMode] = useState(false);
+  const [gameMode, setGameMode] = useState<'regular' | 'snake'>('regular');
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
@@ -287,17 +288,11 @@ export function GameBoard({
           <Home className="w-5 h-5" />
         </Button>
 
-        {/* Snake Mode Toggle */}
-        <Button
-          variant={snakeMode ? "default" : "outline"}
-          size="sm"
-          className={snakeMode ? "bg-green-600 hover:bg-green-700" : "border-slate-700 bg-slate-900/50"}
-          onClick={() => setSnakeMode(!snakeMode)}
-          title={snakeMode ? "Snake Mode ON - Click to disable" : "Snake Mode OFF - Click to enable"}
-        >
-          <span className="mr-1">🐍</span>
-          <span className="hidden sm:inline">{snakeMode ? 'ON' : 'OFF'}</span>
-        </Button>
+        {/* Game Mode Dropdown */}
+        <GameModeMenu
+          currentMode={gameMode}
+          onModeChange={setGameMode}
+        />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -560,7 +555,7 @@ export function GameBoard({
                 return (
                   <div key={`${categoryIndex}-${rowIndex}`} className="cell">
                     <button
-                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex, snakeMode)}
+                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex, gameMode === 'snake')}
                       disabled={used}
                       className="clue-btn"
                     >
