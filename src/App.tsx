@@ -127,11 +127,23 @@ export function App() {
     const clueId = `${categoryId}:${clueIndex}`;
     if (gameState.used[clueId]) return;
 
-    // Always open ClueDialog to allow per-clue game mode selection
-    setClueDialog({
-      isOpen: true,
-      clueId,
-    });
+    // Check if global game mode is set to snake
+    const globalGameMode = (localStorage.getItem('gameMode') as 'regular' | 'snake') || 'regular';
+
+    if (globalGameMode === 'snake') {
+      // Snake mode: open TriviaSnake directly
+      setTriviaSnake({
+        isOpen: true,
+        categoryIndex: categoryId,
+        clueIndex: clueIndex,
+      });
+    } else {
+      // Regular mode: open ClueDialog with option to switch to Snake
+      setClueDialog({
+        isOpen: true,
+        clueId,
+      });
+    }
   }, [currentGame, gameState]);
 
   const handleSwitchToSnake = useCallback(() => {

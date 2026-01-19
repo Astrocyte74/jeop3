@@ -67,7 +67,7 @@ export function GameBoard({
   const [teamToRemove, setTeamToRemove] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
-  const [gameMode, setGameMode] = useState<GameMode>('regular');
+  const [gameMode, setGameMode] = useState<GameMode>(() => (localStorage.getItem('gameMode') as GameMode) || 'regular');
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
@@ -304,7 +304,10 @@ export function GameBoard({
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent sideOffset={5}>
                 <DropdownMenuItem
-                  onClick={() => setGameMode('regular')}
+                  onClick={() => {
+                    setGameMode('regular');
+                    localStorage.setItem('gameMode', 'regular');
+                  }}
                   className={gameMode === 'regular' ? 'bg-yellow-500/10' : ''}
                 >
                   <span className="mr-2">📝</span>
@@ -315,7 +318,10 @@ export function GameBoard({
                   )}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setGameMode('snake')}
+                  onClick={() => {
+                    setGameMode('snake');
+                    localStorage.setItem('gameMode', 'snake');
+                  }}
                   className={gameMode === 'snake' ? 'bg-yellow-500/10' : ''}
                 >
                   <span className="mr-2">🐍</span>
