@@ -34,6 +34,16 @@ interface AnswerOption {
   response: string;
 }
 
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number; // 0 to 1
+  color: string;
+  size: number;
+}
+
 // Color mapping for each letter
 const LETTER_COLORS: Record<string, string> = {
   'A': '#3b82f6', // Blue
@@ -99,9 +109,63 @@ export function TriviaSnake({
   const applesRef = useRef<Apple[]>([]);
   const eatenAppleLabelsRef = useRef<Set<string>>(new Set());
 
+  // Visual effects refs
+  const particlesRef = useRef<Particle[]>([]);
+  const screenShakeRef = useRef<{ intensity: number; duration: number }>({ intensity: 0, duration: 0 });
+  const backgroundOffsetRef = useRef<number>(0);
+
   // Board configuration
   const BOARD_SIZE = 20; // 20x20 grid
   const CELL_SIZE = 25; // pixels per cell
+
+  // Helper: Create particle explosion
+  const createParticles = useCallback((x: number, y: number, color: string, count: number = 15) => {
+    const newParticles: Particle[] = [];
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+      const speed = 2 + Math.random() * 3;
+      newParticles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1.0,
+        color,
+        size: 3 + Math.random() * 4,
+      });
+    }
+    particlesRef.current = [...particlesRef.current, ...newParticles];
+  }, []);
+
+  // Helper: Trigger screen shake
+  const triggerScreenShake = useCallback((intensity: number, duration: number) => {
+    screenShakeRef.current = { intensity, duration };
+  }, []);
+
+  // Helper: Create confetti explosion
+  const createConfetti = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff6fff', '#ffffff'];
+
+    for (let i = 0; i < 100; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 3 + Math.random() * 8;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      particlesRef.current.push({
+        x: centerX,
+        y: centerY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 2, // Slight upward bias
+        life: 1.5 + Math.random() * 0.5, // Longer life for confetti
+        color,
+        size: 5 + Math.random() * 8,
+      });
+    }
+  }, []);
 
   // Shuffle array function
   const shuffleArray = <T,>(array: T[]): T[] => {
@@ -189,23 +253,155 @@ export function TriviaSnake({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
-    ctx.fillStyle = '#1a1a2e';
+    // Update background offset for animation
+    backgroundOffsetRef.current = (backgroundOffsetRef.current + 0.5) % CELL_SIZE;
+
+    // Apply screen shake
+    let shakeX = 0;
+    let shakeY = 0;
+    if (screenShakeRef.current.duration > 0) {
+      shakeX = (Math.random() - 0.5) * screenShakeRef.current.intensity * 2;
+      shakeY = (Math.random() - 0.5) * screenShakeRef.current.intensity * 2;
+      screenShakeRef.current.duration -= 16; // Decrease by ~1 frame at 60fps
+      if (screenShakeRef.current.duration < 0) {
+        screenShakeRef.current.duration = 0;
+      }
+    }
+
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
+
+    // Clear canvas with animated gradient background
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(1, '#16213e');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw grid
+    // Draw animated grid
     ctx.strokeStyle = '#2a2a4e';
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= BOARD_SIZE; i++) {
+      // Vertical lines with offset
       ctx.beginPath();
-      ctx.moveTo(i * CELL_SIZE, 0);
-      ctx.lineTo(i * CELL_SIZE, BOARD_SIZE * CELL_SIZE);
+      ctx.moveTo(i * CELL_SIZE - backgroundOffsetRef.current, 0);
+      ctx.lineTo(i * CELL_SIZE - backgroundOffsetRef.current, BOARD_SIZE * CELL_SIZE);
       ctx.stroke();
+      // Horizontal lines with offset
       ctx.beginPath();
-      ctx.moveTo(0, i * CELL_SIZE);
-      ctx.lineTo(BOARD_SIZE * CELL_SIZE, i * CELL_SIZE);
+      ctx.moveTo(0, i * CELL_SIZE - backgroundOffsetRef.current);
+      ctx.lineTo(BOARD_SIZE * CELL_SIZE, i * CELL_SIZE - backgroundOffsetRef.current);
       ctx.stroke();
     }
+
+    // Update and draw particles
+    particlesRef.current = particlesRef.current.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.1; // Gravity
+      p.life -= 0.02;
+      return p.life > 0;
+    });
+
+    particlesRef.current.forEach(p => {
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Draw glow trail behind snake (older segments are more transparent)
+    snakeRef.current.forEach((segment, index) => {
+      const x = segment.x * CELL_SIZE;
+      const y = segment.y * CELL_SIZE;
+      const trailAlpha = 1 - (index / snakeRef.current.length) * 0.7;
+
+      // Outer glow
+      ctx.shadowColor = '#22c55e';
+      ctx.shadowBlur = 15;
+      ctx.fillStyle = `rgba(34, 197, 94, ${trailAlpha * 0.3})`;
+      ctx.beginPath();
+      ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, CELL_SIZE / 2 - 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    // Draw snake with eyes that follow direction
+    const direction = directionRef.current;
+    snakeRef.current.forEach((segment, index) => {
+      const x = segment.x * CELL_SIZE;
+      const y = segment.y * CELL_SIZE;
+      const isHead = index === 0;
+
+      // Snake body
+      ctx.fillStyle = isHead ? '#22c55e' : '#16a34a';
+      ctx.beginPath();
+      ctx.roundRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, isHead ? 6 : 4);
+      ctx.fill();
+
+      if (isHead) {
+        // Calculate eye positions based on direction
+        const eyeOffset = 6;
+        const eyeSize = 4;
+        let leftEyeX, leftEyeY, rightEyeX, rightEyeY;
+
+        if (direction.x === 1) { // Right
+          leftEyeX = x + CELL_SIZE - eyeOffset - 2;
+          leftEyeY = y + eyeOffset;
+          rightEyeX = x + CELL_SIZE - eyeOffset - 2;
+          rightEyeY = y + CELL_SIZE - eyeOffset;
+        } else if (direction.x === -1) { // Left
+          leftEyeX = x + eyeOffset + 2;
+          leftEyeY = y + eyeOffset;
+          rightEyeX = x + eyeOffset + 2;
+          rightEyeY = y + CELL_SIZE - eyeOffset;
+        } else if (direction.y === -1) { // Up
+          leftEyeX = x + eyeOffset;
+          leftEyeY = y + eyeOffset + 2;
+          rightEyeX = x + CELL_SIZE - eyeOffset;
+          rightEyeY = y + eyeOffset + 2;
+        } else { // Down
+          leftEyeX = x + eyeOffset;
+          leftEyeY = y + CELL_SIZE - eyeOffset - 2;
+          rightEyeX = x + CELL_SIZE - eyeOffset;
+          rightEyeY = y + CELL_SIZE - eyeOffset - 2;
+        }
+
+        // Eye whites
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(leftEyeX, leftEyeY, eyeSize, 0, Math.PI * 2);
+        ctx.arc(rightEyeX, rightEyeY, eyeSize, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(leftEyeX + direction.x, leftEyeY + direction.y, eyeSize / 2, 0, Math.PI * 2);
+        ctx.arc(rightEyeX + direction.x, rightEyeY + direction.y, eyeSize / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Cute expression - tongue when happy (won)
+        if (gameStatus === 'won') {
+          ctx.strokeStyle = '#ff6b9d';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x + CELL_SIZE / 2 - 3, y + CELL_SIZE - 4);
+          ctx.quadraticCurveTo(x + CELL_SIZE / 2, y + CELL_SIZE + 2, x + CELL_SIZE / 2 + 3, y + CELL_SIZE - 4);
+          ctx.stroke();
+        }
+        // Sad expression when lost
+        if (gameStatus === 'lost') {
+          ctx.strokeStyle = '#ff6b9d';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2 + 2, 4, 0, Math.PI);
+          ctx.stroke();
+        }
+      }
+    });
 
     // Draw apples (just letters, skip eaten ones)
     applesRef.current.forEach(apple => {
@@ -214,10 +410,14 @@ export function TriviaSnake({
       const x = apple.position.x * CELL_SIZE;
       const y = apple.position.y * CELL_SIZE;
 
+      // Glow effect on apples
+      ctx.shadowColor = LETTER_COLORS[apple.label] || '#ef4444';
+      ctx.shadowBlur = 10;
       ctx.fillStyle = LETTER_COLORS[apple.label] || '#ef4444';
       ctx.beginPath();
       ctx.arc(x + CELL_SIZE / 2, y + CELL_SIZE / 2, CELL_SIZE / 2 - 2, 0, Math.PI * 2);
       ctx.fill();
+      ctx.shadowBlur = 0;
 
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 14px Arial';
@@ -226,23 +426,14 @@ export function TriviaSnake({
       ctx.fillText(apple.label, x + CELL_SIZE / 2, y + CELL_SIZE / 2);
     });
 
-    // Draw snake
-    snakeRef.current.forEach((segment, index) => {
-      const x = segment.x * CELL_SIZE;
-      const y = segment.y * CELL_SIZE;
+    // Red flash overlay when lost
+    if (gameStatus === 'lost' && screenShakeRef.current.duration > 100) {
+      ctx.fillStyle = 'rgba(255, 0, 0, 0.2)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
 
-      ctx.fillStyle = index === 0 ? '#22c55e' : '#16a34a';
-      ctx.fillRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-
-      if (index === 0) {
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(x + 8, y + 8, 2, 0, Math.PI * 2);
-        ctx.arc(x + 17, y + 8, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    });
-  }, [BOARD_SIZE, CELL_SIZE]);
+    ctx.restore();
+  }, [BOARD_SIZE, CELL_SIZE, gameStatus]);
 
   // Game tick - updates game logic (not rendering)
   const gameTick = useCallback(() => {
@@ -288,11 +479,23 @@ export function TriviaSnake({
         // Mark as eaten
         eatenAppleLabelsRef.current = new Set([...eatenAppleLabelsRef.current, eatenApple.label]);
 
+        // Get pixel position for particle effects
+        const pixelX = wrappedHead.x * CELL_SIZE + CELL_SIZE / 2;
+        const pixelY = wrappedHead.y * CELL_SIZE + CELL_SIZE / 2;
+        const appleColor = LETTER_COLORS[eatenApple.label] || '#ef4444';
+
         if (selectedAnswer.response === currentResponse) {
+          // Correct answer - particles and confetti!
+          createParticles(pixelX, pixelY, appleColor, 20);
+          triggerScreenShake(3, 200); // Gentle shake
+          createConfetti();
           setGameStatus('won');
           onCorrect(selectedTeamId);
           setTimeout(() => onClose(), 1500);
         } else {
+          // Wrong answer - red flash and strong shake
+          createParticles(pixelX, pixelY, '#ff0000', 25);
+          triggerScreenShake(8, 300); // Strong shake
           setGameStatus('lost');
           onIncorrect(selectedTeamId);
           setTimeout(() => onClose(), 1500);
@@ -306,7 +509,7 @@ export function TriviaSnake({
       // Move snake
       snakeRef.current = [wrappedHead, ...snake.slice(0, -1)];
     }
-  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE, selectedTeamId]);
+  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE, selectedTeamId, createParticles, triggerScreenShake, createConfetti]);
 
   // Animation loop - smooth rendering with fixed timestep for logic
   useEffect(() => {
