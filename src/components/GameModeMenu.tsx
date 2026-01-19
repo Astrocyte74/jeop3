@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Gamepad2 } from 'lucide-react';
 
-type GameMode = 'regular' | 'snake' | 'trivia' | 'coming-soon';
+export type GameMode = 'regular' | 'snake' | 'trivia' | 'coming-soon';
 
 interface GameModeOption {
   id: GameMode;

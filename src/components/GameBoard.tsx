@@ -10,7 +10,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { GameModeMenu } from '@/components/GameModeMenu';
+import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
@@ -67,7 +67,7 @@ export function GameBoard({
   const [teamToRemove, setTeamToRemove] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
-  const [gameMode, setGameMode] = useState<'regular' | 'snake'>('regular');
+  const [gameMode, setGameMode] = useState<GameMode>('regular');
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
