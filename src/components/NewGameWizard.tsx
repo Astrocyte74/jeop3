@@ -31,7 +31,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2, Upload } from 'lucide-react';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2, Upload, Info } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -967,6 +967,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         {getTotalCategoryCount()} / 6 categories
                       </div>
                     </div>
+                    {getTotalCategoryCount() < 6 && (
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                        <Info className="w-3.5 h-3.5" />
+                        Optionally add more sources ({getRemainingCategories()} categor{getRemainingCategories() === 1 ? 'y' : 'ies'} remaining)
+                      </p>
+                    )}
                     <div className="space-y-2">
                       {customSources.map((source) => {
                         const typeConfig = {
