@@ -917,7 +917,7 @@ export function AIPreviewDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && onCancel()}>
-      <AlertDialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <AlertDialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <AlertDialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-500/20 rounded-lg">
@@ -950,7 +950,7 @@ export function AIPreviewDialog({
           )}
         </AlertDialogHeader>
 
-        <div className="py-4 relative">
+        <div className="py-4 relative break-words">
           {/* Loading indicator at top */}
           {isLoading && regeneratingCounts && (
             <div ref={scrollRef} className="mb-4 bg-purple-500/20 border border-purple-500/50 rounded-lg p-4 flex items-center gap-4">

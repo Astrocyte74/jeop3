@@ -810,9 +810,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
             // Validate we got the requested number of categories
             if (sourceCategories.length !== source.categoryCount) {
-              console.warn(`[MainMenu] Source returned ${sourceCategories.length} categories but requested ${source.categoryCount}. Adjusting...`);
+              if (sourceCategories.length < source.categoryCount) {
+                console.warn(`[MainMenu] ⚠️ Source "${source.topic || source.url || 'pasted content'}" returned only ${sourceCategories.length} of ${source.categoryCount} requested categories. Using what we got.`);
+              } else {
+                console.warn(`[MainMenu] Source returned ${sourceCategories.length} categories, requested ${source.categoryCount}. Truncating to ${source.categoryCount}.`);
+              }
             }
-            // Only take the requested number
+            // Only take the requested number (or fewer if AI didn't return enough)
             const adjustedCategories = sourceCategories.slice(0, source.categoryCount);
             categoriesList.push(...adjustedCategories);
 
@@ -831,7 +835,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
         // Check if we had any failures and if we have at least some categories
         if (failedSources.length > 0) {
-          const sourceNames = failedSources.map(f => `"${f.source.topic || f.source.url || 'source'}"`).join(', ');
+          const sourceNames = failedSources.map(f => {
+            if (f.source.type === 'paste') {
+              return `Pasted content (${f.source.content?.length || 0} chars)`;
+            }
+            return `"${f.source.topic || f.source.url || 'source'}"`;
+          }).join(', ');
           if (categoriesList.length === 0) {
             // Complete failure
             setWizardError(`Failed to generate categories from ${sourceNames}. Please try again.`);
@@ -839,8 +848,15 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             return;
           } else {
             // Partial success - log warning but continue with what we have
-            console.warn('[MainMenu] Partial failure: Some sources failed but continuing with generated categories:', { failedSources });
-            // We could show a toast/notification here, but for now just log and continue
+            console.group('⚠️ [MainMenu] Partial Generation Failure');
+            console.warn(`Some sources failed to generate categories. Generated ${categoriesList.length} categories from successful sources.`);
+            console.table(failedSources.map(f => ({
+              Type: f.source.type,
+              Source: f.source.type === 'paste' ? `Pasted content (${f.source.content?.length || 0} chars)` : f.source.topic || f.source.url,
+              Error: f.error
+            })));
+            console.warn('Continuing with ' + categoriesList.length + ' categories. User will see results in preview.');
+            console.groupEnd();
           }
         }
       } else {
