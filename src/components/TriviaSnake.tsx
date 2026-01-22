@@ -489,20 +489,19 @@ export function TriviaSnake({
           createParticles(pixelX, pixelY, appleColor, 20);
           triggerScreenShake(3, 200); // Gentle shake
           createConfetti();
-          setGameStatus('won');
           onCorrect(selectedTeamId);
           // Close immediately so feedback shows in parent ClueDialog at top of page
-          setTimeout(() => onClose(), 500);
+          onClose();
+          return;
         } else {
           // Wrong answer - red flash and strong shake
           createParticles(pixelX, pixelY, '#ff0000', 25);
           triggerScreenShake(8, 300); // Strong shake
-          setGameStatus('lost');
           onIncorrect(selectedTeamId);
           // Close immediately so feedback shows in parent ClueDialog at top of page
-          setTimeout(() => onClose(), 500);
+          onClose();
+          return;
         }
-        return;
       }
 
       // Grow snake
