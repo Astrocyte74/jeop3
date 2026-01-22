@@ -1078,6 +1078,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                           <button
                             onClick={() => {
                               setNewSourceType('topic');
+                              setNewSourceContent('');
                               setAddSourceError('');
                             }}
                             className={`p-3 rounded-lg border text-center transition-all ${
@@ -1092,6 +1093,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                           <button
                             onClick={() => {
                               setNewSourceType('paste');
+                              setNewSourceContent('');
                               setAddSourceError('');
                             }}
                             className={`p-3 rounded-lg border text-center transition-all ${
@@ -1106,6 +1108,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                           <button
                             onClick={() => {
                               setNewSourceType('url');
+                              setNewSourceContent('');
                               setAddSourceError('');
                             }}
                             className={`p-3 rounded-lg border text-center transition-all ${
@@ -1233,6 +1236,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     placeholder={
                       sourceMode === 'scratch'
                         ? "e.g., Science, Movies, 1990s... (leave blank for random)"
+                        : sourceMode === 'custom'
+                        ? "Optional overall theme (leave blank for auto-generated title)"
                         : "Optional theme hint (leave blank to auto-detect from content)"
                     }
                     className="bg-slate-800/50 border-slate-700"
@@ -1246,6 +1251,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   <p className="text-xs text-slate-500">
                     {sourceMode === 'scratch'
                       ? "Enter a topic or leave blank for a randomly generated theme"
+                      : sourceMode === 'custom'
+                      ? "Your sources already define specific topics - this is optional for the game title"
                       : "The AI will analyze your content and create themed categories"
                     }
                   </p>
