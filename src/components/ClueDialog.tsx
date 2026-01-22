@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, Check, X as XIcon, Info } from 'lucide-react';
+import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { getIconSize } from '@/lib/themes';
 import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
@@ -19,6 +19,7 @@ interface ClueDialogProps {
   onMarkIncorrect: (teamId: string) => void;
   onSetActiveTeam: (teamId: string) => void;
   onSwitchToSnake?: () => void;
+  snakeGameResult?: { wasCorrect: boolean | null; teamId: string | null } | null;
 }
 
 export function ClueDialog({
@@ -35,8 +36,17 @@ export function ClueDialog({
   onMarkIncorrect,
   onSetActiveTeam,
   onSwitchToSnake,
+  snakeGameResult,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
+
+  // Auto-show response and set active team when coming from snake game
+  useEffect(() => {
+    if (isOpen && snakeGameResult && snakeGameResult.wasCorrect !== null && snakeGameResult.teamId) {
+      setShowResponse(true);
+      onSetActiveTeam(snakeGameResult.teamId);
+    }
+  }, [isOpen, snakeGameResult, onSetActiveTeam]);
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
   const [clueIcons, setClueIcons] = useState<IconMatch[]>([]);
   const [answerIcons, setAnswerIcons] = useState<IconMatch[]>([]);
@@ -45,7 +55,10 @@ export function ClueDialog({
 
   useEffect(() => {
     if (isOpen) {
-      setShowResponse(false);
+      // Only reset showResponse if NOT coming from snake game
+      if (!snakeGameResult || snakeGameResult.wasCorrect === null) {
+        setShowResponse(false);
+      }
       setShowMatchedKeywords(false);
       setCurrentClueIconIndex(0);
       setCurrentAnswerIconIndex(0);
@@ -58,7 +71,7 @@ export function ClueDialog({
       const answerMatches = iconMatcher.findMatches(clue, response, categoryTitle, 5);
       setAnswerIcons(answerMatches);
     }
-  }, [isOpen, clue, response, categoryTitle]);
+  }, [isOpen, clue, response, categoryTitle, snakeGameResult]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -212,6 +225,27 @@ export function ClueDialog({
 
         {/* Response */}
         <div className="clue-response">{response}</div>
+
+        {/* Snake Game Result Indicator */}
+        {showResponse && snakeGameResult && snakeGameResult.wasCorrect !== null && (
+          <div className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg ${
+            snakeGameResult.wasCorrect
+              ? 'bg-green-500/20 border-2 border-green-500 text-green-300'
+              : 'bg-red-500/20 border-2 border-red-500 text-red-300'
+          }`}>
+            {snakeGameResult.wasCorrect ? (
+              <>
+                <Trophy className="w-5 h-5" />
+                <span className="font-semibold">Snake Game: Correct!</span>
+              </>
+            ) : (
+              <>
+                <XCircle className="w-5 h-5" />
+                <span className="font-semibold">Snake Game: Incorrect</span>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Show/Hide button */}
         {!showResponse && (

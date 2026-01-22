@@ -14,8 +14,7 @@ interface TriviaSnakeProps {
   activeTeamId: string;
   currentMode: GameMode;
   onClose: () => void;
-  onCorrect: (teamId: string) => void;
-  onIncorrect: (teamId: string) => void;
+  onGameComplete: (wasCorrect: boolean, teamId: string) => void;
   onModeChange?: (mode: GameMode) => void;
 }
 
@@ -88,8 +87,7 @@ export function TriviaSnake({
   activeTeamId,
   currentMode,
   onClose,
-  onCorrect,
-  onIncorrect,
+  onGameComplete,
   onModeChange,
 }: TriviaSnakeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -101,8 +99,6 @@ export function TriviaSnake({
   const [gameStatus, setGameStatus] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready');
   const [showInfo, setShowInfo] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState(activeTeamId);
-  const [selectedAnswerLabel, setSelectedAnswerLabel] = useState<string | null>(null); // Track which answer was chosen
-  const [showResult, setShowResult] = useState(false); // Whether to show answer results
 
   // Gameplay refs - immediate updates, no React re-renders
   const directionRef = useRef<Position>({ x: 1, y: 0 });
@@ -205,8 +201,6 @@ export function TriviaSnake({
       eatenAppleLabelsRef.current = new Set();
       setGameStatus('ready');
       setSelectedTeamId(activeTeamId);
-      setSelectedAnswerLabel(null);
-      setShowResult(false);
 
       // Generate random apple positions anywhere on board
       const newApples: Apple[] = [];
@@ -494,22 +488,22 @@ export function TriviaSnake({
           triggerScreenShake(3, 200); // Gentle shake
           createConfetti();
           setGameStatus('won');
-          setSelectedAnswerLabel(eatenApple.label);
-          setShowResult(true);
-          onCorrect(selectedTeamId);
-          // Close after showing result
-          setTimeout(() => onClose(), 1500);
+          // Notify parent and close after brief celebration
+          setTimeout(() => {
+            onGameComplete(true, selectedTeamId);
+            onClose();
+          }, 800);
           return;
         } else {
           // Wrong answer - red flash and strong shake
           createParticles(pixelX, pixelY, '#ff0000', 25);
           triggerScreenShake(8, 300); // Strong shake
           setGameStatus('lost');
-          setSelectedAnswerLabel(eatenApple.label);
-          setShowResult(true);
-          onIncorrect(selectedTeamId);
-          // Close after showing result
-          setTimeout(() => onClose(), 2000);
+          // Notify parent and close after brief moment
+          setTimeout(() => {
+            onGameComplete(false, selectedTeamId);
+            onClose();
+          }, 1000);
           return;
         }
       }
@@ -520,7 +514,7 @@ export function TriviaSnake({
       // Move snake
       snakeRef.current = [wrappedHead, ...snake.slice(0, -1)];
     }
-  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE, selectedTeamId, createParticles, triggerScreenShake, createConfetti]);
+  }, [answerOptions, currentResponse, onGameComplete, onClose, BOARD_SIZE, selectedTeamId, createParticles, triggerScreenShake, createConfetti]);
 
   // Animation loop - smooth rendering with fixed timestep for logic
   useEffect(() => {
@@ -567,8 +561,6 @@ export function TriviaSnake({
     lastDirectionRef.current = { x: 1, y: 0 };
     eatenAppleLabelsRef.current = new Set();
     setGameStatus('playing');
-    setSelectedAnswerLabel(null);
-    setShowResult(false);
   }, [currentValue]);
 
   const resetGame = useCallback(() => {
@@ -578,8 +570,6 @@ export function TriviaSnake({
     lastDirectionRef.current = { x: 1, y: 0 };
     eatenAppleLabelsRef.current = new Set();
     setGameStatus('ready');
-    setSelectedAnswerLabel(null);
-    setShowResult(false);
     render(); // Render initial state
   }, [currentValue, render]);
 
@@ -788,58 +778,16 @@ export function TriviaSnake({
 
         {/* Answer Options */}
         <div className="grid grid-cols-5 gap-2">
-          {answerOptions.map(option => {
-            const isCorrect = option.response === currentResponse;
-            const isSelected = option.label === selectedAnswerLabel;
-            const wasWrong = isSelected && !isCorrect && showResult;
-
-            // Determine styling based on result state
-            let bgStyle = LETTER_COLORS[option.label];
-            let opacity = '100';
-            let scale = '';
-            let border = '';
-            let icon = '';
-
-            if (showResult) {
-              if (isCorrect) {
-                // Correct answer - bright green highlight
-                bgStyle = '#22c55e';
-                border = 'border-4 border-green-300 shadow-lg shadow-green-500/50';
-                icon = '✓';
-              } else if (wasWrong) {
-                // Wrong selection - greyed out
-                bgStyle = '#6b7280';
-                opacity = '50';
-                scale = 'scale-95';
-                icon = '✗';
-              } else {
-                // Other answers - dimmed
-                opacity = '40';
-              }
-            }
-
-            return (
-              <div
-                key={option.label}
-                className={`rounded-lg p-3 text-center transition-all relative ${scale} ${border}`}
-                style={{ backgroundColor: bgStyle, opacity: opacity }}
-              >
-                {icon && (
-                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center text-sm font-bold shadow-md">
-                    {icon}
-                  </div>
-                )}
-                <div className="text-white font-bold text-xl">{option.label}</div>
-                <div className="text-white text-sm mt-1">{option.response}</div>
-                {showResult && wasWrong && (
-                  <div className="text-white text-xs mt-2 opacity-80">Wrong!</div>
-                )}
-                {showResult && isCorrect && (
-                  <div className="text-white text-xs mt-2 font-bold">Correct!</div>
-                )}
-              </div>
-            );
-          })}
+          {answerOptions.map(option => (
+            <div
+              key={option.label}
+              className="rounded-lg p-3 text-center transition-transform hover:scale-105"
+              style={{ backgroundColor: LETTER_COLORS[option.label] }}
+            >
+              <div className="text-white font-bold text-xl">{option.label}</div>
+              <div className="text-white text-sm mt-1">{option.response}</div>
+            </div>
+          ))}
         </div>
 
         {/* Game Canvas */}
