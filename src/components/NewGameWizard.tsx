@@ -508,10 +508,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setActiveTab('ai')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-all border-b-2 ${
                 activeTab === 'ai'
-                  ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/20'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-300'
+                  ? 'border-purple-400 text-slate-200 bg-slate-800/50'
+                  : 'border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/30'
               }`}
             >
               <Wand2 className="w-4 h-4 inline mr-1.5" />
@@ -519,10 +519,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             </button>
             <button
               onClick={() => setActiveTab('manual')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-all border-b-2 ${
                 activeTab === 'manual'
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-300'
+                  ? 'border-orange-400 text-slate-200 bg-slate-800/50'
+                  : 'border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/30'
               }`}
             >
               <Edit className="w-4 h-4 inline mr-1.5" />
@@ -530,10 +530,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             </button>
             <button
               onClick={() => setActiveTab('import')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-all border-b-2 ${
                 activeTab === 'import'
-                  ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-500/20'
-                  : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-300'
+                  ? 'border-cyan-400 text-slate-200 bg-slate-800/50'
+                  : 'border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/30'
               }`}
             >
               <Upload className="w-4 h-4 inline mr-1.5" />
