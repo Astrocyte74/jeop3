@@ -48,6 +48,8 @@ interface GeneratedGameData {
     title: string;
     contentTopic?: string;
     clues: Array<{ value: number; clue: string; response: string }>;
+    sourceMaterial?: string; // Store source material for this specific category
+    sourceUrl?: string; // Store source URL if applicable
   }>;
   titles: Array<{ title: string; subtitle: string }>;
   suggestedTeamNames: string[];
@@ -55,7 +57,7 @@ interface GeneratedGameData {
   difficulty: AIDifficulty;
   sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceUrl?: string;
-  referenceMaterial?: string; // Store source material for AI rephrase/regenerate
+  referenceMaterial?: string; // Store source material for single-source mode
   sourceCharacters?: number;
   metadata?: {
     modelUsed?: string;
@@ -819,7 +821,16 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             }
             // Only take the requested number (or fewer if AI didn't return enough)
             const adjustedCategories = sourceCategories.slice(0, source.categoryCount);
-            categoriesList.push(...adjustedCategories);
+
+            // Attach source material to each category for later AI operations
+            const categoriesWithSource = adjustedCategories.map(cat => ({
+              ...cat,
+              sourceMaterial: source.type === 'paste' ? source.content :
+                          source.type === 'url' ? source.fetchedContent : undefined,
+              sourceUrl: source.type === 'url' ? source.url : undefined,
+            }));
+
+            categoriesList.push(...categoriesWithSource);
 
             // Capture metadata from first successful generation
             if (!categoriesMetadata) {
@@ -905,7 +916,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           console.warn(`[MainMenu] AI returned ${allCategories.length} categories but requested 6. Adjusting...`);
         }
         // Only take the first 6 categories
-        categoriesList = allCategories.slice(0, 6);
+        const sliceCategories = allCategories.slice(0, 6);
+
+        // Attach source material to each category for later AI operations (single-source mode)
+        categoriesList = sliceCategories.map(cat => ({
+          ...cat,
+          sourceMaterial: referenceMaterial, // All categories share the same source in single-source mode
+          sourceUrl: referenceUrl,
+        }));
 
         // Capture metadata from categories generation
         categoriesMetadata = (categoriesResult as any)._metadata;
@@ -1313,6 +1331,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         .flatMap(cat => cat.clues.map(c => c.response))
         .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
 
+      // Use per-category sourceMaterial if available, otherwise fall back to global
+      const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+
       const result = await aiGenerate('editor-rewrite-clue', {
         categoryTitle: category.title,
         contentTopic: category.contentTopic || category.title,
@@ -1320,7 +1341,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         currentResponse: clue.response,
         value: clue.value,
         existingAnswers,
-        referenceMaterial: generatedGameData.referenceMaterial,
+        referenceMaterial: sourceMaterial,
       });
 
       if (result && typeof result === 'object' && 'clue' in result) {
@@ -1529,6 +1550,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         .filter((_, i) => i !== catIndex)
         .flatMap(cat => cat.clues.map(c => c.response));
 
+      // Use per-category sourceMaterial if available, otherwise fall back to global
+      const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+
       const result = await aiGenerate(
         'category-replace-all',
         {
@@ -1537,7 +1561,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           theme,
           existingClues: category.clues,
           existingAnswers,
-          referenceMaterial: generatedGameData.referenceMaterial,
+          referenceMaterial: sourceMaterial,
         },
         generatedGameData.difficulty
       );
@@ -1547,7 +1571,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const newCat = catData.category || (catData.title && catData.clues ? { title: catData.title, clues: catData.clues } : null);
         if (newCat) {
           const updatedCategories = [...generatedGameData.categories];
-          updatedCategories[catIndex] = newCat;
+          // Preserve sourceMaterial and sourceUrl when updating category
+          updatedCategories[catIndex] = {
+            ...newCat,
+            sourceMaterial: category.sourceMaterial,
+            sourceUrl: category.sourceUrl,
+          };
 
           const updatedGame: Game = {
             ...generatedGameData.game,
@@ -1659,6 +1688,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         .flatMap(cat => cat.clues.map(c => c.response))
         .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
 
+      // Use per-category sourceMaterial if available, otherwise fall back to global
+      const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+
       const result = await aiGenerate(
         'question-generate-single',
         {
@@ -1667,7 +1699,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           value: clue.value,
           existingClues: category.clues.filter((_, i) => i !== clueIndex),
           existingAnswers,
-          referenceMaterial: generatedGameData.referenceMaterial,
+          referenceMaterial: sourceMaterial,
         },
         generatedGameData.difficulty
       );
