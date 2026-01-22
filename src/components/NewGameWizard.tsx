@@ -275,6 +275,13 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Current source being added
   const [currentSourceType, setCurrentSourceType] = useState<'topic' | 'paste' | 'url'>('topic');
   const [currentSourceContent, setCurrentSourceContent] = useState('');
+  // Default to 6 for first source, 1 for subsequent sources if first source was less than 6
+  const getDefaultCategoryCount = (): 1 | 2 | 3 | 4 | 5 | 6 => {
+    if (customSources.length === 0) return 6; // First source defaults to 6
+    // If first source used less than 6, default to 1 for subsequent sources
+    const firstSourceCount = customSources[0]?.categoryCount ?? 6;
+    return firstSourceCount < 6 ? 1 : 6;
+  };
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(6);
   const [fetchError, setFetchError] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
@@ -457,8 +464,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Reset current source input for next entry
   const resetCurrentSource = () => {
     setCurrentSourceContent('');
-    const nextCount = Math.max(1, Math.min(6, getRemainingCategories() + 1));
-    setCurrentSourceCategoryCount(nextCount as 1 | 2 | 3 | 4 | 5 | 6);
+    // Use the smart default based on first source behavior
+    const defaultCount = getDefaultCategoryCount();
+    // But also respect remaining categories limit
+    const remaining = getRemainingCategories();
+    const finalCount = Math.min(defaultCount, Math.max(1, remaining));
+    setCurrentSourceCategoryCount(finalCount as 1 | 2 | 3 | 4 | 5 | 6);
     setSourceInputError('');
     setFetchError('');
   };

@@ -55,6 +55,7 @@ interface GeneratedGameData {
   difficulty: AIDifficulty;
   sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceUrl?: string;
+  referenceMaterial?: string; // Store source material for AI rephrase/regenerate
   sourceCharacters?: number;
   metadata?: {
     modelUsed?: string;
@@ -1033,6 +1034,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         difficulty: difficulty || 'normal',
         sourceMode,
         referenceUrl,
+        referenceMaterial: sourceMode !== 'custom' ? referenceMaterial : undefined, // Store for single-source mode
         sourceCharacters: referenceMaterial?.length,
         metadata: categoriesMetadata,
       });
@@ -1306,11 +1308,19 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const category = generatedGameData.categories[catIndex];
       const clue = category.clues[clueIndex];
 
+      // Collect all existing answers to avoid duplicates
+      const existingAnswers = generatedGameData.categories
+        .flatMap(cat => cat.clues.map(c => c.response))
+        .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
+
       const result = await aiGenerate('editor-rewrite-clue', {
         categoryTitle: category.title,
         contentTopic: category.contentTopic || category.title,
         currentClue: clue.clue,
+        currentResponse: clue.response,
         value: clue.value,
+        existingAnswers,
+        referenceMaterial: generatedGameData.referenceMaterial,
       });
 
       if (result && typeof result === 'object' && 'clue' in result) {
@@ -1514,6 +1524,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const contentTopic = category.contentTopic || category.title;
       const theme = generatedGameData.theme || contentTopic;
 
+      // Collect all existing answers from OTHER categories to avoid duplicates
+      const existingAnswers = generatedGameData.categories
+        .filter((_, i) => i !== catIndex)
+        .flatMap(cat => cat.clues.map(c => c.response));
+
       const result = await aiGenerate(
         'category-replace-all',
         {
@@ -1521,6 +1536,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           contentTopic,
           theme,
           existingClues: category.clues,
+          existingAnswers,
+          referenceMaterial: generatedGameData.referenceMaterial,
         },
         generatedGameData.difficulty
       );
@@ -1637,6 +1654,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const category = generatedGameData.categories[catIndex];
       const clue = category.clues[clueIndex];
 
+      // Collect all existing answers to avoid duplicates
+      const existingAnswers = generatedGameData.categories
+        .flatMap(cat => cat.clues.map(c => c.response))
+        .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
+
       const result = await aiGenerate(
         'question-generate-single',
         {
@@ -1644,6 +1666,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           contentTopic: category.contentTopic || category.title,
           value: clue.value,
           existingClues: category.clues.filter((_, i) => i !== clueIndex),
+          existingAnswers,
+          referenceMaterial: generatedGameData.referenceMaterial,
         },
         generatedGameData.difficulty
       );

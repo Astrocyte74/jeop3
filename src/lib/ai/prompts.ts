@@ -81,6 +81,27 @@ Return JSON format:
     { "title": "...", "subtitle": "..." }
   ]
 }`;
+        } else if (context.multipleTopics && context.topicList) {
+          // Multi-source mode: use topic list for context
+          const topicListText = context.topicList.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n');
+          return `Generate 3 engaging Jeopardy game title options based on these multiple source topics:
+
+${topicListText}
+
+This is a multi-category game with ${context.sourceCount || context.topicList.length} different sources. Create titles that capture the overall theme or connect the diverse topics in a creative way.
+
+${difficultyText}
+
+${existingTitlesText}
+
+Return JSON format:
+{
+  "titles": [
+    { "title": "...", "subtitle": "..." },
+    { "title": "...", "subtitle": "..." },
+    { "title": "...", "subtitle": "..." }
+  ]
+}`;
         } else {
           const theme = context.theme || 'general trivia';
           const randomHint = context.theme === 'random' ? 'Choose any interesting trivia theme at random.' : '';
@@ -240,11 +261,27 @@ Return JSON format:
     'category-replace-all': {
       system: SYSTEM_INSTRUCTION,
       user: `Replace all clues in category: "${context.categoryTitle}"
+${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Content Topic: "${context.contentTopic}"` : ''}
 
 Theme: ${context.theme || context.categoryTitle}
 Count: ${context.count || 5}
 ${difficultyText}
 ${valueGuidanceText}
+${context.referenceMaterial ? `Source material to use for questions:
+${context.referenceMaterial.substring(0, 3000)}
+
+All clues must be answerable from the source material above.
+` : ''}
+${context.existingClues && context.existingClues.length > 0 ? `Current questions being replaced (for context only):
+${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
+` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are used in OTHER categories - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+` : ''}
+
+REQUIREMENTS:
+- Each clue must have a DIFFERENT unique answer
+${context.referenceMaterial ? '- All clues must be answerable from the source material' : ''}
 
 Return JSON format:
 {
@@ -270,13 +307,22 @@ ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Cont
 Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
 ${valueGuidanceText}
+${context.referenceMaterial ? `Source material to use for questions:
+${context.referenceMaterial.substring(0, 3000)}
+
+All clues must be answerable from the source material above.
+` : ''}
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
+` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
 ` : ''}
 
 REQUIREMENTS:
 - The clue must NOT contain or reveal the answer
 - Each clue must have a DIFFERENT unique answer
+${context.referenceMaterial ? '- All clues must be answerable from the source material' : ''}
 
 Return JSON format:
 {
@@ -299,12 +345,21 @@ ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Cont
 Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
 ${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
+${context.referenceMaterial ? `Source material to use for question:
+${context.referenceMaterial.substring(0, 3000)}
+
+The clue must be answerable from the source material above.
+` : ''}
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
+` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
 ` : ''}
 
 REQUIREMENTS:
 - The clue must NOT contain or reveal the answer
+${context.referenceMaterial ? '- The clue must be answerable from the source material' : ''}
 
 Return JSON format:
 {
@@ -347,14 +402,24 @@ Return JSON format:
       user: `Enhance this question to be more engaging, clearer, and better written while keeping the same meaning and answer.
 
 Original question: "${context.currentClue}"
+Correct answer: "${context.currentResponse || '(answer will be provided separately)'}"
 Category: "${context.categoryTitle}"
 Value: $${context.value}
+${context.referenceMaterial ? `Source material context:
+${context.referenceMaterial.substring(0, 2000)}
+
+Use the source material above to ensure accuracy and proper context.
+` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used in other questions - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+` : ''}
 
 Focus on:
 - Making the question more interesting and engaging
 - Improving clarity and flow
 - Adding appropriate Jeopardy-style wording (e.g., "This is...", "What is...")
 - Keeping the same answer and core meaning
+- Using source material if provided to ensure accuracy
 
 Return JSON format:
 {

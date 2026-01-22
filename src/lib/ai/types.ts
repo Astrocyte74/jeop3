@@ -64,6 +64,9 @@ export interface AIContext {
   // Game level
   hasContent?: boolean;
   sampleContent?: string;
+  multipleTopics?: boolean;
+  topicList?: string[];
+  sourceCount?: number;
   theme?: string;
   currentTitle?: string;
   currentSubtitle?: string;
@@ -79,9 +82,11 @@ export interface AIContext {
   categoryTitle?: string;
   contentTopic?: string;
   existingClues?: Clue[];
+  existingAnswers?: string[];
 
   // Question level
   value?: number;
+  currentResponse?: string;
 
   // Editor level
   currentClue?: string;
