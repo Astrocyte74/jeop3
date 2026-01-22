@@ -851,25 +851,38 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       // Generate titles - use sample content if available for better titles
       const titleContext: Record<string, any> = { theme: theme || 'random' };
       if (sourceMode === 'custom' && customSources) {
-        // For custom sources, build a sample from all sources
-        const allContent = customSources
+        // For custom categories, build a balanced overview of all sources
+        const sourceDescriptions = customSources
           .filter(s => s.type === 'topic' || s.type === 'paste' || s.type === 'url')
           .map(s => {
             if (s.type === 'topic') return s.topic || '';
-            if (s.type === 'paste') return s.content || '';
-            if (s.type === 'url') return s.fetchedContent || '';
+            if (s.type === 'paste') {
+              // Use first 250 chars to represent the content theme
+              return `Source: ${(s.content || '').substring(0, 250)}...`;
+            }
+            if (s.type === 'url') {
+              try {
+                const hostname = new URL(s.url || '').hostname;
+                return `Source: ${hostname} - ${s.fetchedContent?.substring(0, 250) || ''}...`;
+              } catch {
+                return `Source: ${s.fetchedContent?.substring(0, 250) || ''}...`;
+              }
+            }
             return '';
           })
-          .filter(Boolean)
-          .join(' ');
+          .filter(Boolean);
+
         titleContext.hasContent = true;
-        titleContext.sampleContent = allContent.substring(0, 1000);
+        titleContext.multipleTopics = true;
+        titleContext.topicList = sourceDescriptions;
+        titleContext.sourceCount = customSources.length;
+        console.log('[MainMenu] Custom mode - using balanced topic list:', { sourceCount: sourceDescriptions.length, topics: sourceDescriptions });
       } else if (sourceMode !== 'scratch' && referenceMaterial) {
         titleContext.hasContent = true;
         // Use first 1000 chars for title generation - enough to understand the theme
         titleContext.sampleContent = referenceMaterial.substring(0, 1000);
       }
-      console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length });
+      console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length, multipleTopics: titleContext.multipleTopics });
       const titlesResult = await aiGenerate(
         'game-title',
         titleContext,
@@ -890,7 +903,20 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
       // Build game topic from theme and category titles for better themed team names
       let gameTopic = theme || 'general trivia';
-      if (categoriesList.length > 0) {
+      if (sourceMode === 'custom' && customSources) {
+        // For custom mode, include all source topics for better team name context
+        const sourceTopics = customSources
+          .filter(s => s.type === 'topic')
+          .map(s => s.topic || '')
+          .filter(Boolean);
+        if (sourceTopics.length > 0) {
+          gameTopic = sourceTopics.join(', ');
+        }
+        if (categoriesList.length > 0) {
+          const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
+          gameTopic += ` (categories: ${categoryTitles})`;
+        }
+      } else if (categoriesList.length > 0) {
         const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
         gameTopic += ` (categories: ${categoryTitles})`;
       }
