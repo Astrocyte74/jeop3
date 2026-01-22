@@ -616,13 +616,13 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-md">
                     AI Generate
                   </span>
-                  {step === 'custom-categories' || step === 'theme' || step === 'difficulty' ? (
+                  {step === 'source' || step === 'custom-categories' || step === 'theme' || step === 'difficulty' ? (
                     sourceMode === 'scratch' ? (
                       <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">From Scratch</span>
                     ) : sourceMode === 'paste' ? (
-                      <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">Paste Content</span>
+                      <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded-md">Paste Content</span>
                     ) : sourceMode === 'url' ? (
-                      <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">From URL</span>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded-md">From URL</span>
                     ) : sourceMode === 'custom' ? (
                       <span className="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-md">Custom Categories ({customSources.length} source{customSources.length !== 1 ? 's' : ''}, {getTotalCategoryCount()} cat{getTotalCategoryCount() !== 1 ? 's' : ''})</span>
                     ) : null
