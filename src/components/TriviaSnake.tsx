@@ -489,17 +489,19 @@ export function TriviaSnake({
           createParticles(pixelX, pixelY, appleColor, 20);
           triggerScreenShake(3, 200); // Gentle shake
           createConfetti();
+          setGameStatus('won');
           onCorrect(selectedTeamId);
-          // Close immediately so feedback shows in parent ClueDialog at top of page
-          onClose();
+          // Close after showing result
+          setTimeout(() => onClose(), 1200);
           return;
         } else {
           // Wrong answer - red flash and strong shake
           createParticles(pixelX, pixelY, '#ff0000', 25);
           triggerScreenShake(8, 300); // Strong shake
+          setGameStatus('lost');
           onIncorrect(selectedTeamId);
-          // Close immediately so feedback shows in parent ClueDialog at top of page
-          onClose();
+          // Close after showing result
+          setTimeout(() => onClose(), 1500);
           return;
         }
       }
@@ -796,21 +798,21 @@ export function TriviaSnake({
           />
         </div>
 
-        {/* Game Status Overlay */}
+        {/* Game Status Overlay - fixed to viewport so always visible */}
         {gameStatus === 'won' && (
-          <div className="absolute inset-0 bg-green-900/50 flex items-center justify-center">
-            <div className="bg-slate-900 p-6 rounded-lg text-center">
-              <p className="text-3xl mb-2">🎉 Correct!</p>
-              <p className="text-white text-xl">+${currentValue}</p>
+          <div className="fixed inset-0 bg-green-900/70 flex items-center justify-center z-50">
+            <div className="bg-slate-900 p-8 rounded-lg text-center shadow-2xl border-2 border-green-500">
+              <p className="text-4xl mb-3">🎉 Correct!</p>
+              <p className="text-white text-2xl font-bold">+${currentValue}</p>
             </div>
           </div>
         )}
         {gameStatus === 'lost' && (
-          <div className="absolute inset-0 bg-red-900/50 flex items-center justify-center">
-            <div className="bg-slate-900 p-6 rounded-lg text-center">
-              <p className="text-3xl mb-2">❌ Wrong!</p>
-              <p className="text-white text-xl">-${currentValue}</p>
-              <p className="text-slate-400 mt-2">Correct: {currentResponse}</p>
+          <div className="fixed inset-0 bg-red-900/70 flex items-center justify-center z-50">
+            <div className="bg-slate-900 p-8 rounded-lg text-center shadow-2xl border-2 border-red-500">
+              <p className="text-4xl mb-3">❌ Wrong!</p>
+              <p className="text-white text-2xl font-bold">-${currentValue}</p>
+              <p className="text-slate-400 mt-3">Correct: {currentResponse}</p>
             </div>
           </div>
         )}
