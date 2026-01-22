@@ -1110,14 +1110,15 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 {/* Add Source Dialog */}
                 {showAddSourceDialog && (
                   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-                    <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-md w-full overflow-hidden">
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
                       {/* Dialog Header */}
-                      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 px-6 py-4 border-b border-slate-700/50">
+                      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 px-6 py-4 border-b border-slate-700/50 flex-shrink-0">
                         <h3 className="text-lg font-semibold text-slate-200">Add Source</h3>
                         <p className="text-xs text-slate-400 mt-1">Choose a source type and specify how many categories to generate</p>
                       </div>
 
-                      <div className="p-6 space-y-5">
+                      {/* Scrollable Content Area */}
+                      <div className="p-6 space-y-5 overflow-y-auto flex-1">
                         {/* Source type selection */}
                         <div className="space-y-3">
                           <Label className="text-sm text-slate-300">Source Type</Label>
@@ -1207,7 +1208,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                 setAddSourceError('');
                               }}
                               placeholder="Paste notes, transcripts, or articles..."
-                              className="bg-slate-700/50 border-slate-600 min-h-[120px] resize-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
+                              className="bg-slate-700/50 border-slate-600 min-h-[120px] max-h-[200px] resize-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
                               maxLength={MAX_CHARS}
                               autoFocus
                             />
@@ -1292,8 +1293,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         )}
                       </div>
 
-                      {/* Dialog Actions */}
-                      <div className="bg-slate-900/50 px-6 py-4 border-t border-slate-700/50 flex gap-3">
+                      {/* Dialog Actions - Fixed at bottom */}
+                      <div className="bg-slate-900/50 px-6 py-4 border-t border-slate-700/50 flex gap-3 flex-shrink-0">
                         <Button
                           onClick={() => {
                             setShowAddSourceDialog(false);
