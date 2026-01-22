@@ -757,25 +757,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   </p>
                 </div>
 
-                {/* Add Source button */}
-                <Button
-                  onClick={handleAddSourceToList}
-                  disabled={isFetching || (currentSourceType === 'paste' && currentSourceContent.length < MIN_CHARS) || !currentSourceContent.trim() || currentSourceCategoryCount > getRemainingCategories()}
-                  className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white font-medium"
-                >
-                  {isFetching ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Fetching...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Source
-                    </>
-                  )}
-                </Button>
-
                 {/* Error messages */}
                 {sourceInputError && (
                   <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-start gap-2">
@@ -1025,6 +1006,27 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               <AlertDialogCancel onClick={handleClose} className="flex-1" disabled={isLoading}>
                 Cancel
               </AlertDialogCancel>
+            )}
+
+            {/* Add Source button for AI sources step - shown in middle */}
+            {activeTab === 'ai' && step === 'sources' && (
+              <Button
+                onClick={handleAddSourceToList}
+                className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white"
+                disabled={isFetching || (currentSourceType === 'paste' && currentSourceContent.length < MIN_CHARS) || !currentSourceContent.trim() || currentSourceCategoryCount > getRemainingCategories() || isLoading}
+              >
+                {isFetching ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Fetching...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Source
+                  </>
+                )}
+              </Button>
             )}
 
             {/* Action buttons for AI tab */}

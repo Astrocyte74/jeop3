@@ -23,12 +23,13 @@ All models were tested with identical parameters:
 |-------|----------|------|--------|
 | gemma3:12b | Ollama (local) | 1 min 5s | Complete |
 | gpt-oss:20b-cloud | Ollama (local) | 1 min 3s | Complete |
-| google/gemini-2.5-flash-lite | OpenRouter | 8s | Complete |
+| google/gemini-2.5-flash-lite | OpenRouter | 8s | Complete ⭐ |
 | google/gemini-2.5-flash | OpenRouter | 9s | Complete |
 | google/gemini-3-pro-preview | OpenRouter | 38s | Complete |
 | moonshotai/kimi-k2-thinking | OpenRouter | 34s | Not shared |
 | x-ai/grok-4.1-fast | OpenRouter | 23s | Complete |
 | z-ai/glm-4.7 | OpenRouter | 54s | Complete |
+| z-ai/glm-4.7-flash | OpenRouter/Direct | 134-143s | ❌ Too slow |
 
 ---
 
@@ -168,6 +169,31 @@ All models were tested with identical parameters:
 
 ---
 
+### 9. z-ai/glm-4.7-flash (OpenRouter & Z.AI Direct)
+**Time:** 134-143 seconds for 2 categories (estimated ~7-8 minutes for full game)
+
+**Critical Issues:**
+- **Extremely slow:** 36-38x slower than gemini-2.5-flash-lite
+- **"Flash" branding misleading:** Not optimized for structured JSON generation
+- **Token inefficient:** Uses 2.3x more tokens than Gemini for same output
+- **Unusable for real-time:** Users would wait 7-8 minutes for game generation
+
+**Strengths:**
+- Valid JSON output
+- Good category titles when it completes
+- Advertised as "free" (but speed penalty outweighs cost savings)
+
+**Weaknesses:**
+- Prohibitively slow for interactive use
+- No quality advantage over faster models
+- Direct Z.AI API only marginally faster than OpenRouter (134s vs 143s)
+
+**Best Use:** **NOT recommended for Jeop3** - only consider for offline batch processing where users don't wait for results. The "free" cost is not worth the user experience penalty.
+
+**Test Date:** 2026-01-19 (2-category test via OpenRouter and direct Z.AI API)
+
+---
+
 ## Rankings by Category
 
 ### Overall Quality (Best to Worst)
@@ -180,7 +206,7 @@ All models were tested with identical parameters:
 7. **gemini-3-pro-preview** - Failed requirements, slow
 
 ### Speed (Fastest to Slowest)
-1. **gemini-2.5-flash-lite** - 8s
+1. **gemini-2.5-flash-lite** - 8s ⭐
 2. **gemini-2.5-flash** - 9s
 3. **grok-4.1-fast** - 23s
 4. **kimi-k2-thinking** - 34s
@@ -188,6 +214,7 @@ All models were tested with identical parameters:
 6. **glm-4.7** - 54s
 7. **gpt-oss:20b-cloud** - 1 min 3s
 8. **gemma3:12b** - 1 min 5s
+9. **glm-4.7-flash** - 134-143s ❌ (Not competitive)
 
 ### Category Title Creativity (Best to Worst)
 1. **glm-4.7** - **Most creative** ("The Dress Rehearsal", "Signed, Sealed, Delivered")
@@ -304,6 +331,7 @@ All models were tested with identical parameters:
 - Consider adding a "fact-check" step in the pipeline
 
 ### Models to Avoid
+- **z-ai/glm-4.7-flash:** **36-38x slower than Gemini** - "free" but unusable for real-time game generation
 - **gpt-oss:20b-cloud:** Format failures, scope violations
 - **gemini-3-pro-preview:** Slower, failed requirements, no quality benefit
 - **phi3:** Too small for complex JSON generation (based on separate testing)
@@ -340,6 +368,9 @@ const seriousModel = 'or:x-ai/grok-4.1-fast';
 
 // Fall back to local if no internet
 const offlineModel = 'ollama:gemma3:12b';
+
+// NOTE: glm-4.7-flash is NOT recommended despite being "free"
+// It is 36-38x slower than gemini-2.5-flash-lite and unusable for real-time game generation
 ```
 
 ### Validation Recommendations
@@ -389,7 +420,73 @@ This test demonstrates that **flash-optimized models** (gemini-2.5-flash series)
 
 ---
 
+---
+
+# 2026-01-19 Update: GLM-4.7-Flash Testing
+
+**Test Date:** 2026-01-19
+**Test Focus:** GLM-4.7-Flash (new "free" model from Z.AI)
+**Prompt:** "pre ww2 events up to Sept 1939" (2 categories)
+**Significance:** GLM-4.7-Flash was advertised as "Lightweight, Completely Free" - testing if it could replace gemini-2.5-flash-lite as the default model.
+
+## Test Results
+
+| Model | Provider | Time (2 cat) | Tokens | Status |
+|-------|----------|--------------|--------|--------|
+| google/gemini-2.5-flash-lite | OpenRouter | **3.75s** | 978 | ✅ Winner |
+| z-ai/glm-4.7-flash | OpenRouter | 143s | 2,655 | ❌ 38x slower |
+| z-ai/glm-4.7-flash | Z.AI Direct | 134s | 2,256 | ❌ 36x slower |
+
+## Findings
+
+**GLM-4.7-Flash is NOT competitive for real-time game generation.**
+
+### Speed Comparison
+- **gemini-2.5-flash-lite:** 3.75s for 2 categories (~11s for full 6-category game)
+- **glm-4.7-flash:** 134-143s for 2 categories (~7-8 minutes for full game)
+
+### Why is GLM-4.7-Flash so slow?
+
+The "Flash" branding appears to be misleading for this use case. Possible explanations:
+1. **Different optimization target:** May be optimized for code completion or single-turn responses, not structured JSON generation
+2. **Cold start issues:** Z.AI infrastructure may have scaling problems
+3. **Chain of Thought:** Even with `thinking: disabled`, the model may still be performing internal reasoning
+
+### Quality Assessment
+
+Despite being slow, GLM-4.7-Flash produced valid output with:
+- Good category titles ("Diplomatic Disasters", "The Age of Dictators")
+- Proper JSON structure
+- Appropriate clue difficulty
+
+However, the speed penalty makes it unusable for real-time game generation where users are waiting.
+
+## Recommendation: NO CHANGE
+
+**Continue using `google/gemini-2.5-flash-lite` as the default model.**
+
+GLM-4.7-Flash being "free" does not justify the 36-38x performance penalty. For game generation, user experience (speed) matters more than API costs.
+
+### Cost Analysis
+
+Even assuming GLM-4.7-Flash is completely free:
+- **User experience:** 3.75s vs 134+ seconds waiting
+- **Token efficiency:** Gemini uses 2.3x fewer tokens
+- **Reliability:** Gemini is proven and consistent
+
+The "free" model would cost more in user frustration and abandoned games.
+
+### When might GLM-4.7-Flash be useful?
+
+- **Batch processing:** Generating games offline for later use
+- **Non-interactive scenarios:** Where speed doesn't matter
+- **Budget-constrained backends:** If API costs are the primary concern and users can wait
+
+For Jeop3's use case (real-time game creation), these scenarios don't apply.
+
+---
+
 *Document created: 2025-01-14*
-*Last updated: 2025-01-14 (added GLM 4.7 results)*
-*Test platform: Jeop3 AI Server*
-*Models tested: 8 (2 Ollama local, 6 OpenRouter)*
+*Last updated: 2026-01-19 (added GLM 4.7-Flash test results)*
+*Test platform: Jeop3 AI Server + Direct API testing*
+*Models tested: 9 (2 Ollama local, 7 OpenRouter/Direct)*
