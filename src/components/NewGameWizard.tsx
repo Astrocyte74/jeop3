@@ -29,7 +29,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload, AlertCircle, RefreshCw, Plus, Trash2, Loader2 } from 'lucide-react';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2 } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -95,61 +95,6 @@ const difficultyOptions = [
     icon: '🔴',
     title: 'Hard',
     desc: 'Niche details and deep cuts - for trivia experts'
-  }
-];
-
-const sourceModeOptions = [
-  {
-    value: 'scratch' as const,
-    icon: Zap,
-    title: 'From Scratch',
-    desc: 'Let AI create a game from any theme',
-    color: 'text-purple-400'
-  },
-  {
-    value: 'paste' as const,
-    icon: FileText,
-    title: 'Paste Content',
-    desc: 'Paste notes, transcripts, or articles',
-    color: 'text-blue-400'
-  },
-  {
-    value: 'url' as const,
-    icon: Globe,
-    title: 'From URL',
-    desc: 'Fetch content from a webpage',
-    color: 'text-green-400'
-  },
-  {
-    value: 'custom' as const,
-    icon: Edit,
-    title: 'Custom Categories',
-    desc: 'Control each category with different sources',
-    color: 'text-yellow-400'
-  }
-];
-
-const creationModeOptions = [
-  {
-    value: 'ai' as const,
-    icon: Wand2,
-    title: 'AI Generate',
-    desc: 'Generate from a theme, paste your notes/articles, or import from a webpage',
-    color: 'text-purple-400'
-  },
-  {
-    value: 'manual' as const,
-    icon: Edit,
-    title: 'Manual Create',
-    desc: 'Build from scratch - requires manually entering every clue and answer',
-    color: 'text-yellow-400'
-  },
-  {
-    value: 'import-json' as const,
-    icon: Upload,
-    title: 'Import JSON',
-    desc: 'Load a game from a JSON file',
-    color: 'text-blue-400'
   }
 ];
 
@@ -300,15 +245,18 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       setStep('creation-mode');
       setShowBack(false);
     } else if (step === 'custom-categories') {
-      setStep('source');
+      setStep('creation-mode');
       setShowBack(false);
     } else if (step === 'theme') {
-      setStep('source');
+      setStep('creation-mode');
       setShowBack(false);
     } else if (step === 'difficulty') {
       if (sourceMode === 'scratch') {
         setStep('theme');
+      } else if (sourceMode === 'custom') {
+        setStep('custom-categories');
       } else {
+        // For paste/url, go back to source step
         setStep('source');
         setShowBack(false);
       }
@@ -380,7 +328,14 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const handleCreationModeNext = () => {
     if (creationMode === 'ai') {
       setShowBack(true);
-      setStep('source');
+      // For quick AI options, go directly to content/theme step
+      if (sourceMode === 'scratch') {
+        setStep('theme');
+      } else if (sourceMode === 'paste' || sourceMode === 'url') {
+        setStep('source'); // Show content input for paste/url
+      } else if (sourceMode === 'custom') {
+        setStep('custom-categories');
+      }
     } else if (creationMode === 'manual') {
       setShowBack(true);
       setStep('manual-confirm');
@@ -517,7 +472,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 <AlertDialogDescription>
                   {step === 'creation-mode' && 'Choose how you want to create your game'}
                   {step === 'manual-confirm' && 'Manual creation requires entering all content yourself'}
-                  {step === 'source' && 'Choose your content source'}
+                  {step === 'source' && sourceMode === 'paste' && 'Paste Your Content'}
+                  {step === 'source' && sourceMode === 'url' && 'Fetch from Webpage'}
                   {step === 'theme' && 'Choose a theme for your game'}
                   {step === 'difficulty' && 'Select difficulty level'}
                 </AlertDialogDescription>
@@ -696,55 +652,169 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
         ) : (
           <div className="overflow-y-auto flex-1 -mx-6 px-6">
             {step === 'creation-mode' && (
-              <div className="py-4 space-y-4">
-                <p className="text-sm text-slate-400">How would you like to create your game?</p>
-                {creationModeOptions.map((option) => {
-                  const Icon = option.icon;
-                  const isSelected = creationMode === option.value;
-                  return (
+              <div className="py-4 space-y-6">
+                {/* QUICK AI Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-400" />
+                    <h3 className="text-sm font-semibold text-yellow-400 uppercase tracking-wide">Quick AI — One source, 6 categories</h3>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* From Scratch */}
                     <button
-                      key={option.value}
                       onClick={() => {
-                        setCreationMode(option.value);
+                        setCreationMode('ai');
+                        setSourceMode('scratch');
                       }}
                       className={`
-                        w-full text-left p-4 rounded-lg border transition-all
-                        ${isSelected
-                          ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
+                        p-4 rounded-lg border text-center transition-all
+                        ${creationMode === 'ai' && sourceMode === 'scratch'
+                          ? 'bg-purple-500/20 border-purple-500 ring-2 ring-purple-500/30'
                           : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
                         }
                       `}
                     >
-                      <div className="flex items-start gap-3">
-                        <Icon className={`w-5 h-5 mt-0.5 ${option.color}`} />
-                        <div className="flex-1">
-                          <div className="font-semibold text-slate-200">{option.title}</div>
-                          <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
-                          {isSelected && option.value === 'ai' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600">
-                              <p className="text-xs text-slate-400 mb-2">Choose your AI generation method:</p>
-                              <ul className="text-xs text-slate-300 space-y-1">
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span><span className="text-green-400 font-medium">From any theme</span> - just enter a topic</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-blue-400">✓</span>
-                                  <span><span className="text-blue-400 font-medium">From your content</span> - paste notes, transcripts, or articles</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-blue-400">✓</span>
-                                  <span><span className="text-blue-400 font-medium">From a webpage</span> - paste a URL to fetch content</span>
-                                </li>
-                              </ul>
-                              <p className="text-xs text-purple-300 mt-2">✨ Complete game in seconds with fact-checked clues!</p>
-                            </div>
-                          )}
+                      <Zap className="w-6 h-6 mx-auto mb-2 text-purple-400" />
+                      <div className="font-semibold text-slate-200 text-sm">From Scratch</div>
+                      <div className="text-xs text-slate-400 mt-1">Enter any topic</div>
+                      {creationMode === 'ai' && sourceMode === 'scratch' && (
+                        <div className="mt-2 pt-2 border-t border-slate-600">
+                          <div className="text-[10px] text-green-400">✓ Fastest option</div>
                         </div>
-                      </div>
+                      )}
                     </button>
-                  );
-                })}
+
+                    {/* Paste Content */}
+                    <button
+                      onClick={() => {
+                        setCreationMode('ai');
+                        setSourceMode('paste');
+                      }}
+                      className={`
+                        p-4 rounded-lg border text-center transition-all
+                        ${creationMode === 'ai' && sourceMode === 'paste'
+                          ? 'bg-blue-500/20 border-blue-500 ring-2 ring-blue-500/30'
+                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                        }
+                      `}
+                    >
+                      <FileText className="w-6 h-6 mx-auto mb-2 text-blue-400" />
+                      <div className="font-semibold text-slate-200 text-sm">Paste Content</div>
+                      <div className="text-xs text-slate-400 mt-1">Notes, articles</div>
+                      {creationMode === 'ai' && sourceMode === 'paste' && (
+                        <div className="mt-2 pt-2 border-t border-slate-600">
+                          <div className="text-[10px] text-green-400">✓ Fact-checked</div>
+                        </div>
+                      )}
+                    </button>
+
+                    {/* From URL */}
+                    <button
+                      onClick={() => {
+                        setCreationMode('ai');
+                        setSourceMode('url');
+                      }}
+                      className={`
+                        p-4 rounded-lg border text-center transition-all
+                        ${creationMode === 'ai' && sourceMode === 'url'
+                          ? 'bg-green-500/20 border-green-500 ring-2 ring-green-500/30'
+                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                        }
+                      `}
+                    >
+                      <Globe className="w-6 h-6 mx-auto mb-2 text-green-400" />
+                      <div className="font-semibold text-slate-200 text-sm">From URL</div>
+                      <div className="text-xs text-slate-400 mt-1">Fetch webpage</div>
+                      {creationMode === 'ai' && sourceMode === 'url' && (
+                        <div className="mt-2 pt-2 border-t border-slate-600">
+                          <div className="text-[10px] text-green-400">✓ Auto-fetches</div>
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ADVANCED Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Edit className="w-4 h-4 text-orange-400" />
+                    <h3 className="text-sm font-semibold text-orange-400 uppercase tracking-wide">Advanced — Mix sources per category</h3>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setCreationMode('ai');
+                      setSourceMode('custom');
+                    }}
+                    className={`
+                      w-full p-4 rounded-lg border text-left transition-all
+                      ${creationMode === 'ai' && sourceMode === 'custom'
+                        ? 'bg-yellow-500/20 border-yellow-500 ring-2 ring-yellow-500/30'
+                        : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                      }
+                    `}
+                  >
+                    <div className="flex items-start gap-3">
+                      <Edit className="w-5 h-5 mt-0.5 text-yellow-400" />
+                      <div className="flex-1">
+                        <div className="font-semibold text-slate-200">Custom Categories</div>
+                        <div className="text-sm text-slate-400 mt-1">Control each category with different sources</div>
+                        {creationMode === 'ai' && sourceMode === 'custom' && (
+                          <div className="mt-2 pt-2 border-t border-slate-600">
+                            <p className="text-xs text-slate-400 mb-1">Examples:</p>
+                            <ul className="text-xs text-slate-300 space-y-0.5">
+                              <li className="text-yellow-300">• 2 categories from "US Presidents"</li>
+                              <li className="text-yellow-300">• 2 from Wikipedia article</li>
+                              <li className="text-yellow-300">• 2 from pasted notes</li>
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* MANUAL Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Wand2 className="w-4 h-4 text-slate-400" />
+                    <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Manual — Do it yourself</h3>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Manual Create */}
+                    <button
+                      onClick={() => {
+                        setCreationMode('manual');
+                      }}
+                      className={`
+                        p-3 rounded-lg border text-center transition-all
+                        ${creationMode === 'manual'
+                          ? 'bg-orange-500/20 border-orange-500 ring-2 ring-orange-500/30'
+                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                        }
+                      `}
+                    >
+                      <div className="font-semibold text-slate-200 text-sm">Manual Create</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Build from scratch</div>
+                    </button>
+
+                    {/* Import JSON */}
+                    <button
+                      onClick={() => {
+                        setCreationMode('import-json');
+                      }}
+                      className={`
+                        p-3 rounded-lg border text-center transition-all
+                        ${creationMode === 'import-json'
+                          ? 'bg-cyan-500/20 border-cyan-500 ring-2 ring-cyan-500/30'
+                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
+                        }
+                      `}
+                    >
+                      <div className="font-semibold text-slate-200 text-sm">Import JSON</div>
+                      <div className="text-xs text-slate-500 mt-0.5">Load from file</div>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
             {step === 'manual-confirm' && (
@@ -800,118 +870,14 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             )}
             {step === 'source' && (
               <div className="py-4 space-y-4">
-                <p className="text-sm text-slate-400">How would you like to create your game?</p>
-                {sourceModeOptions.map((option) => {
-                  const Icon = option.icon;
-                  const isSelected = sourceMode === option.value;
-                  return (
-                    <button
-                      key={option.value}
-                      onClick={() => {
-                        setSourceMode(option.value);
-                        setFetchError('');
-                      }}
-                      className={`
-                        w-full text-left p-4 rounded-lg border transition-all
-                        ${isSelected
-                          ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
-                          : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
-                        }
-                      `}
-                    >
-                      <div className="flex items-start gap-3">
-                        <Icon className={`w-5 h-5 mt-0.5 ${option.color}`} />
-                        <div className="flex-1">
-                          <div className="font-semibold text-slate-200">{option.title}</div>
-                          <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
-                          {isSelected && option.value === 'scratch' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600">
-                              <p className="text-xs text-slate-400 mb-2">Just enter any topic and AI will create a complete game!</p>
-                              <ul className="text-xs text-slate-300 space-y-1">
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span>Works with any theme - science, history, movies, pop culture, etc.</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span>AI generates themed categories and fact-checked clues</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span>Fastest way to create a complete game</span>
-                                </li>
-                              </ul>
-                            </div>
-                          )}
-                          {isSelected && option.value === 'paste' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600">
-                              <p className="text-xs text-slate-400 mb-2">Perfect for custom content from your documents:</p>
-                              <ul className="text-xs text-slate-300 space-y-1">
-                                <li className="flex items-center gap-2">
-                                  <span className="text-blue-400">✓</span>
-                                  <span>Paste study notes, class transcripts, training materials</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-blue-400">✓</span>
-                                  <span>Articles, Wikipedia entries, or any text content</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-blue-400">✓</span>
-                                  <span>AI analyzes content and creates themed questions</span>
-                                </li>
-                              </ul>
-                              <p className="text-xs text-blue-300 mt-2">💡 Up to 100,000 characters supported</p>
-                            </div>
-                          )}
-                          {isSelected && option.value === 'url' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600">
-                              <p className="text-xs text-slate-400 mb-2">Automatically fetch and learn from webpages:</p>
-                              <ul className="text-xs text-slate-300 space-y-1">
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span>Works with Wikipedia articles and most web pages</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span>AI extracts key facts and generates questions</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-green-400">✓</span>
-                                  <span>Great for educational content or news articles</span>
-                                </li>
-                              </ul>
-                            </div>
-                          )}
-                          {isSelected && option.value === 'custom' && (
-                            <div className="mt-3 pt-3 border-t border-slate-600">
-                              <p className="text-xs text-slate-400 mb-2">Mix and match different sources for each category:</p>
-                              <ul className="text-xs text-slate-300 space-y-1">
-                                <li className="flex items-center gap-2">
-                                  <span className="text-yellow-400">✓</span>
-                                  <span><span className="font-medium text-yellow-200">Multiple topics</span> — each source creates its own categories</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-yellow-400">✓</span>
-                                  <span><span className="font-medium text-yellow-200">Full control</span> — decide how many categories from each source (1-6)</span>
-                                </li>
-                                <li className="flex items-center gap-2">
-                                  <span className="text-yellow-400">✓</span>
-                                  <span><span className="font-medium text-yellow-200">Flexible totals</span> — create games with 1-6 categories total</span>
-                                </li>
-                              </ul>
-                              <p className="text-xs text-yellow-300 mt-2">💡 Perfect for mixing different subjects — e.g., 2 categories from "US Presidents" + 2 from "Space" + 2 from a Wikipedia article!</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-
                 {/* Paste Content Input */}
                 {sourceMode === 'paste' && (
-                  <div className="space-y-2 mt-4">
-                    <Label htmlFor="referenceMaterial">Content</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FileText className="w-5 h-5 text-blue-400" />
+                      <h3 className="text-sm font-semibold text-slate-200">Paste Your Content</h3>
+                    </div>
+                    <p className="text-xs text-slate-400">Paste notes, articles, transcripts, or any text content. AI will analyze it and create themed categories.</p>
                     <Textarea
                       ref={textareaRef}
                       id="referenceMaterial"
@@ -920,14 +886,17 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         setReferenceMaterial(e.target.value);
                         setFetchError('');
                       }}
-                      placeholder="Paste notes, transcripts, or excerpts here..."
-                      className="bg-slate-800/50 border-slate-700 min-h-[150px] resize-none"
+                      placeholder="Paste your content here..."
+                      className="bg-slate-700/50 border-slate-600 min-h-[180px] resize-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
                       maxLength={MAX_CHARS}
+                      autoFocus
                     />
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>{referenceMaterial.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</span>
-                      {referenceMaterial.length > 0 && referenceMaterial.length < MIN_CHARS && (
-                        <span className="text-orange-500">Minimum {MIN_CHARS} characters required</span>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className={referenceMaterial.length > 0 && referenceMaterial.length < MIN_CHARS ? "text-orange-500" : "text-slate-500"}>
+                        {referenceMaterial.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
+                      </span>
+                      {referenceMaterial.length > 0 && referenceMaterial.length >= MIN_CHARS && (
+                        <span className="text-green-400">✓ Ready to generate</span>
                       )}
                     </div>
                   </div>
@@ -935,8 +904,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
                 {/* URL Input */}
                 {sourceMode === 'url' && (
-                  <div className="space-y-2 mt-4">
-                    <Label htmlFor="referenceUrl">URL</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Globe className="w-5 h-5 text-green-400" />
+                      <h3 className="text-sm font-semibold text-slate-200">Fetch from Webpage</h3>
+                    </div>
+                    <p className="text-xs text-slate-400">Enter a URL to fetch content. Works best with Wikipedia articles and educational content.</p>
                     <div className="flex gap-2">
                       <Input
                         ref={urlInputRef}
@@ -948,28 +921,39 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                           setFetchError('');
                         }}
                         placeholder="https://en.wikipedia.org/wiki/Topic"
-                        className="bg-slate-800/50 border-slate-700 flex-1"
+                        className="bg-slate-700/50 border-slate-600 flex-1 focus:border-green-500/50 focus:ring-2 focus:ring-green-500/10"
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             handleSourceNext();
                           }
                         }}
+                        autoFocus
                       />
                       <Button
                         onClick={handleFetchUrl}
                         disabled={isFetching || !referenceUrl.trim()}
                         className="bg-green-600 hover:bg-green-500 text-white px-4"
                       >
-                        {isFetching ? 'Fetching...' : 'Fetch'}
+                        {isFetching ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            Fetching...
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="w-4 h-4 mr-2" />
+                            Fetch
+                          </>
+                        )}
                       </Button>
                     </div>
                     {fetchError && (
-                      <p className="text-xs text-red-400">{fetchError}</p>
+                      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-red-300">{fetchError}</p>
+                      </div>
                     )}
-                    <p className="text-xs text-slate-500">
-                      Works with Wikipedia articles and most web pages
-                    </p>
                   </div>
                 )}
               </div>
