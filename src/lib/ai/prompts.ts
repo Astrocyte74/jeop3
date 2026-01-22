@@ -113,10 +113,10 @@ Return JSON format:
 ${difficultyText}
 ${valueGuidanceText}
 
-CRITICAL REQUIREMENTS:
-- Each category must have 5 clues with values [200, 400, 600, 800, 1000]
-- Each clue MUST have a DIFFERENT and UNIQUE response/answer
-- Responses should NOT repeat within or across categories
+REQUIREMENTS:
+- Each category has 5 clues [200, 400, 600, 800, 1000]
+- The clue must NOT contain or reveal the answer
+- Each clue must have a DIFFERENT unique answer
 - Responses must be specific and factual
 
 Return JSON format:
@@ -142,25 +142,20 @@ Return JSON format:
       user: (() => {
         const referenceMaterial = context.referenceMaterial || '';
 
-        return `Generate ${context.count || 6} Jeopardy categories based on the following source material.
+        return `Generate ${context.count || 6} Jeopardy categories from the source material below.
 
-Source material (${referenceMaterial.length.toLocaleString()} characters):
+Source (${referenceMaterial.length.toLocaleString()} chars):
 """${referenceMaterial}"""
-
 ${context.theme ? `Theme: ${context.theme}` : ''}
 ${difficultyText}
 ${valueGuidanceText}
 
-CRITICAL REQUIREMENTS:
-1. Create categories that cover the key topics, people, events, places, and concepts from the source material above
-2. All clues must be answerable using ONLY the information provided in the source material
-3. Do NOT fabricate facts or include outside knowledge
-4. Each category needs TWO names:
-   - "title" - A creative, catchy display name for players (e.g., "Historical Events", "Famous Figures")
-   - "contentTopic" - The descriptive topic name for AI context (e.g., "World War II Battles", "Scientists")
-5. Each clue MUST have a DIFFERENT and UNIQUE response/answer
-6. Responses should NOT repeat within or across categories
-7. The title should be fun and creative while the contentTopic should be clear and descriptive
+REQUIREMENTS:
+- Create categories covering key topics, people, events, places, concepts from the source
+- All clues must be answerable using ONLY the source material
+- The clue must NOT contain or reveal the answer
+- Each clue must have a DIFFERENT unique answer
+- Each category needs: "title" (creative name) and "contentTopic" (descriptive topic)
 
 Return JSON format:
 {
@@ -279,6 +274,10 @@ ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid 
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
 
+REQUIREMENTS:
+- The clue must NOT contain or reveal the answer
+- Each clue must have a DIFFERENT unique answer
+
 Return JSON format:
 {
   "clues": [
@@ -303,6 +302,9 @@ ${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[co
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
+
+REQUIREMENTS:
+- The clue must NOT contain or reveal the answer
 
 Return JSON format:
 {
@@ -329,6 +331,9 @@ ${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[co
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
+
+REQUIREMENTS:
+- The clue must NOT contain or reveal the answer
 
 Return JSON format:
 {
