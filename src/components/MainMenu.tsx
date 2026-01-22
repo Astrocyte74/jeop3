@@ -30,7 +30,7 @@ import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
-import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
+import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
 import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye } from 'lucide-react';
@@ -763,10 +763,18 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       if (sourceMode === 'custom' && customSources && customSources.length > 0) {
         console.log('[MainMenu] Generating categories from custom sources:', customSources);
 
+        // Collect all successful results and track failures
+        const failedSources: Array<{ source: CustomSource; error: string }> = [];
+
         for (const source of customSources) {
-          const promptType: AIPromptType = (source.type === 'paste' || source.type === 'url')
-            ? 'categories-generate-from-content'
-            : 'categories-generate';
+          // Determine prompt type based on source type and content availability
+          let promptType: AIPromptType = 'categories-generate';
+          const hasContent = (source.type === 'paste' && source.content) ||
+                            (source.type === 'url' && source.fetchedContent);
+
+          if (hasContent) {
+            promptType = 'categories-generate-from-content';
+          }
 
           const context: Record<string, any> = {
             theme: source.topic || 'random',
@@ -783,25 +791,50 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           }
 
           console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, promptType });
-          const sourceResult = await aiGenerate(promptType, context, difficulty);
+          try {
+            const sourceResult = await aiGenerate(promptType, context, difficulty);
 
-          if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
-            console.error('[MainMenu] Invalid categories result for source:', source);
-            setWizardError(`Failed to generate categories from "${source.topic || source.url || 'source'}". Please try again.`);
+            if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
+              console.error('[MainMenu] Invalid categories result for source:', source);
+              failedSources.push({
+                source,
+                error: 'Invalid response format from AI'
+              });
+              continue;
+            }
+
+            const sourceCategories = (sourceResult as any).categories as Array<{
+              title: string;
+              clues: Array<{ value: number; clue: string; response: string }>;
+            }>;
+
+            categoriesList.push(...sourceCategories);
+
+            // Capture metadata from first successful generation
+            if (!categoriesMetadata) {
+              categoriesMetadata = (sourceResult as any)._metadata;
+            }
+          } catch (error) {
+            console.error('[MainMenu] Error generating from source:', source, error);
+            failedSources.push({
+              source,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+          }
+        }
+
+        // Check if we had any failures and if we have at least some categories
+        if (failedSources.length > 0) {
+          const sourceNames = failedSources.map(f => `"${f.source.topic || f.source.url || 'source'}"`).join(', ');
+          if (categoriesList.length === 0) {
+            // Complete failure
+            setWizardError(`Failed to generate categories from ${sourceNames}. Please try again.`);
             setIsWizardGenerating(false);
             return;
-          }
-
-          const sourceCategories = (sourceResult as any).categories as Array<{
-            title: string;
-            clues: Array<{ value: number; clue: string; response: string }>;
-          }>;
-
-          categoriesList.push(...sourceCategories);
-
-          // Capture metadata from first generation
-          if (!categoriesMetadata) {
-            categoriesMetadata = (sourceResult as any)._metadata;
+          } else {
+            // Partial success - log warning but continue with what we have
+            console.warn('[MainMenu] Partial failure: Some sources failed but continuing with generated categories:', { failedSources });
+            // We could show a toast/notification here, but for now just log and continue
           }
         }
       } else {
@@ -863,9 +896,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             if (s.type === 'url') {
               try {
                 const hostname = new URL(s.url || '').hostname;
-                return `Source: ${hostname} - ${s.fetchedContent?.substring(0, 250) || ''}...`;
+                const contentPreview = s.fetchedContent ? s.fetchedContent.substring(0, 250) : '(no content)';
+                return `Source: ${hostname} - ${contentPreview}...`;
               } catch {
-                return `Source: ${s.fetchedContent?.substring(0, 250) || ''}...`;
+                const contentPreview = s.fetchedContent ? s.fetchedContent.substring(0, 250) : '(no content)';
+                return `Source: ${contentPreview}...`;
               }
             }
             return '';

@@ -437,7 +437,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     }
 
     const newSource: CustomSource = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       type: newSourceType,
       categoryCount: newSourceCategoryCount,
     };
