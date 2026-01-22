@@ -374,6 +374,14 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     return 'Unknown source';
   };
 
+  // Auto-adjust category count if it exceeds remaining categories
+  useEffect(() => {
+    const remaining = getRemainingCategories();
+    if (currentSourceCategoryCount > remaining && remaining > 0) {
+      setCurrentSourceCategoryCount(remaining as 1 | 2 | 3 | 4 | 5 | 6);
+    }
+  }, [customSources]);
+
   // Validate current source input
   const validateCurrentSource = (): boolean => {
     setSourceInputError('');
@@ -926,13 +934,21 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     }}
                     className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 hover:border-slate-500 transition-colors cursor-pointer"
                   >
-                    <option value={6} className="bg-slate-800">Full Game (6 Categories)</option>
-                    {Array.from({ length: 5 }, (_, i) => i + 1).map(n => {
+                    {[6, 1, 2, 3, 4, 5].map(n => {
+                      const remaining = getRemainingCategories();
+                      const isDisabled = n > remaining;
                       const label = n === 1 ? 'y' : 'ies';
-                      const hint = n === 1 ? ' (recommended)' : n === 2 ? ' (balanced)' : '';
+                      const hint = n === 6 ? '' : n === 1 ? ' (recommended)' : n === 2 ? ' (balanced)' : '';
+                      const displayLabel = n === 6 ? 'Full Game (6 Categories)' : `${n} categor${label}${hint}`;
+
                       return (
-                        <option key={n} value={n} className="bg-slate-800">
-                          {n} categor{label}{hint}
+                        <option
+                          key={n}
+                          value={n}
+                          disabled={isDisabled}
+                          className="bg-slate-800"
+                        >
+                          {displayLabel}
                         </option>
                       );
                     })}
