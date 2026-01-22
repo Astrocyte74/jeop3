@@ -101,6 +101,8 @@ export function TriviaSnake({
   const [gameStatus, setGameStatus] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready');
   const [showInfo, setShowInfo] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState(activeTeamId);
+  const [selectedAnswerLabel, setSelectedAnswerLabel] = useState<string | null>(null); // Track which answer was chosen
+  const [showResult, setShowResult] = useState(false); // Whether to show answer results
 
   // Gameplay refs - immediate updates, no React re-renders
   const directionRef = useRef<Position>({ x: 1, y: 0 });
@@ -203,6 +205,8 @@ export function TriviaSnake({
       eatenAppleLabelsRef.current = new Set();
       setGameStatus('ready');
       setSelectedTeamId(activeTeamId);
+      setSelectedAnswerLabel(null);
+      setShowResult(false);
 
       // Generate random apple positions anywhere on board
       const newApples: Apple[] = [];
@@ -490,18 +494,22 @@ export function TriviaSnake({
           triggerScreenShake(3, 200); // Gentle shake
           createConfetti();
           setGameStatus('won');
+          setSelectedAnswerLabel(eatenApple.label);
+          setShowResult(true);
           onCorrect(selectedTeamId);
           // Close after showing result
-          setTimeout(() => onClose(), 1200);
+          setTimeout(() => onClose(), 1500);
           return;
         } else {
           // Wrong answer - red flash and strong shake
           createParticles(pixelX, pixelY, '#ff0000', 25);
           triggerScreenShake(8, 300); // Strong shake
           setGameStatus('lost');
+          setSelectedAnswerLabel(eatenApple.label);
+          setShowResult(true);
           onIncorrect(selectedTeamId);
           // Close after showing result
-          setTimeout(() => onClose(), 1500);
+          setTimeout(() => onClose(), 2000);
           return;
         }
       }
@@ -559,6 +567,8 @@ export function TriviaSnake({
     lastDirectionRef.current = { x: 1, y: 0 };
     eatenAppleLabelsRef.current = new Set();
     setGameStatus('playing');
+    setSelectedAnswerLabel(null);
+    setShowResult(false);
   }, [currentValue]);
 
   const resetGame = useCallback(() => {
@@ -568,6 +578,8 @@ export function TriviaSnake({
     lastDirectionRef.current = { x: 1, y: 0 };
     eatenAppleLabelsRef.current = new Set();
     setGameStatus('ready');
+    setSelectedAnswerLabel(null);
+    setShowResult(false);
     render(); // Render initial state
   }, [currentValue, render]);
 
@@ -776,16 +788,58 @@ export function TriviaSnake({
 
         {/* Answer Options */}
         <div className="grid grid-cols-5 gap-2">
-          {answerOptions.map(option => (
-            <div
-              key={option.label}
-              className="rounded-lg p-3 text-center transition-transform hover:scale-105"
-              style={{ backgroundColor: LETTER_COLORS[option.label] }}
-            >
-              <div className="text-white font-bold text-xl">{option.label}</div>
-              <div className="text-white text-sm mt-1">{option.response}</div>
-            </div>
-          ))}
+          {answerOptions.map(option => {
+            const isCorrect = option.response === currentResponse;
+            const isSelected = option.label === selectedAnswerLabel;
+            const wasWrong = isSelected && !isCorrect && showResult;
+
+            // Determine styling based on result state
+            let bgStyle = LETTER_COLORS[option.label];
+            let opacity = '100';
+            let scale = '';
+            let border = '';
+            let icon = '';
+
+            if (showResult) {
+              if (isCorrect) {
+                // Correct answer - bright green highlight
+                bgStyle = '#22c55e';
+                border = 'border-4 border-green-300 shadow-lg shadow-green-500/50';
+                icon = '✓';
+              } else if (wasWrong) {
+                // Wrong selection - greyed out
+                bgStyle = '#6b7280';
+                opacity = '50';
+                scale = 'scale-95';
+                icon = '✗';
+              } else {
+                // Other answers - dimmed
+                opacity = '40';
+              }
+            }
+
+            return (
+              <div
+                key={option.label}
+                className={`rounded-lg p-3 text-center transition-all relative ${scale} ${border}`}
+                style={{ backgroundColor: bgStyle, opacity: opacity }}
+              >
+                {icon && (
+                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center text-sm font-bold shadow-md">
+                    {icon}
+                  </div>
+                )}
+                <div className="text-white font-bold text-xl">{option.label}</div>
+                <div className="text-white text-sm mt-1">{option.response}</div>
+                {showResult && wasWrong && (
+                  <div className="text-white text-xs mt-2 opacity-80">Wrong!</div>
+                )}
+                {showResult && isCorrect && (
+                  <div className="text-white text-xs mt-2 font-bold">Correct!</div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* Game Canvas */}
@@ -797,25 +851,6 @@ export function TriviaSnake({
             className="border-2 border-slate-600 rounded"
           />
         </div>
-
-        {/* Game Status Overlay - fixed to viewport so always visible */}
-        {gameStatus === 'won' && (
-          <div className="fixed inset-0 bg-green-900/70 flex items-center justify-center z-50">
-            <div className="bg-slate-900 p-8 rounded-lg text-center shadow-2xl border-2 border-green-500">
-              <p className="text-4xl mb-3">🎉 Correct!</p>
-              <p className="text-white text-2xl font-bold">+${currentValue}</p>
-            </div>
-          </div>
-        )}
-        {gameStatus === 'lost' && (
-          <div className="fixed inset-0 bg-red-900/70 flex items-center justify-center z-50">
-            <div className="bg-slate-900 p-8 rounded-lg text-center shadow-2xl border-2 border-red-500">
-              <p className="text-4xl mb-3">❌ Wrong!</p>
-              <p className="text-white text-2xl font-bold">-${currentValue}</p>
-              <p className="text-slate-400 mt-3">Correct: {currentResponse}</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
