@@ -2573,7 +2573,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
         {/* Footer */}
         <footer className="mt-8 text-center text-sm text-slate-500">
-          Jeop3 v3.0 • Built with React + shadcn/ui
+          Jeop3 v3.1 • Built with React + shadcn/ui
         </footer>
       </div>
 
