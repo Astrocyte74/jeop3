@@ -133,6 +133,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [currentSourceContent, setCurrentSourceContent] = useState('');
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(6);
   const [isFetching, setIsFetching] = useState(false);
+  const [isGeneratingRandomTopic, setIsGeneratingRandomTopic] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
 
@@ -302,6 +303,71 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
   const handleRemoveSource = (id: string) => {
     setCustomSources(customSources.filter(s => s.id !== id));
+  };
+
+  // ==================== Random Topic / URL Generation ====================
+  const handleGenerateRandomTopic = async () => {
+    setIsGeneratingRandomTopic(true);
+    setSourceInputError('');
+    setFetchError('');
+
+    try {
+      const apiBase = getAIApiBase();
+      const response = await fetch(`${apiBase}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: aiModel,
+          system: "You are a creative trivia topic generator. Suggest ONE interesting, specific topic that would make a great Jeopardy category. Respond with JSON only: {\"topic\": \"topic name\"}. Pick topics that are rich in facts - specific time periods, scientific fields, geographic regions, cultural movements, etc. Avoid overly broad topics like \"History\" or \"Science\".",
+          user: "Generate a random, specific topic for a Jeopardy category that would be interesting and fact-rich."
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate topic');
+
+      const data = await response.json();
+      const result = JSON.parse(data.content);
+
+      if (result.topic) {
+        setCurrentSourceContent(result.topic);
+        setTimeout(() => inputRef.current?.focus(), 50);
+      } else {
+        setFetchError('Invalid response from AI');
+      }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to generate topic');
+    } finally {
+      setIsGeneratingRandomTopic(false);
+    }
+  };
+
+  const handleRandomWikipediaURL = async () => {
+    setIsFetching(true);
+    setFetchError('');
+    setSourceInputError('');
+
+    try {
+      // Wikipedia API for random page
+      const response = await fetch('https://en.wikipedia.org/api/rest_v1/page/random/html');
+
+      if (!response.ok) throw new Error('Failed to fetch random Wikipedia page');
+
+      // Get the final URL (after redirects) which contains the actual page title
+      const finalUrl = response.url;
+
+      // Extract the page title from the URL
+      // Format: https://en.wikipedia.org/wiki/Page_Title
+      const urlMatch = finalUrl.match(/\/wiki\/([^/?#]+)/);
+      if (urlMatch) {
+        setCurrentSourceContent(`https://en.wikipedia.org/wiki/${urlMatch[1]}`);
+      } else {
+        setFetchError('Could not parse Wikipedia page URL');
+      }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to fetch random Wikipedia page');
+    } finally {
+      setIsFetching(false);
+    }
   };
 
   // ==================== Navigation ====================
@@ -680,23 +746,41 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       autoFocus
                     />
                   ) : (
-                    <Input
-                      ref={inputRef}
-                      id="currentSourceContent"
-                      type={currentSourceType === 'url' ? 'url' : 'text'}
-                      value={currentSourceContent}
-                      onChange={(e) => {
-                        setCurrentSourceContent(e.target.value);
-                        setSourceInputError('');
-                      }}
-                      placeholder={
-                        currentSourceType === 'url'
-                          ? 'https://en.wikipedia.org/wiki/Topic'
-                          : 'e.g., US Presidents, Space Exploration, 1990s Music'
-                      }
-                      className="bg-slate-700/50 border-slate-600 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
-                      autoFocus
-                    />
+                    <div className="relative">
+                      <Input
+                        ref={inputRef}
+                        id="currentSourceContent"
+                        type={currentSourceType === 'url' ? 'url' : 'text'}
+                        value={currentSourceContent}
+                        onChange={(e) => {
+                          setCurrentSourceContent(e.target.value);
+                          setSourceInputError('');
+                        }}
+                        placeholder={
+                          currentSourceType === 'url'
+                            ? 'https://en.wikipedia.org/wiki/Topic'
+                            : 'e.g., US Presidents, Space Exploration, 1990s Music'
+                        }
+                        className="bg-slate-700/50 border-slate-600 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10 pr-20"
+                        autoFocus
+                      />
+                      {/* Sparkle button for random topic/URL */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={currentSourceType === 'topic' ? handleGenerateRandomTopic : handleRandomWikipediaURL}
+                        disabled={isGeneratingRandomTopic || isFetching}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
+                        title={currentSourceType === 'topic' ? 'Generate random topic with AI' : 'Get random Wikipedia page'}
+                      >
+                        {isGeneratingRandomTopic || (currentSourceType === 'url' && isFetching) ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
                   )}
                   {currentSourceType === 'paste' && currentSourceContent.length > 0 && currentSourceContent.length < MIN_CHARS && (
                     <p className="text-xs text-orange-400 flex items-center gap-1">
