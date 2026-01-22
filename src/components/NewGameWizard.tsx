@@ -284,6 +284,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const sourcesListRef = useRef<HTMLDivElement>(null);
 
   // Load available AI models on mount
   useEffect(() => {
@@ -395,6 +396,13 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     return true;
   };
 
+  // Scroll to sources list after adding
+  const scrollToSourcesList = () => {
+    setTimeout(() => {
+      sourcesListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 100);
+  };
+
   // Add current source to the list
   const handleAddSourceToList = async () => {
     if (!validateCurrentSource()) return;
@@ -409,10 +417,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       newSource.topic = currentSourceContent.trim();
       setCustomSources([...customSources, newSource]);
       resetCurrentSource();
+      scrollToSourcesList();
     } else if (currentSourceType === 'paste') {
       newSource.content = currentSourceContent.trim();
       setCustomSources([...customSources, newSource]);
       resetCurrentSource();
+      scrollToSourcesList();
     } else if (currentSourceType === 'url') {
       setIsFetching(true);
       setFetchError('');
@@ -424,6 +434,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           newSource.fetchedContent = result.text;
           setCustomSources([...customSources, newSource]);
           resetCurrentSource();
+          scrollToSourcesList();
         } else {
           setFetchError(result.error || 'Failed to fetch content from URL');
         }
@@ -947,7 +958,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
                 {/* Sources list */}
                 {customSources.length > 0 && (
-                  <div className="space-y-3 pt-3 border-t border-slate-700/50">
+                  <div ref={sourcesListRef} className="space-y-3 pt-3 border-t border-slate-700/50">
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-slate-400">
                         <span className="text-slate-300 font-medium">{customSources.length} source{customSources.length !== 1 ? 's' : ''}</span> added
