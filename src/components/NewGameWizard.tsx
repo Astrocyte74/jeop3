@@ -29,17 +29,29 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload, AlertCircle, RefreshCw } from 'lucide-react';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Upload, AlertCircle, RefreshCw, Plus, Trash2, Loader2 } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 
+// Custom source type for per-category sources
+export interface CustomSource {
+  id: string;
+  type: 'topic' | 'paste' | 'url';
+  topic?: string;
+  content?: string;
+  url?: string;
+  categoryCount: number;
+  fetchedContent?: string; // For URL sources after fetching
+}
+
 export interface WizardStep {
-  type: 'creation-mode' | 'manual-confirm' | 'source' | 'theme' | 'difficulty';
+  type: 'creation-mode' | 'manual-confirm' | 'source' | 'custom-categories' | 'theme' | 'difficulty';
   creationMode?: 'ai' | 'manual' | 'import-json';
-  sourceMode?: 'scratch' | 'paste' | 'url';
+  sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceMaterial?: string;
   referenceUrl?: string;
+  customSources?: CustomSource[];
   theme?: string;
   difficulty?: 'easy' | 'normal' | 'hard';
 }
@@ -49,9 +61,10 @@ export interface WizardCompleteData {
   // AI mode fields
   theme?: string;
   difficulty?: 'easy' | 'normal' | 'hard';
-  sourceMode?: 'scratch' | 'paste' | 'url';
+  sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceMaterial?: string;
   referenceUrl?: string;
+  customSources?: CustomSource[];
 }
 
 interface NewGameWizardProps {
@@ -106,6 +119,13 @@ const sourceModeOptions = [
     title: 'From URL',
     desc: 'Fetch content from a webpage',
     color: 'text-green-400'
+  },
+  {
+    value: 'custom' as const,
+    icon: Edit,
+    title: 'Custom Categories',
+    desc: 'Control each category with different sources',
+    color: 'text-yellow-400'
   }
 ];
 
@@ -140,15 +160,22 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
-  const [step, setStep] = useState<'creation-mode' | 'manual-confirm' | 'source' | 'theme' | 'difficulty'>('creation-mode');
+  const [step, setStep] = useState<'creation-mode' | 'manual-confirm' | 'source' | 'custom-categories' | 'theme' | 'difficulty'>('creation-mode');
   const [creationMode, setCreationMode] = useState<'ai' | 'manual' | 'import-json'>('ai');
-  const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url'>('scratch');
+  const [sourceMode, setSourceMode] = useState<'scratch' | 'paste' | 'url' | 'custom'>('scratch');
   const [referenceMaterial, setReferenceMaterial] = useState('');
   const [referenceUrl, setReferenceUrl] = useState('');
   const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [theme, setTheme] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
+  // Custom categories state
+  const [customSources, setCustomSources] = useState<CustomSource[]>([]);
+  const [showAddSourceDialog, setShowAddSourceDialog] = useState(false);
+  const [newSourceType, setNewSourceType] = useState<'topic' | 'paste' | 'url'>('topic');
+  const [newSourceContent, setNewSourceContent] = useState('');
+  const [newSourceCategoryCount, setNewSourceCategoryCount] = useState(1);
+  const [addSourceError, setAddSourceError] = useState('');
   const [showBack, setShowBack] = useState(false);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
@@ -190,6 +217,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       setFetchError('');
       setTheme('');
       setDifficulty('normal');
+      setCustomSources([]);
+      setShowAddSourceDialog(false);
+      setNewSourceType('topic');
+      setNewSourceContent('');
+      setNewSourceCategoryCount(1);
+      setAddSourceError('');
       setStep('creation-mode');
       setShowBack(false);
       // Auto-focus the input after a small delay to ensure the dialog is rendered
@@ -220,6 +253,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
         return;
       }
       handleFetchUrl();
+    } else if (sourceMode === 'custom') {
+      // Go to custom categories step
+      setShowBack(true);
+      setStep('custom-categories');
     }
   };
 
@@ -262,6 +299,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     } else if (step === 'source') {
       setStep('creation-mode');
       setShowBack(false);
+    } else if (step === 'custom-categories') {
+      setStep('source');
+      setShowBack(false);
     } else if (step === 'theme') {
       setStep('source');
       setShowBack(false);
@@ -300,7 +340,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       difficulty,
       sourceMode,
       referenceMaterial: sourceMode !== 'scratch' ? referenceMaterial : undefined,
-      referenceUrl: sourceMode === 'url' ? referenceUrl : undefined
+      referenceUrl: sourceMode === 'url' ? referenceUrl : undefined,
+      customSources: sourceMode === 'custom' ? customSources : undefined
     });
     // Reset state
     setCreationMode('ai');
@@ -310,6 +351,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setFetchError('');
     setTheme('');
     setDifficulty('normal');
+    setCustomSources([]);
     setStep('creation-mode');
     setShowBack(false);
   };
@@ -325,6 +367,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setFetchError('');
     setTheme('');
     setDifficulty('normal');
+    setCustomSources([]);
+    setShowAddSourceDialog(false);
+    setNewSourceType('topic');
+    setNewSourceContent('');
+    setNewSourceCategoryCount(1);
+    setAddSourceError('');
     setStep('creation-mode');
     setShowBack(false);
   };
@@ -352,7 +400,107 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     if (sourceMode === 'scratch') return true;
     if (sourceMode === 'paste') return referenceMaterial.trim().length >= MIN_CHARS;
     if (sourceMode === 'url') return referenceUrl.trim().length > 0;
+    if (sourceMode === 'custom') return true; // Can proceed and add sources in next step
     return false;
+  };
+
+  // Helper functions for custom sources management
+  const getTotalCategoryCount = () => {
+    return customSources.reduce((sum, source) => sum + source.categoryCount, 0);
+  };
+
+  const getRemainingCategories = () => {
+    return 6 - getTotalCategoryCount();
+  };
+
+  const handleAddSource = async () => {
+    setAddSourceError('');
+
+    // Validate based on source type
+    if (newSourceType === 'topic' && !newSourceContent.trim()) {
+      setAddSourceError('Please enter a topic');
+      return;
+    }
+    if (newSourceType === 'paste' && newSourceContent.trim().length < MIN_CHARS) {
+      setAddSourceError(`Please enter at least ${MIN_CHARS} characters`);
+      return;
+    }
+    if (newSourceType === 'url' && !newSourceContent.trim()) {
+      setAddSourceError('Please enter a URL');
+      return;
+    }
+
+    // Check if adding would exceed 6 categories
+    if (getTotalCategoryCount() + newSourceCategoryCount > 6) {
+      setAddSourceError(`Total categories cannot exceed 6. You have ${getTotalCategoryCount()}, trying to add ${newSourceCategoryCount}.`);
+      return;
+    }
+
+    const newSource: CustomSource = {
+      id: Date.now().toString(),
+      type: newSourceType,
+      categoryCount: newSourceCategoryCount,
+    };
+
+    if (newSourceType === 'topic') {
+      newSource.topic = newSourceContent.trim();
+      addSourceToList(newSource);
+    } else if (newSourceType === 'paste') {
+      newSource.content = newSourceContent.trim();
+      addSourceToList(newSource);
+    } else if (newSourceType === 'url') {
+      // Fetch the URL content first
+      setIsFetching(true);
+      try {
+        const authToken = await getToken().catch(() => null);
+        const result = await fetchArticleContent(newSourceContent.trim(), authToken);
+        if (result.success && result.text) {
+          newSource.url = newSourceContent.trim();
+          newSource.fetchedContent = result.text;
+          addSourceToList(newSource);
+        } else {
+          setAddSourceError(result.error || 'Failed to fetch content from URL');
+        }
+      } catch (err) {
+        setAddSourceError(err instanceof Error ? err.message : 'Failed to fetch content');
+      } finally {
+        setIsFetching(false);
+      }
+    }
+  };
+
+  const addSourceToList = (source: CustomSource) => {
+    setCustomSources([...customSources, source]);
+    // Reset the dialog
+    setNewSourceType('topic');
+    setNewSourceContent('');
+    setNewSourceCategoryCount(Math.min(1, getRemainingCategories()));
+    setShowAddSourceDialog(false);
+    setAddSourceError('');
+  };
+
+  const handleRemoveSource = (id: string) => {
+    setCustomSources(customSources.filter(s => s.id !== id));
+  };
+
+  const getDisplayLabel = (source: CustomSource): string => {
+    if (source.type === 'topic') return `Topic: "${source.topic}"`;
+    if (source.type === 'paste') return `Pasted Content (${source.content?.length.toLocaleString() || 0} chars)`;
+    if (source.type === 'url') {
+      // Shorten URL for display
+      const url = source.url || '';
+      try {
+        const hostname = new URL(url).hostname;
+        return `URL: ${hostname}`;
+      } catch {
+        return `URL: ${url.substring(0, 30)}...`;
+      }
+    }
+    return 'Unknown source';
+  };
+
+  const canProceedFromCustomCategories = () => {
+    return customSources.length > 0 && getTotalCategoryCount() <= 6 && getTotalCategoryCount() >= 1;
   };
 
   return (
@@ -512,14 +660,16 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-md">
                     AI Generate
                   </span>
-                  {step === 'theme' || step === 'difficulty' ? (
+                  {step === 'custom-categories' || step === 'theme' || step === 'difficulty' ? (
                     sourceMode === 'scratch' ? (
                       <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">From Scratch</span>
                     ) : sourceMode === 'paste' ? (
                       <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">Paste Content</span>
-                    ) : (
+                    ) : sourceMode === 'url' ? (
                       <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">From URL</span>
-                    )
+                    ) : sourceMode === 'custom' ? (
+                      <span className="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-md">Custom Categories ({customSources.length} source{customSources.length !== 1 ? 's' : ''}, {getTotalCategoryCount()} cat{getTotalCategoryCount() !== 1 ? 's' : ''})</span>
+                    ) : null
                   ) : null}
                   {step === 'difficulty' && theme && (
                     <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">
@@ -732,6 +882,26 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                               </ul>
                             </div>
                           )}
+                          {isSelected && option.value === 'custom' && (
+                            <div className="mt-3 pt-3 border-t border-slate-600">
+                              <p className="text-xs text-slate-400 mb-2">Mix and match different sources for each category:</p>
+                              <ul className="text-xs text-slate-300 space-y-1">
+                                <li className="flex items-center gap-2">
+                                  <span className="text-yellow-400">✓</span>
+                                  <span>Use different topics, pasted content, or URLs for each category</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-yellow-400">✓</span>
+                                  <span>Control exactly how many categories come from each source</span>
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-yellow-400">✓</span>
+                                  <span>Create games with 1-6 categories total</span>
+                                </li>
+                              </ul>
+                              <p className="text-xs text-yellow-300 mt-2">💡 Perfect for mixing different subjects or sources!</p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -800,6 +970,252 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     <p className="text-xs text-slate-500">
                       Works with Wikipedia articles and most web pages
                     </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === 'custom-categories' && (
+              <div className="py-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-400">Add sources and specify how many categories each should generate.</p>
+                  <div className={`text-sm px-2 py-1 rounded ${getTotalCategoryCount() === 6 ? 'bg-green-500/20 text-green-300' : getTotalCategoryCount() > 0 ? 'bg-yellow-500/20 text-yellow-300' : 'bg-slate-700 text-slate-400'}`}>
+                    {getTotalCategoryCount()} of 6 categories
+                  </div>
+                </div>
+
+                {/* Sources list */}
+                {customSources.length === 0 ? (
+                  <div className="text-center py-8 bg-slate-800/30 rounded-lg border border-dashed border-slate-700">
+                    <Edit className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm text-slate-500 mb-1">No sources added yet</p>
+                    <p className="text-xs text-slate-600">Click "Add Source" to create categories from topics, content, or URLs</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {customSources.map((source) => (
+                      <div key={source.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {source.type === 'topic' && <Zap className="w-4 h-4 text-purple-400 flex-shrink-0" />}
+                              {source.type === 'paste' && <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />}
+                              {source.type === 'url' && <Globe className="w-4 h-4 text-green-400 flex-shrink-0" />}
+                              <span className="text-sm font-medium text-slate-200 truncate">{getDisplayLabel(source)}</span>
+                            </div>
+                            {source.type === 'topic' && (
+                              <p className="text-xs text-slate-500 truncate">"{source.topic}"</p>
+                            )}
+                            {source.type === 'url' && (
+                              <p className="text-xs text-slate-500 truncate">{source.url}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={source.categoryCount}
+                              onChange={(e) => {
+                                const newCount = parseInt(e.target.value);
+                                const currentTotal = customSources.reduce((sum, s) => s.id === source.id ? sum : sum + s.categoryCount, 0);
+                                if (currentTotal + newCount <= 6 && newCount >= 1) {
+                                  setCustomSources(customSources.map(s =>
+                                    s.id === source.id ? { ...s, categoryCount: newCount } : s
+                                  ));
+                                }
+                              }}
+                              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300"
+                            >
+                              {[1, 2, 3, 4, 5, 6].map(n => {
+                                const currentTotal = customSources.reduce((sum, s) => s.id === source.id ? sum : sum + s.categoryCount, 0);
+                                const isValid = currentTotal + n <= 6;
+                                return (
+                                  <option key={n} value={n} disabled={!isValid}>
+                                    {n} categor{n === 1 ? 'y' : 'ies'}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <button
+                              onClick={() => handleRemoveSource(source.id)}
+                              className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+                              title="Remove source"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add source button */}
+                {getRemainingCategories() > 0 && (
+                  <Button
+                    onClick={() => setShowAddSourceDialog(true)}
+                    variant="outline"
+                    className="w-full border-dashed border-2 border-slate-600 hover:border-yellow-500/50 hover:bg-yellow-500/5 text-slate-400 hover:text-yellow-300"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Source
+                  </Button>
+                )}
+
+                {/* Info about remaining categories */}
+                {getRemainingCategories() === 0 && customSources.length > 0 && (
+                  <p className="text-xs text-green-400 text-center">All 6 categories allocated!</p>
+                )}
+
+                {/* Add Source Dialog */}
+                {showAddSourceDialog && (
+                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-slate-800 rounded-lg border border-slate-700 max-w-md w-full p-4">
+                      <h3 className="text-lg font-semibold text-slate-200 mb-4">Add Source</h3>
+
+                      {/* Source type selection */}
+                      <div className="space-y-2 mb-4">
+                        <Label>Source Type</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => {
+                              setNewSourceType('topic');
+                              setAddSourceError('');
+                            }}
+                            className={`p-3 rounded-lg border text-center transition-all ${
+                              newSourceType === 'topic'
+                                ? 'bg-purple-500/20 border-purple-500 text-purple-300'
+                                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            <Zap className="w-5 h-5 mx-auto mb-1" />
+                            <span className="text-xs">Topic</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setNewSourceType('paste');
+                              setAddSourceError('');
+                            }}
+                            className={`p-3 rounded-lg border text-center transition-all ${
+                              newSourceType === 'paste'
+                                ? 'bg-blue-500/20 border-blue-500 text-blue-300'
+                                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            <FileText className="w-5 h-5 mx-auto mb-1" />
+                            <span className="text-xs">Paste</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setNewSourceType('url');
+                              setAddSourceError('');
+                            }}
+                            className={`p-3 rounded-lg border text-center transition-all ${
+                              newSourceType === 'url'
+                                ? 'bg-green-500/20 border-green-500 text-green-300'
+                                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
+                            }`}
+                          >
+                            <Globe className="w-5 h-5 mx-auto mb-1" />
+                            <span className="text-xs">URL</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Content input */}
+                      <div className="space-y-2 mb-4">
+                        <Label htmlFor="newSourceContent">
+                          {newSourceType === 'topic' && 'Topic'}
+                          {newSourceType === 'paste' && 'Content'}
+                          {newSourceType === 'url' && 'URL'}
+                        </Label>
+                        {newSourceType === 'paste' ? (
+                          <Textarea
+                            id="newSourceContent"
+                            value={newSourceContent}
+                            onChange={(e) => {
+                              setNewSourceContent(e.target.value);
+                              setAddSourceError('');
+                            }}
+                            placeholder="Paste notes, transcripts, or articles..."
+                            className="bg-slate-700/50 border-slate-600 min-h-[100px] resize-none"
+                            maxLength={MAX_CHARS}
+                            autoFocus
+                          />
+                        ) : (
+                          <Input
+                            id="newSourceContent"
+                            type={newSourceType === 'url' ? 'url' : 'text'}
+                            value={newSourceContent}
+                            onChange={(e) => {
+                              setNewSourceContent(e.target.value);
+                              setAddSourceError('');
+                            }}
+                            placeholder={newSourceType === 'url' ? 'https://en.wikipedia.org/wiki/Topic' : 'e.g., US Presidents'}
+                            className="bg-slate-700/50 border-slate-600"
+                            autoFocus
+                          />
+                        )}
+                        {newSourceType === 'paste' && newSourceContent.length > 0 && newSourceContent.length < MIN_CHARS && (
+                          <p className="text-xs text-orange-500">Minimum {MIN_CHARS} characters required</p>
+                        )}
+                        {newSourceType === 'paste' && (
+                          <p className="text-xs text-slate-500">{newSourceContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</p>
+                        )}
+                      </div>
+
+                      {/* Category count */}
+                      <div className="space-y-2 mb-4">
+                        <Label>Categories from this source</Label>
+                        <select
+                          value={newSourceCategoryCount}
+                          onChange={(e) => setNewSourceCategoryCount(parseInt(e.target.value))}
+                          className="w-full bg-slate-700/50 border border-slate-600 rounded px-3 py-2 text-slate-200"
+                        >
+                          {Array.from({ length: getRemainingCategories() }, (_, i) => i + 1).map(n => (
+                            <option key={n} value={n}>{n} categor{n === 1 ? 'y' : 'ies'}</option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-slate-500">
+                          {getRemainingCategories() - newSourceCategoryCount} more categorie{getRemainingCategories() - newSourceCategoryCount === 1 ? '' : 's'} available after this
+                        </p>
+                      </div>
+
+                      {/* Error */}
+                      {addSourceError && (
+                        <p className="text-sm text-red-400 mb-4">{addSourceError}</p>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={() => {
+                            setShowAddSourceDialog(false);
+                            setAddSourceError('');
+                            setNewSourceContent('');
+                          }}
+                          variant="outline"
+                          className="flex-1 border-slate-600 text-slate-300"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={handleAddSource}
+                          disabled={isFetching || (newSourceType === 'paste' && newSourceContent.length < MIN_CHARS) || !newSourceContent.trim()}
+                          className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
+                        >
+                          {isFetching ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              Fetching...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4 mr-2" />
+                              Add Source
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -932,6 +1348,14 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 disabled={isLoading}
               >
                 Next
+              </Button>
+            ) : step === 'custom-categories' ? (
+              <Button
+                onClick={handleThemeNext}
+                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
+                disabled={isLoading || !canProceedFromCustomCategories()}
+              >
+                Continue
               </Button>
             ) : (
               <Button

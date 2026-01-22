@@ -53,7 +53,7 @@ interface GeneratedGameData {
   suggestedTeamNames: string[];
   theme: string;
   difficulty: AIDifficulty;
-  sourceMode?: 'scratch' | 'paste' | 'url';
+  sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceUrl?: string;
   sourceCharacters?: number;
   metadata?: {
@@ -739,7 +739,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // ==================== AI NEW GAME GENERATION ====================
 
   const handleWizardComplete = async (wizardData: WizardCompleteData) => {
-    const { mode, theme, difficulty, sourceMode, referenceMaterial, referenceUrl } = wizardData;
+    const { mode, theme, difficulty, sourceMode, referenceMaterial, referenceUrl, customSources } = wizardData;
 
     // Only AI mode should reach here - manual and import-json are handled directly in the wizard
     if (mode !== 'ai') {
@@ -753,139 +753,207 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     setIsWizardGenerating(true);
 
     try {
-      // Determine prompt type and build context based on source mode
-      const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
-        ? 'categories-generate-from-content'
-        : 'categories-generate';
+      let categoriesList: Array<{
+        title: string;
+        clues: Array<{ value: number; clue: string; response: string }>;
+      }> = [];
+      let categoriesMetadata: any = undefined;
 
-      const context: Record<string, any> = {
-        theme: theme || 'random',
-        count: 6,
-      };
+      // Handle custom sources mode - generate categories from each source
+      if (sourceMode === 'custom' && customSources && customSources.length > 0) {
+        console.log('[MainMenu] Generating categories from custom sources:', customSources);
 
-      // Add reference material for content-based generation
-      if (sourceMode !== 'scratch' && referenceMaterial) {
-        context.referenceMaterial = referenceMaterial;
-        context.referenceUrl = referenceUrl;
-        context.sourceCharacters = referenceMaterial.length;
+        for (const source of customSources) {
+          const promptType: AIPromptType = (source.type === 'paste' || source.type === 'url')
+            ? 'categories-generate-from-content'
+            : 'categories-generate';
+
+          const context: Record<string, any> = {
+            theme: source.topic || 'random',
+            count: source.categoryCount,
+          };
+
+          if (source.type === 'paste' && source.content) {
+            context.referenceMaterial = source.content;
+            context.sourceCharacters = source.content.length;
+          } else if (source.type === 'url' && source.fetchedContent) {
+            context.referenceMaterial = source.fetchedContent;
+            context.referenceUrl = source.url;
+            context.sourceCharacters = source.fetchedContent.length;
+          }
+
+          console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, promptType });
+          const sourceResult = await aiGenerate(promptType, context, difficulty);
+
+          if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
+            console.error('[MainMenu] Invalid categories result for source:', source);
+            setWizardError(`Failed to generate categories from "${source.topic || source.url || 'source'}". Please try again.`);
+            setIsWizardGenerating(false);
+            return;
+          }
+
+          const sourceCategories = (sourceResult as any).categories as Array<{
+            title: string;
+            clues: Array<{ value: number; clue: string; response: string }>;
+          }>;
+
+          categoriesList.push(...sourceCategories);
+
+          // Capture metadata from first generation
+          if (!categoriesMetadata) {
+            categoriesMetadata = (sourceResult as any)._metadata;
+          }
+        }
+      } else {
+        // Original single-source logic
+        // Determine prompt type and build context based on source mode
+        const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
+          ? 'categories-generate-from-content'
+          : 'categories-generate';
+
+        const context: Record<string, any> = {
+          theme: theme || 'random',
+          count: 6,
+        };
+
+        // Add reference material for content-based generation
+        if (sourceMode !== 'scratch' && referenceMaterial) {
+          context.referenceMaterial = referenceMaterial;
+          context.referenceUrl = referenceUrl;
+          context.sourceCharacters = referenceMaterial.length;
+        }
+
+        // Generate categories
+        const categoriesResult = await aiGenerate(
+          promptType,
+          context,
+          difficulty
+        );
+
+        console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
+
+        if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
+          console.error('[MainMenu] Invalid categories result:', categoriesResult);
+          setWizardError('Failed to generate categories. The AI returned an invalid response. Please try again.');
+          setIsWizardGenerating(false);
+          return; // Keep wizard open
+        }
+
+        categoriesList = (categoriesResult as any).categories as Array<{
+          title: string;
+          clues: Array<{ value: number; clue: string; response: string }>;
+        }>;
+
+        // Capture metadata from categories generation
+        categoriesMetadata = (categoriesResult as any)._metadata;
       }
 
-      // Generate categories
-      const categoriesResult = await aiGenerate(
-        promptType,
-        context,
+      // Generate titles - use sample content if available for better titles
+      const titleContext: Record<string, any> = { theme: theme || 'random' };
+      if (sourceMode === 'custom' && customSources) {
+        // For custom sources, build a sample from all sources
+        const allContent = customSources
+          .filter(s => s.type === 'topic' || s.type === 'paste' || s.type === 'url')
+          .map(s => {
+            if (s.type === 'topic') return s.topic || '';
+            if (s.type === 'paste') return s.content || '';
+            if (s.type === 'url') return s.fetchedContent || '';
+            return '';
+          })
+          .filter(Boolean)
+          .join(' ');
+        titleContext.hasContent = true;
+        titleContext.sampleContent = allContent.substring(0, 1000);
+      } else if (sourceMode !== 'scratch' && referenceMaterial) {
+        titleContext.hasContent = true;
+        // Use first 1000 chars for title generation - enough to understand the theme
+        titleContext.sampleContent = referenceMaterial.substring(0, 1000);
+      }
+      console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length });
+      const titlesResult = await aiGenerate(
+        'game-title',
+        titleContext,
         difficulty
       );
 
-      console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
+      const titlesList = (titlesResult && typeof titlesResult === 'object' && 'titles' in titlesResult)
+        ? (titlesResult as any).titles as Array<{ title: string; subtitle: string }>
+        : [{ title: `${theme || 'Trivia'} Night`, subtitle: theme || '' }];
 
-      if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
-        console.error('[MainMenu] Invalid categories result:', categoriesResult);
-        setWizardError('Failed to generate categories. The AI returned an invalid response. Please try again.');
-        setIsWizardGenerating(false);
-        return; // Keep wizard open
+      console.log('[MainMenu] Generated titles:', titlesList);
+
+      // Generate team names - include theme and category context for themed names
+      const teamNamesContext: Record<string, any> = {
+        count: 4,
+        existingNames: [],
+      };
+
+      // Build game topic from theme and category titles for better themed team names
+      let gameTopic = theme || 'general trivia';
+      if (categoriesList.length > 0) {
+        const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
+        gameTopic += ` (categories: ${categoryTitles})`;
+      }
+      teamNamesContext.gameTopic = gameTopic;
+
+      console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
+      const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
+
+      let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
+      if (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult) {
+        const names = (teamNamesResult as any).names as string[];
+        if (Array.isArray(names) && names.length === 4) {
+          suggestedTeamNames = names;
+        }
       }
 
-    const categoriesList = (categoriesResult as any).categories as Array<{
-      title: string;
-      clues: Array<{ value: number; clue: string; response: string }>;
-    }>;
-
-    // Capture metadata from categories generation
-    const categoriesMetadata = (categoriesResult as any)._metadata;
-
-    // Generate titles - use sample content if available for better titles
-    const titleContext: Record<string, any> = { theme: theme || 'random' };
-    if (sourceMode !== 'scratch' && referenceMaterial) {
-      titleContext.hasContent = true;
-      // Use first 1000 chars for title generation - enough to understand the theme
-      titleContext.sampleContent = referenceMaterial.substring(0, 1000);
-    }
-    console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length });
-    const titlesResult = await aiGenerate(
-      'game-title',
-      titleContext,
-      difficulty
-    );
-
-    const titlesList = (titlesResult && typeof titlesResult === 'object' && 'titles' in titlesResult)
-      ? (titlesResult as any).titles as Array<{ title: string; subtitle: string }>
-      : [{ title: `${theme || 'Trivia'} Night`, subtitle: theme || '' }];
-
-    console.log('[MainMenu] Generated titles:', titlesList);
-
-    // Generate team names - include theme and category context for themed names
-    const teamNamesContext: Record<string, any> = {
-      count: 4,
-      existingNames: [],
-    };
-
-    // Build game topic from theme and category titles for better themed team names
-    let gameTopic = theme || 'general trivia';
-    if (categoriesList.length > 0) {
-      const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
-      gameTopic += ` (categories: ${categoryTitles})`;
-    }
-    teamNamesContext.gameTopic = gameTopic;
-
-    console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
-    const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
-
-    let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
-    if (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult) {
-      const names = (teamNamesResult as any).names as string[];
-      if (Array.isArray(names) && names.length === 4) {
-        suggestedTeamNames = names;
-      }
-    }
-
-    // Build game structure
-    const gameCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> = [];
-    for (const cat of categoriesList) {
-      const categoryClues: Array<{ value: number; clue: string; response: string }> = [];
-      for (const clue of cat.clues) {
-        categoryClues.push({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
+      // Build game structure
+      const gameCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> = [];
+      for (const cat of categoriesList) {
+        const categoryClues: Array<{ value: number; clue: string; response: string }> = [];
+        for (const clue of cat.clues) {
+          categoryClues.push({
+            value: clue.value,
+            clue: clue.clue,
+            response: clue.response,
+          });
+        }
+        gameCategories.push({
+          title: cat.title,
+          clues: categoryClues,
         });
       }
-      gameCategories.push({
-        title: cat.title,
-        clues: categoryClues,
+
+      const newGame: Game = {
+        title: titlesList[0].title,
+        subtitle: titlesList[0].subtitle,
+        categories: gameCategories,
+        rows: 5,
+        suggestedTeamNames: suggestedTeamNames,
+        metadata: categoriesMetadata,
+      };
+
+      // Store the generated game data for later use
+      setGeneratedGameData({
+        game: newGame,
+        categories: categoriesList,
+        titles: titlesList,
+        suggestedTeamNames,
+        theme: theme || 'random',
+        difficulty: difficulty || 'normal',
+        sourceMode,
+        referenceUrl,
+        sourceCharacters: referenceMaterial?.length,
+        metadata: categoriesMetadata,
       });
-    }
 
-    const newGame: Game = {
-      title: titlesList[0].title,
-      subtitle: titlesList[0].subtitle,
-      categories: gameCategories,
-      rows: 5,
-      suggestedTeamNames: suggestedTeamNames,
-      metadata: categoriesMetadata,
-    };
+      // Success! Close wizard and show preview dialog
+      setIsWizardGenerating(false);
+      setShowWizard(false);
 
-    // Store the generated game data for later use
-    setGeneratedGameData({
-      game: newGame,
-      categories: categoriesList,
-      titles: titlesList,
-      suggestedTeamNames,
-      theme: theme || 'random',
-      difficulty: difficulty || 'normal',
-      sourceMode,
-      referenceUrl,
-      sourceCharacters: referenceMaterial?.length,
-      metadata: categoriesMetadata,
-    });
-
-    // Success! Close wizard and show preview dialog
-    setIsWizardGenerating(false);
-    setShowWizard(false);
-
-    setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
-    setAiPreviewType('categories-generate');
-    setAiPreviewOpen(true);
+      setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
+      setAiPreviewType('categories-generate');
+      setAiPreviewOpen(true);
 
     } catch (error) {
       console.error('[MainMenu] AI generation error:', error);
