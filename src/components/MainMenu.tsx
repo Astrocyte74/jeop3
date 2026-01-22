@@ -808,7 +808,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               clues: Array<{ value: number; clue: string; response: string }>;
             }>;
 
-            categoriesList.push(...sourceCategories);
+            // Validate we got the requested number of categories
+            if (sourceCategories.length !== source.categoryCount) {
+              console.warn(`[MainMenu] Source returned ${sourceCategories.length} categories but requested ${source.categoryCount}. Adjusting...`);
+            }
+            // Only take the requested number
+            const adjustedCategories = sourceCategories.slice(0, source.categoryCount);
+            categoriesList.push(...adjustedCategories);
 
             // Capture metadata from first successful generation
             if (!categoriesMetadata) {
@@ -872,10 +878,17 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           return; // Keep wizard open
         }
 
-        categoriesList = (categoriesResult as any).categories as Array<{
+        const allCategories = (categoriesResult as any).categories as Array<{
           title: string;
           clues: Array<{ value: number; clue: string; response: string }>;
         }>;
+
+        // Validate we got 6 categories as requested
+        if (allCategories.length !== 6) {
+          console.warn(`[MainMenu] AI returned ${allCategories.length} categories but requested 6. Adjusting...`);
+        }
+        // Only take the first 6 categories
+        categoriesList = allCategories.slice(0, 6);
 
         // Capture metadata from categories generation
         categoriesMetadata = (categoriesResult as any)._metadata;
