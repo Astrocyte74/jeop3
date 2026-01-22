@@ -68,13 +68,13 @@ const getSpeedForValue = (value: number): number => {
 // Calculate initial snake length based on clue value
 const getSnakeLengthForValue = (value: number): number => {
   const lengths: Record<number, number> = {
-    200: 3,
-    400: 4,
-    600: 5,
-    800: 6,
-    1000: 7,
+    200: 6,
+    400: 8,
+    600: 10,
+    800: 12,
+    1000: 14,
   };
-  return lengths[value] || 3;
+  return lengths[value] || 6;
 };
 
 export function TriviaSnake({
@@ -491,14 +491,16 @@ export function TriviaSnake({
           createConfetti();
           setGameStatus('won');
           onCorrect(selectedTeamId);
-          setTimeout(() => onClose(), 1500);
+          // Close immediately so feedback shows in parent ClueDialog at top of page
+          setTimeout(() => onClose(), 500);
         } else {
           // Wrong answer - red flash and strong shake
           createParticles(pixelX, pixelY, '#ff0000', 25);
           triggerScreenShake(8, 300); // Strong shake
           setGameStatus('lost');
           onIncorrect(selectedTeamId);
-          setTimeout(() => onClose(), 1500);
+          // Close immediately so feedback shows in parent ClueDialog at top of page
+          setTimeout(() => onClose(), 500);
         }
         return;
       }
@@ -712,8 +714,11 @@ export function TriviaSnake({
               <div>
                 <p className="font-semibold text-white mb-2">Difficulty:</p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Higher values = Faster snake speed</li>
-                  <li>Higher values = Longer snake (harder to maneuver)</li>
+                  <li>$200: 6 segments (slowest)</li>
+                  <li>$400: 8 segments</li>
+                  <li>$600: 10 segments</li>
+                  <li>$800: 12 segments</li>
+                  <li>$1000: 14 segments (fastest)</li>
                 </ul>
               </div>
             </div>
