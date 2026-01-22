@@ -178,6 +178,75 @@ const RANDOM_JEOPARDY_TOPICS = [
   "Cryptocurrency"
 ];
 
+// Curated list of interesting Wikipedia articles
+const RANDOM_WIKIPEDIA_ARTICLES = [
+  "https://en.wikipedia.org/wiki/Ancient_Egypt",
+  "https://en.wikipedia.org/wiki/Quantum_mechanics",
+  "https://en.wikipedia.org/wiki/Silk_Road",
+  "https://en.wikipedia.org/wiki/Harlem_Renaissance",
+  "https://en.wikipedia.org/wiki/Industrial_Revolution",
+  "https://en.wikipedia.org/wiki/Maya_civilization",
+  "https://en.wikipedia.org/wiki/Space_Race",
+  "https://en.wikipedia.org/wiki/Cold_War",
+  "https://en.wikipedia.org/wiki/Renaissance_art",
+  "https://en.wikipedia.org/wiki/Periodic_table",
+  "https://en.wikipedia.org/wiki/Volcano",
+  "https://en.wikipedia.org/wiki/Human_body",
+  "https://en.wikipedia.org/wiki/Great_Barrier_Reef",
+  "https://en.wikipedia.org/wiki/Amazon_rainforest",
+  "https://en.wikipedia.org/wiki/Seven_Wonders_of_the_Ancient_World",
+  "https://en.wikipedia.org/wiki/William_Shakespeare",
+  "https://en.wikipedia.org/wiki/Greek_mythology",
+  "https://en.wikipedia.org/wiki/Nobel_Prize",
+  "https://en.wikipedia.org/wiki/Olympic_Games",
+  "https://en.wikipedia.org/wiki/Major_League_Baseball",
+  "https://en.wikipedia.org/wiki/FIFA_World_Cup",
+  "https://en.wikipedia.org/wiki/James_Bond",
+  "https://en.wikipedia.org/wiki/The_Beatles",
+  "https://en.wikipedia.org/wiki/Artificial_intelligence",
+  "https://en.wikipedia.org/wiki/NASA",
+  "https://en.wikipedia.org/wiki/History_of_the_Internet",
+  "https://en.wikipedia.org/wiki/Solar_System",
+  "https://en.wikipedia.org/wiki/Climate_change",
+  "https://en.wikipedia.org/wiki/Evolution",
+  "https://en.wikipedia.org/wiki/DNA",
+  "https://en.wikipedia.org/wiki/Seven_Wonders_of_the_World",
+  "https://en.wikipedia.org/wiki/Mount_Everest",
+  "https://en.wikipedia.org/wiki/Grand_Canyon",
+  "https://en.wikipedia.org/wiki/Niagara_Falls",
+  "https://en.wikipedia.org/wiki/African_elephant",
+  "https://en.wikipedia.org/wiki/Great_White_Shark",
+  "https://en.wikipedia.org/wiki/Blue_whale",
+  "https://en.wikipedia.org/wiki/Polar_bear",
+  "https://en.wikipedia.org/wiki/Golden_eagle",
+  "https://en.wikipedia.org/wiki/American_Civil_War",
+  "https://en.wikipedia.org/wiki/French_Revolution",
+  "https://en.wikipedia.org/wiki/Roman_Empire",
+  "https://en.wikipedia.org/wiki/Alexander_the_Great",
+  "https://en.wikipedia.org/wiki/Julius_Caesar",
+  "https://en.wikipedia.org/wiki/Cleopatra",
+  "https://en.wikipedia.org/wiki/Leonardo_da_Vinci",
+  "https://en.wikipedia.org/wiki/Michelangelo",
+  "https://en.wikipedia.org/wiki/Wolfgang_Amadeus_Mozart",
+  "https://en.wikipedia.org/wiki/Ludwig_van_Beethoven",
+  "https://en.wikipedia.org/wiki/Johann_Sebastian_Bach",
+  "https://en.wikipedia.org/wiki/Albert_Einstein",
+  "https://en.wikipedia.org/wiki/Marie_Curie",
+  "https://en.wikipedia.org/wiki/Isaac_Newton",
+  "https://en.wikipedia.org/wiki/Charles_Darwin",
+  "https://en.wikipedia.org/wiki/Stephen_Hawking",
+  "https://en.wikipedia.org/wiki/Jane_Austen",
+  "https://en.wikipedia.org/wiki/Mark_Twain",
+  "https://en.wikipedia.org/wiki/Ernest_Hemingway",
+  "https://en.wikipedia.org/wiki/George_Orwell",
+  "https://en.wikipedia.org/wiki/Agatha_Christie",
+  "https://en.wikipedia.org/wiki/Stanley_Kubrick",
+  "https://en.wikipedia.org/wiki/Alfred_Hitchcock",
+  "https://en.wikipedia.org/wiki/Steven_Spielberg",
+  "https://en.wikipedia.org/wiki/Martin_Scorsese",
+  "https://en.wikipedia.org/wiki/Quentin_Tarantino"
+];
+
 // Simple URL validation helper
 const isValidUrl = (url: string): boolean => {
   try {
@@ -207,9 +276,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [currentSourceType, setCurrentSourceType] = useState<'topic' | 'paste' | 'url'>('topic');
   const [currentSourceContent, setCurrentSourceContent] = useState('');
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(6);
-  const [isFetching, setIsFetching] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
+  const [isFetching, setIsFetching] = useState(false);
 
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
@@ -388,33 +457,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const handleRandomWikipediaURL = async () => {
-    setIsFetching(true);
-    setFetchError('');
-    setSourceInputError('');
-
-    try {
-      // Wikipedia API for random page
-      const response = await fetch('https://en.wikipedia.org/api/rest_v1/page/random/html');
-
-      if (!response.ok) throw new Error('Failed to fetch random Wikipedia page');
-
-      // Get the final URL (after redirects) which contains the actual page title
-      const finalUrl = response.url;
-
-      // Extract the page title from the URL
-      // Format: https://en.wikipedia.org/wiki/Page_Title
-      const urlMatch = finalUrl.match(/\/wiki\/([^/?#]+)/);
-      if (urlMatch) {
-        setCurrentSourceContent(`https://en.wikipedia.org/wiki/${urlMatch[1]}`);
-      } else {
-        setFetchError('Could not parse Wikipedia page URL');
-      }
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to fetch random Wikipedia page');
-    } finally {
-      setIsFetching(false);
-    }
+  const handleRandomWikipediaURL = () => {
+    // Pick a random Wikipedia article from curated list
+    const randomURL = RANDOM_WIKIPEDIA_ARTICLES[Math.floor(Math.random() * RANDOM_WIKIPEDIA_ARTICLES.length)];
+    setCurrentSourceContent(randomURL);
+    // Brief animation effect
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   // ==================== Navigation ====================
@@ -817,15 +865,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         variant="ghost"
                         size="sm"
                         onClick={currentSourceType === 'topic' ? handleGenerateRandomTopic : handleRandomWikipediaURL}
-                        disabled={currentSourceType === 'url' && isFetching}
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                        title={currentSourceType === 'topic' ? 'Get a random Jeopardy topic' : 'Get random Wikipedia page'}
+                        title={currentSourceType === 'topic' ? 'Get a random Jeopardy topic' : 'Get a random Wikipedia article'}
                       >
-                        {currentSourceType === 'url' && isFetching ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
+                        <Sparkles className="w-4 h-4" />
                       </Button>
                     </div>
                   )}
