@@ -888,18 +888,18 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                               <ul className="text-xs text-slate-300 space-y-1">
                                 <li className="flex items-center gap-2">
                                   <span className="text-yellow-400">✓</span>
-                                  <span>Use different topics, pasted content, or URLs for each category</span>
+                                  <span><span className="font-medium text-yellow-200">Multiple topics</span> — each source creates its own categories</span>
                                 </li>
                                 <li className="flex items-center gap-2">
                                   <span className="text-yellow-400">✓</span>
-                                  <span>Control exactly how many categories come from each source</span>
+                                  <span><span className="font-medium text-yellow-200">Full control</span> — decide how many categories from each source (1-6)</span>
                                 </li>
                                 <li className="flex items-center gap-2">
                                   <span className="text-yellow-400">✓</span>
-                                  <span>Create games with 1-6 categories total</span>
+                                  <span><span className="font-medium text-yellow-200">Flexible totals</span> — create games with 1-6 categories total</span>
                                 </li>
                               </ul>
-                              <p className="text-xs text-yellow-300 mt-2">💡 Perfect for mixing different subjects or sources!</p>
+                              <p className="text-xs text-yellow-300 mt-2">💡 Perfect for mixing different subjects — e.g., 2 categories from "US Presidents" + 2 from "Space" + 2 from a Wikipedia article!</p>
                             </div>
                           )}
                         </div>
@@ -976,75 +976,113 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             )}
 
             {step === 'custom-categories' && (
-              <div className="py-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-400">Add sources and specify how many categories each should generate.</p>
-                  <div className={`text-sm px-2 py-1 rounded ${getTotalCategoryCount() === 6 ? 'bg-green-500/20 text-green-300' : getTotalCategoryCount() > 0 ? 'bg-yellow-500/20 text-yellow-300' : 'bg-slate-700 text-slate-400'}`}>
-                    {getTotalCategoryCount()} of 6 categories
+              <div className="py-4 space-y-5">
+                {/* Header with explanation */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-400">
+                      <span className="text-slate-300 font-medium">Mix different sources</span> — each source generates its own categories
+                    </p>
+                    <div className={`text-sm font-semibold px-3 py-1.5 rounded-full ${getTotalCategoryCount() === 6 ? 'bg-green-500/20 text-green-300 border border-green-500/30' : getTotalCategoryCount() > 0 ? 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30' : 'bg-slate-700 text-slate-400 border border-slate-600'}`}>
+                      {getTotalCategoryCount()} / 6 categories
+                    </div>
                   </div>
+                  {getTotalCategoryCount() < 6 && (
+                    <p className="text-xs text-slate-500">
+                      💡 You can create {getRemainingCategories()} more categorie{getRemainingCategories() === 1 ? '' : 's'} from additional sources
+                    </p>
+                  )}
                 </div>
 
                 {/* Sources list */}
                 {customSources.length === 0 ? (
-                  <div className="text-center py-8 bg-slate-800/30 rounded-lg border border-dashed border-slate-700">
-                    <Edit className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                    <p className="text-sm text-slate-500 mb-1">No sources added yet</p>
-                    <p className="text-xs text-slate-600">Click "Add Source" to create categories from topics, content, or URLs</p>
+                  <div className="text-center py-10 bg-gradient-to-br from-slate-800/50 to-slate-800/30 rounded-xl border-2 border-dashed border-slate-700 hover:border-slate-600 transition-colors">
+                    <div className="w-12 h-12 rounded-full bg-slate-700/50 flex items-center justify-center mx-auto mb-3">
+                      <Edit className="w-5 h-5 text-slate-500" />
+                    </div>
+                    <p className="text-sm text-slate-400 font-medium mb-1">No sources yet</p>
+                    <p className="text-xs text-slate-500 max-w-xs mx-auto">Add topics, paste content, or provide URLs to create your custom game</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {customSources.map((source) => (
-                      <div key={source.id} className="bg-slate-800/50 border border-slate-700 rounded-lg p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              {source.type === 'topic' && <Zap className="w-4 h-4 text-purple-400 flex-shrink-0" />}
-                              {source.type === 'paste' && <FileText className="w-4 h-4 text-blue-400 flex-shrink-0" />}
-                              {source.type === 'url' && <Globe className="w-4 h-4 text-green-400 flex-shrink-0" />}
-                              <span className="text-sm font-medium text-slate-200 truncate">{getDisplayLabel(source)}</span>
+                    {customSources.map((source) => {
+                      const typeConfig = {
+                        topic: { icon: Zap, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', label: 'Topic' },
+                        paste: { icon: FileText, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', label: 'Pasted Content' },
+                        url: { icon: Globe, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', label: 'URL' },
+                      }[source.type];
+                      const Icon = typeConfig.icon;
+
+                      return (
+                        <div key={source.id} className={`bg-slate-800/50 border ${typeConfig.border} rounded-lg p-3 hover:bg-slate-800/70 transition-colors group`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1.5">
+                                <div className={`p-1.5 rounded ${typeConfig.bg} ${typeConfig.color}`}>
+                                  <Icon className="w-3.5 h-3.5" />
+                                </div>
+                                <span className="text-xs text-slate-500">{typeConfig.label}</span>
+                                {source.type === 'topic' && (
+                                  <span className="px-1.5 py-0.5 bg-purple-500/10 text-purple-300 text-xs rounded-full border border-purple-500/20">From topic</span>
+                                )}
+                                {source.type === 'paste' && (
+                                  <span className="px-1.5 py-0.5 bg-blue-500/10 text-blue-300 text-xs rounded-full border border-blue-500/20">From content</span>
+                                )}
+                                {source.type === 'url' && (
+                                  <span className="px-1.5 py-0.5 bg-green-500/10 text-green-300 text-xs rounded-full border border-green-500/20">From webpage</span>
+                                )}
+                              </div>
+                              <p className="text-sm font-medium text-slate-200 truncate mb-0.5">{getDisplayLabel(source)}</p>
+                              {source.type === 'topic' && (
+                                <p className="text-xs text-slate-500 italic">"{source.topic}"</p>
+                              )}
+                              {source.type === 'url' && (
+                                <p className="text-xs text-slate-500 truncate">{source.url}</p>
+                              )}
+                              {source.type === 'paste' && (
+                                <p className="text-xs text-slate-500">{source.content?.length.toLocaleString() || 0} characters</p>
+                              )}
                             </div>
-                            {source.type === 'topic' && (
-                              <p className="text-xs text-slate-500 truncate">"{source.topic}"</p>
-                            )}
-                            {source.type === 'url' && (
-                              <p className="text-xs text-slate-500 truncate">{source.url}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={source.categoryCount}
-                              onChange={(e) => {
-                                const newCount = parseInt(e.target.value);
-                                const currentTotal = customSources.reduce((sum, s) => s.id === source.id ? sum : sum + s.categoryCount, 0);
-                                if (currentTotal + newCount <= 6 && newCount >= 1) {
-                                  setCustomSources(customSources.map(s =>
-                                    s.id === source.id ? { ...s, categoryCount: newCount } : s
-                                  ));
-                                }
-                              }}
-                              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-slate-300"
-                            >
-                              {[1, 2, 3, 4, 5, 6].map(n => {
-                                const currentTotal = customSources.reduce((sum, s) => s.id === source.id ? sum : sum + s.categoryCount, 0);
-                                const isValid = currentTotal + n <= 6;
-                                return (
-                                  <option key={n} value={n} disabled={!isValid}>
-                                    {n} categor{n === 1 ? 'y' : 'ies'}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                            <button
-                              onClick={() => handleRemoveSource(source.id)}
-                              className="p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
-                              title="Remove source"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <div className="flex flex-col items-end gap-1">
+                                <label className="text-[10px] text-slate-500 uppercase tracking-wide">Categories</label>
+                                <select
+                                  value={source.categoryCount}
+                                  onChange={(e) => {
+                                    const newCount = parseInt(e.target.value);
+                                    const currentTotal = customSources.reduce((sum, s) => s.id === source.id ? sum : sum + s.categoryCount, 0);
+                                    if (currentTotal + newCount <= 6 && newCount >= 1) {
+                                      setCustomSources(customSources.map(s =>
+                                        s.id === source.id ? { ...s, categoryCount: newCount } : s
+                                      ));
+                                    }
+                                  }}
+                                  className="bg-slate-700/80 border border-slate-600 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-200 hover:border-slate-500 transition-colors cursor-pointer"
+                                  title="Adjust number of categories from this source"
+                                >
+                                  {[1, 2, 3, 4, 5, 6].map(n => {
+                                    const currentTotal = customSources.reduce((sum, s) => s.id === source.id ? sum : sum + s.categoryCount, 0);
+                                    const isValid = currentTotal + n <= 6;
+                                    return (
+                                      <option key={n} value={n} disabled={!isValid} className="bg-slate-800">
+                                        {n} categor{n === 1 ? 'y' : 'ies'}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </div>
+                              <button
+                                onClick={() => handleRemoveSource(source.id)}
+                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                title="Remove this source"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -1053,142 +1091,209 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   <Button
                     onClick={() => setShowAddSourceDialog(true)}
                     variant="outline"
-                    className="w-full border-dashed border-2 border-slate-600 hover:border-yellow-500/50 hover:bg-yellow-500/5 text-slate-400 hover:text-yellow-300"
+                    className="w-full border-2 border-dashed border-slate-600 hover:border-yellow-500/50 hover:bg-yellow-500/5 text-slate-400 hover:text-yellow-300 py-3 transition-all"
                   >
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Source
+                    <span className="font-medium">Add Source</span>
+                    <span className="text-slate-500 ml-2 text-normal">— {getRemainingCategories()} slot{getRemainingCategories() === 1 ? '' : 's'} remaining</span>
                   </Button>
                 )}
 
                 {/* Info about remaining categories */}
                 {getRemainingCategories() === 0 && customSources.length > 0 && (
-                  <p className="text-xs text-green-400 text-center">All 6 categories allocated!</p>
+                  <div className="flex items-center justify-center gap-2 py-2 px-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <span className="text-green-400">✓</span>
+                    <p className="text-sm text-green-300 font-medium">All 6 categories allocated!</p>
+                  </div>
                 )}
 
                 {/* Add Source Dialog */}
                 {showAddSourceDialog && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-slate-800 rounded-lg border border-slate-700 max-w-md w-full p-4">
-                      <h3 className="text-lg font-semibold text-slate-200 mb-4">Add Source</h3>
+                  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+                    <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-2xl max-w-md w-full overflow-hidden">
+                      {/* Dialog Header */}
+                      <div className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 px-6 py-4 border-b border-slate-700/50">
+                        <h3 className="text-lg font-semibold text-slate-200">Add Source</h3>
+                        <p className="text-xs text-slate-400 mt-1">Choose a source type and specify how many categories to generate</p>
+                      </div>
 
-                      {/* Source type selection */}
-                      <div className="space-y-2 mb-4">
-                        <Label>Source Type</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                          <button
-                            onClick={() => {
-                              setNewSourceType('topic');
-                              setNewSourceContent('');
-                              setAddSourceError('');
-                            }}
-                            className={`p-3 rounded-lg border text-center transition-all ${
-                              newSourceType === 'topic'
-                                ? 'bg-purple-500/20 border-purple-500 text-purple-300'
-                                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                            }`}
-                          >
-                            <Zap className="w-5 h-5 mx-auto mb-1" />
-                            <span className="text-xs">Topic</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setNewSourceType('paste');
-                              setNewSourceContent('');
-                              setAddSourceError('');
-                            }}
-                            className={`p-3 rounded-lg border text-center transition-all ${
-                              newSourceType === 'paste'
-                                ? 'bg-blue-500/20 border-blue-500 text-blue-300'
-                                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                            }`}
-                          >
-                            <FileText className="w-5 h-5 mx-auto mb-1" />
-                            <span className="text-xs">Paste</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setNewSourceType('url');
-                              setNewSourceContent('');
-                              setAddSourceError('');
-                            }}
-                            className={`p-3 rounded-lg border text-center transition-all ${
-                              newSourceType === 'url'
-                                ? 'bg-green-500/20 border-green-500 text-green-300'
-                                : 'bg-slate-700/50 border-slate-600 text-slate-400 hover:border-slate-500'
-                            }`}
-                          >
-                            <Globe className="w-5 h-5 mx-auto mb-1" />
-                            <span className="text-xs">URL</span>
-                          </button>
+                      <div className="p-6 space-y-5">
+                        {/* Source type selection */}
+                        <div className="space-y-3">
+                          <Label className="text-sm text-slate-300">Source Type</Label>
+                          <div className="grid grid-cols-3 gap-2">
+                            <button
+                              onClick={() => {
+                                setNewSourceType('topic');
+                                setNewSourceContent('');
+                                setAddSourceError('');
+                              }}
+                              className={`p-3 rounded-lg border text-center transition-all ${
+                                newSourceType === 'topic'
+                                  ? 'bg-purple-500/20 border-purple-500 text-purple-300 shadow-lg shadow-purple-500/10'
+                                  : 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
+                              }`}
+                              title="Generate categories from any topic or theme"
+                            >
+                              <Zap className="w-5 h-5 mx-auto mb-1.5" />
+                              <span className="text-xs font-medium">Topic</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setNewSourceType('paste');
+                                setNewSourceContent('');
+                                setAddSourceError('');
+                              }}
+                              className={`p-3 rounded-lg border text-center transition-all ${
+                                newSourceType === 'paste'
+                                  ? 'bg-blue-500/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/10'
+                                  : 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
+                              }`}
+                              title="Paste notes, articles, or other content"
+                            >
+                              <FileText className="w-5 h-5 mx-auto mb-1.5" />
+                              <span className="text-xs font-medium">Paste</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setNewSourceType('url');
+                                setNewSourceContent('');
+                                setAddSourceError('');
+                              }}
+                              className={`p-3 rounded-lg border text-center transition-all ${
+                                newSourceType === 'url'
+                                  ? 'bg-green-500/20 border-green-500 text-green-300 shadow-lg shadow-green-500/10'
+                                  : 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
+                              }`}
+                              title="Fetch content from a webpage"
+                            >
+                              <Globe className="w-5 h-5 mx-auto mb-1.5" />
+                              <span className="text-xs font-medium">URL</span>
+                            </button>
+                          </div>
+                          {/* Type descriptions */}
+                          <div className="flex gap-2 text-xs text-slate-500">
+                            {newSourceType === 'topic' && (
+                              <p className="bg-purple-500/5 text-purple-300 px-2 py-1 rounded border border-purple-500/10">
+                                ⚡ Fastest — just enter a topic name
+                              </p>
+                            )}
+                            {newSourceType === 'paste' && (
+                              <p className="bg-blue-500/5 text-blue-300 px-2 py-1 rounded border border-blue-500/10">
+                                📄 Perfect for notes, articles, transcripts
+                              </p>
+                            )}
+                            {newSourceType === 'url' && (
+                              <p className="bg-green-500/5 text-green-300 px-2 py-1 rounded border border-green-500/10">
+                                🌐 Auto-fetches from Wikipedia & web pages
+                              </p>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Content input */}
+                        <div className="space-y-2">
+                          <Label htmlFor="newSourceContent" className="text-sm text-slate-300">
+                            {newSourceType === 'topic' && 'Topic Name'}
+                            {newSourceType === 'paste' && 'Content to Analyze'}
+                            {newSourceType === 'url' && 'Webpage URL'}
+                          </Label>
+                          {newSourceType === 'paste' ? (
+                            <Textarea
+                              id="newSourceContent"
+                              value={newSourceContent}
+                              onChange={(e) => {
+                                setNewSourceContent(e.target.value);
+                                setAddSourceError('');
+                              }}
+                              placeholder="Paste notes, transcripts, or articles..."
+                              className="bg-slate-700/50 border-slate-600 min-h-[120px] resize-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
+                              maxLength={MAX_CHARS}
+                              autoFocus
+                            />
+                          ) : (
+                            <Input
+                              id="newSourceContent"
+                              type={newSourceType === 'url' ? 'url' : 'text'}
+                              value={newSourceContent}
+                              onChange={(e) => {
+                                setNewSourceContent(e.target.value);
+                                setAddSourceError('');
+                              }}
+                              placeholder={
+                                newSourceType === 'url'
+                                  ? 'https://en.wikipedia.org/wiki/Topic'
+                                  : 'e.g., US Presidents, Space Exploration, 1990s Music'
+                              }
+                              className="bg-slate-700/50 border-slate-600 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
+                              autoFocus
+                            />
+                          )}
+                          {newSourceType === 'paste' && newSourceContent.length > 0 && newSourceContent.length < MIN_CHARS && (
+                            <p className="text-xs text-orange-400 flex items-center gap-1">
+                              <AlertCircle className="w-3 h-3" />
+                              Minimum {MIN_CHARS} characters required ({newSourceContent.length} / {MIN_CHARS})
+                            </p>
+                          )}
+                          {newSourceType === 'paste' && (
+                            <p className="text-xs text-slate-500 flex items-center justify-between">
+                              <span>{newSourceContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</span>
+                              {newSourceContent.length >= MIN_CHARS && (
+                                <span className="text-green-400">✓ Ready to add</span>
+                              )}
+                            </p>
+                          )}
+                          {newSourceType === 'topic' && (
+                            <p className="text-xs text-slate-500">
+                              💡 Be specific for better results — "US Presidents" instead of "History"
+                            </p>
+                          )}
+                          {newSourceType === 'url' && (
+                            <p className="text-xs text-slate-500">
+                              💡 Works best with Wikipedia articles and educational content
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Category count */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm text-slate-300">Categories from this source</Label>
+                            <span className="text-xs text-slate-500">
+                              {getRemainingCategories()} slot{getRemainingCategories() === 1 ? '' : 's'} available
+                            </span>
+                          </div>
+                          <select
+                            value={newSourceCategoryCount}
+                            onChange={(e) => setNewSourceCategoryCount(parseInt(e.target.value))}
+                            className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 hover:border-slate-500 transition-colors cursor-pointer"
+                          >
+                            {Array.from({ length: getRemainingCategories() }, (_, i) => i + 1).map(n => {
+                              const label = n === 1 ? 'y' : 'ies';
+                              const hint = n === 1 ? ' (recommended)' : n === 2 ? ' (balanced)' : '';
+                              return (
+                                <option key={n} value={n} className="bg-slate-800">
+                                  {n} categor{label}{hint}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <p className="text-xs text-slate-500">
+                            Each source generates this many categories. Total cannot exceed 6.
+                          </p>
+                        </div>
+
+                        {/* Error */}
+                        {addSourceError && (
+                          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-sm text-red-300">{addSourceError}</p>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Content input */}
-                      <div className="space-y-2 mb-4">
-                        <Label htmlFor="newSourceContent">
-                          {newSourceType === 'topic' && 'Topic'}
-                          {newSourceType === 'paste' && 'Content'}
-                          {newSourceType === 'url' && 'URL'}
-                        </Label>
-                        {newSourceType === 'paste' ? (
-                          <Textarea
-                            id="newSourceContent"
-                            value={newSourceContent}
-                            onChange={(e) => {
-                              setNewSourceContent(e.target.value);
-                              setAddSourceError('');
-                            }}
-                            placeholder="Paste notes, transcripts, or articles..."
-                            className="bg-slate-700/50 border-slate-600 min-h-[100px] resize-none"
-                            maxLength={MAX_CHARS}
-                            autoFocus
-                          />
-                        ) : (
-                          <Input
-                            id="newSourceContent"
-                            type={newSourceType === 'url' ? 'url' : 'text'}
-                            value={newSourceContent}
-                            onChange={(e) => {
-                              setNewSourceContent(e.target.value);
-                              setAddSourceError('');
-                            }}
-                            placeholder={newSourceType === 'url' ? 'https://en.wikipedia.org/wiki/Topic' : 'e.g., US Presidents'}
-                            className="bg-slate-700/50 border-slate-600"
-                            autoFocus
-                          />
-                        )}
-                        {newSourceType === 'paste' && newSourceContent.length > 0 && newSourceContent.length < MIN_CHARS && (
-                          <p className="text-xs text-orange-500">Minimum {MIN_CHARS} characters required</p>
-                        )}
-                        {newSourceType === 'paste' && (
-                          <p className="text-xs text-slate-500">{newSourceContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</p>
-                        )}
-                      </div>
-
-                      {/* Category count */}
-                      <div className="space-y-2 mb-4">
-                        <Label>Categories from this source</Label>
-                        <select
-                          value={newSourceCategoryCount}
-                          onChange={(e) => setNewSourceCategoryCount(parseInt(e.target.value))}
-                          className="w-full bg-slate-700/50 border border-slate-600 rounded px-3 py-2 text-slate-200"
-                        >
-                          {Array.from({ length: getRemainingCategories() }, (_, i) => i + 1).map(n => (
-                            <option key={n} value={n}>{n} categor{n === 1 ? 'y' : 'ies'}</option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-slate-500">
-                          {getRemainingCategories() - newSourceCategoryCount} more categorie{getRemainingCategories() - newSourceCategoryCount === 1 ? '' : 's'} available after this
-                        </p>
-                      </div>
-
-                      {/* Error */}
-                      {addSourceError && (
-                        <p className="text-sm text-red-400 mb-4">{addSourceError}</p>
-                      )}
-
-                      {/* Actions */}
-                      <div className="flex gap-2">
+                      {/* Dialog Actions */}
+                      <div className="bg-slate-900/50 px-6 py-4 border-t border-slate-700/50 flex gap-3">
                         <Button
                           onClick={() => {
                             setShowAddSourceDialog(false);
@@ -1196,14 +1301,14 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                             setNewSourceContent('');
                           }}
                           variant="outline"
-                          className="flex-1 border-slate-600 text-slate-300"
+                          className="flex-1 border-slate-600 text-slate-300 hover:bg-slate-700/50"
                         >
                           Cancel
                         </Button>
                         <Button
                           onClick={handleAddSource}
                           disabled={isFetching || (newSourceType === 'paste' && newSourceContent.length < MIN_CHARS) || !newSourceContent.trim()}
-                          className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
+                          className="flex-1 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-medium shadow-lg shadow-yellow-500/20"
                         >
                           {isFetching ? (
                             <>
