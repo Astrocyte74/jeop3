@@ -103,6 +103,81 @@ const difficultyOptions = [
 const MIN_CHARS = 40;
 const MAX_CHARS = 100000;
 
+// Curated list of interesting Jeopardy topics for instant inspiration
+const RANDOM_JEOPARDY_TOPICS = [
+  // History & Culture
+  "Ancient Egyptian Pharaohs",
+  "The Silk Road Trade Routes",
+  "Harlem Renaissance",
+  "The Industrial Revolution",
+  "Mayan Civilization",
+  "The Byzantine Empire",
+  "The Space Race",
+  "The Cold War",
+  "The Renaissance Art Period",
+  "The Gold Rush Era",
+
+  // Science & Nature
+  "Quantum Mechanics",
+  "The Periodic Table of Elements",
+  "Volcanoes and Plate Tectonics",
+  "The Human Body Systems",
+  "Ocean Marine Life",
+  "Astronomy and Constellations",
+  "The Theory of Evolution",
+  "Genetics and DNA",
+  "Climate Change",
+  "Renewable Energy Sources",
+
+  // Geography
+  "The Seven Wonders of the World",
+  "African Geography",
+  "The Amazon Rainforest",
+  "The Great Barrier Reef",
+  "European Capitals",
+  "US National Parks",
+  "The Himalayan Mountains",
+  "Island Nations of the World",
+  "The Mississippi River",
+  "Deserts of the World",
+
+  // Literature & Arts
+  "Shakespeare's Plays",
+  "Greek Mythology",
+  "Nobel Prize Winners",
+  "Classic American Novelists",
+  "Famous Painters",
+  "Musical Composers",
+  "The Beatles Catalog",
+  "Broadway Musicals",
+  "Science Fiction Literature",
+  "Pulitzer Prize Winners",
+
+  // Sports & Entertainment
+  "Olympic History",
+  "Baseball Statistics",
+  "World Cup Soccer",
+  "NBA Championship Teams",
+  "James Bond Films",
+  "Disney Animated Classics",
+  "Superheroes in Comics",
+  "Famous TV Sitcoms",
+  "Video Game Franchises",
+  "Academy Award Best Pictures",
+
+  // Technology & Innovation
+  "The Internet History",
+  "Social Media Platforms",
+  "Artificial Intelligence",
+  "Smartphone Technology",
+  "Electric Vehicles",
+  "NASA Missions",
+  "Computer Programming Languages",
+  "Famous Inventors",
+  "Medical Breakthroughs",
+  "Cryptocurrency"
+];
+
 // Simple URL validation helper
 const isValidUrl = (url: string): boolean => {
   try {
@@ -133,7 +208,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [currentSourceContent, setCurrentSourceContent] = useState('');
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(6);
   const [isFetching, setIsFetching] = useState(false);
-  const [isGeneratingRandomTopic, setIsGeneratingRandomTopic] = useState(false);
   const [fetchError, setFetchError] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
 
@@ -306,39 +380,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   };
 
   // ==================== Random Topic / URL Generation ====================
-  const handleGenerateRandomTopic = async () => {
-    setIsGeneratingRandomTopic(true);
-    setSourceInputError('');
-    setFetchError('');
-
-    try {
-      const apiBase = getAIApiBase();
-      const response = await fetch(`${apiBase}/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          modelId: aiModel,
-          system: "You are a creative trivia topic generator. Suggest ONE interesting, specific topic that would make a great Jeopardy category. Respond with JSON only: {\"topic\": \"topic name\"}. Pick topics that are rich in facts - specific time periods, scientific fields, geographic regions, cultural movements, etc. Avoid overly broad topics like \"History\" or \"Science\".",
-          user: "Generate a random, specific topic for a Jeopardy category that would be interesting and fact-rich."
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to generate topic');
-
-      const data = await response.json();
-      const result = JSON.parse(data.content);
-
-      if (result.topic) {
-        setCurrentSourceContent(result.topic);
-        setTimeout(() => inputRef.current?.focus(), 50);
-      } else {
-        setFetchError('Invalid response from AI');
-      }
-    } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to generate topic');
-    } finally {
-      setIsGeneratingRandomTopic(false);
-    }
+  const handleGenerateRandomTopic = () => {
+    // Pick a random topic from curated list
+    const randomTopic = RANDOM_JEOPARDY_TOPICS[Math.floor(Math.random() * RANDOM_JEOPARDY_TOPICS.length)];
+    setCurrentSourceContent(randomTopic);
+    // Brief animation effect
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const handleRandomWikipediaURL = async () => {
@@ -770,11 +817,11 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         variant="ghost"
                         size="sm"
                         onClick={currentSourceType === 'topic' ? handleGenerateRandomTopic : handleRandomWikipediaURL}
-                        disabled={isGeneratingRandomTopic || isFetching}
+                        disabled={currentSourceType === 'url' && isFetching}
                         className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                        title={currentSourceType === 'topic' ? 'Generate random topic with AI' : 'Get random Wikipedia page'}
+                        title={currentSourceType === 'topic' ? 'Get a random Jeopardy topic' : 'Get random Wikipedia page'}
                       >
-                        {isGeneratingRandomTopic || (currentSourceType === 'url' && isFetching) ? (
+                        {currentSourceType === 'url' && isFetching ? (
                           <Loader2 className="w-4 h-4 animate-spin" />
                         ) : (
                           <Sparkles className="w-4 h-4" />
