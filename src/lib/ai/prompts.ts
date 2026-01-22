@@ -113,7 +113,11 @@ Return JSON format:
 ${difficultyText}
 ${valueGuidanceText}
 
-Each category should have 5 clues with values [200, 400, 600, 800, 1000].
+CRITICAL REQUIREMENTS:
+- Each category must have 5 clues with values [200, 400, 600, 800, 1000]
+- Each clue MUST have a DIFFERENT and UNIQUE response/answer
+- Responses should NOT repeat within or across categories
+- Responses must be specific and factual
 
 Return JSON format:
 {
@@ -147,15 +151,16 @@ ${context.theme ? `Theme: ${context.theme}` : ''}
 ${difficultyText}
 ${valueGuidanceText}
 
-IMPORTANT INSTRUCTIONS:
+CRITICAL REQUIREMENTS:
 1. Create categories that cover the key topics, people, events, places, and concepts from the source material above
 2. All clues must be answerable using ONLY the information provided in the source material
 3. Do NOT fabricate facts or include outside knowledge
 4. Each category needs TWO names:
    - "title" - A creative, catchy display name for players (e.g., "Historical Events", "Famous Figures")
    - "contentTopic" - The descriptive topic name for AI context (e.g., "World War II Battles", "Scientists")
-
-The title should be fun and creative while the contentTopic should be clear and descriptive.
+5. Each clue MUST have a DIFFERENT and UNIQUE response/answer
+6. Responses should NOT repeat within or across categories
+7. The title should be fun and creative while the contentTopic should be clear and descriptive
 
 Return JSON format:
 {
