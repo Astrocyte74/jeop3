@@ -23,8 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { GameMeta, Team, Game, Category, Clue, GameVisibility, GameState } from '@/lib/storage';
-import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion, canViewGame, canEditGame, updateGameVisibility, isAdmin } from '@/lib/storage';
+import type { GameMeta, Team, Game, Category, Clue, GameState } from '@/lib/storage';
+import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
@@ -34,7 +34,7 @@ import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/com
 import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye, Info, Wand2 } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Info, Wand2 } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -84,7 +84,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [gameSort, setGameSort] = useState<'newest' | 'oldest' | 'recentlyPlayed' | 'mostPlayed' | 'inProgress' | 'notStarted' | 'completed'>('newest');
-  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'public' | 'private' | 'mine'>('all');
   const [teams, setTeams] = useState<Team[]>([
     { id: '1', name: 'Team 1', score: 0 },
     { id: '2', name: 'Team 2', score: 0 },
@@ -236,35 +235,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   const filteredGames = games.filter((game) => {
     // Search filter
-    const matchesSearch = game.title.toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Visibility filter
-    const userEmail = user?.emailAddresses?.[0]?.emailAddress || null;
-    const matchesVisibility = (() => {
-      // For custom games without createdBy (created before tracking), treat as owned by current user
-      // This provides backward compatibility for existing games
-      const isMyGame = game.source === 'custom' && (!game.createdBy || game.createdBy === userEmail);
-
-      switch (visibilityFilter) {
-        case 'all':
-          // Admin: see all games
-          // Regular users: see public games + their own private games
-          return isAdmin(userEmail) || canViewGame(game, userEmail);
-        case 'public':
-          // Only public games (index games are always public)
-          return game.visibility === 'public' || game.source === 'index';
-        case 'private':
-          // Only my private games
-          return game.visibility === 'private' && isMyGame;
-        case 'mine':
-          // All my games (public + private)
-          return isMyGame;
-        default:
-          return true;
-      }
-    })();
-
-    return matchesSearch && matchesVisibility;
+    return game.title.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   // Sorting logic - apply sorting to filtered games
@@ -482,26 +453,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     setGameStateRefreshKey(prev => prev + 1);
 
     console.log(`[MainMenu] Reset game state for ${gameId} - reset to 2 teams: ${resetTeams.map(t => t.name).join(', ')}`);
-  };
-
-  const handleToggleVisibility = (gameId: string) => {
-    const game = games.find(g => g.id === gameId);
-    if (!game || game.source === 'index') return; // Can't toggle index games
-
-    const userEmail = user?.emailAddresses?.[0]?.emailAddress || null;
-    if (!canEditGame(game, userEmail)) return; // Only owner can toggle
-
-    const newVisibility: GameVisibility = game.visibility === 'public' ? 'private' : 'public';
-    const updatedGames = updateGameVisibility(gameId, games, newVisibility);
-
-    // Update state and localStorage
-    setGames(updatedGames);
-
-    // Update custom games in localStorage
-    const customGames = updatedGames.filter(g => g.source === 'custom');
-    saveCustomGames(customGames);
-
-    console.log(`[MainMenu] Toggled visibility for ${gameId} to ${newVisibility}`);
   };
 
   const handleImportGame = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -2174,38 +2125,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-slate-400 hover:text-slate-300 hover:bg-slate-700">
-                      <Eye className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
-                      Visibility
-                    </div>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('all')} className={visibilityFilter === 'all' ? 'bg-yellow-500/10' : ''}>
-                      <Eye className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">All Games</span>
-                      {visibilityFilter === 'all' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('public')} className={visibilityFilter === 'public' ? 'bg-yellow-500/10' : ''}>
-                      <Unlock className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">Public Games</span>
-                      {visibilityFilter === 'public' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('private')} className={visibilityFilter === 'private' ? 'bg-yellow-500/10' : ''}>
-                      <Lock className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">My Private Games</span>
-                      {visibilityFilter === 'private' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('mine')} className={visibilityFilter === 'mine' ? 'bg-yellow-500/10' : ''}>
-                      <Gamepad2 className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">My Private & Public Games</span>
-                      {visibilityFilter === 'mine' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
 
@@ -2338,26 +2257,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                           <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
                           <span>Reset Progress</span>
                         </DropdownMenuItem>
-
-                        {/* Settings - visibility toggle */}
-                        {game.source === 'custom' && canEditGame(game, user?.emailAddresses?.[0]?.emailAddress || null) && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleToggleVisibility(game.id)}>
-                              {game.visibility === 'public' ? (
-                                <>
-                                  <Lock className="w-4 h-4 mr-2 text-yellow-400" />
-                                  <span>Make Private</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Unlock className="w-4 h-4 mr-2 text-green-400" />
-                                  <span>Make Public</span>
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </>
-                        )}
 
                         {/* Danger zone */}
                         {game.source === 'custom' && (
