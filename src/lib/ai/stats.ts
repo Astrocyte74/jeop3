@@ -85,6 +85,13 @@ async function fetchPricingFromOpenRouter(): Promise<Record<string, ModelPricing
         continue;
       }
 
+      // Skip models with suspiciously low pricing (likely errors or free models)
+      // Less than $0.001 per million tokens is suspicious
+      if (promptPrice < 0.001 && completionPrice < 0.001) {
+        console.warn(`Skipping ${model.id} due to suspicious pricing: prompt=$${promptPrice}/M, completion=$${completionPrice}/M`);
+        continue;
+      }
+
       pricing[model.id] = {
         inputPrice: promptPrice,
         outputPrice: completionPrice,
@@ -299,6 +306,13 @@ export function getHumanEstimate(modelId: string): string {
  */
 export function clearGenerationStats(): void {
   localStorage.removeItem(STATS_KEY);
+}
+
+/**
+ * Clear pricing cache (useful for troubleshooting)
+ */
+export function clearPricingCache(): void {
+  localStorage.removeItem(PRICING_CACHE_KEY);
 }
 
 /**
