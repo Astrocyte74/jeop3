@@ -67,7 +67,14 @@ Generate something completely different and fresh.
 
 ${context.sampleContent}
 
-Analyze the categories and questions above, then create titles that capture the theme and tone.
+CRITICAL: You MUST analyze the categories, clues, and answers above. Create titles that are DIRECTLY themed to the actual content.
+
+Requirements:
+- ALL titles MUST reflect the specific themes, people, places, events, or concepts in the content above
+- Use references, wordplay, or connections to the actual categories and clues
+- AVOID generic titles like "Universal Intellect", "The Sweet Spot", "Equilibrium Quest", etc.
+- Make them clever and specific to THIS game's content
+- Subtitles should describe the scope (e.g., "Moses 1 & The Plan of Salvation")
 
 ${difficultyText}
 
@@ -88,7 +95,14 @@ Return JSON format:
 
 ${topicListText}
 
-This is a multi-category game with ${context.sourceCount || context.topicList.length} different sources. Create titles that capture the overall theme or connect the diverse topics in a creative way.
+CRITICAL: This is a multi-category game with ${context.sourceCount || context.topicList.length} different sources. You MUST create titles that reflect the actual topics above.
+
+Requirements:
+- ALL titles MUST be themed to the specific topics listed
+- Use references, wordplay, or connections to the actual topics
+- AVOID generic titles like "Universal Intellect", "The Sweet Spot", "Equilibrium Quest", etc.
+- Make them clever and specific to THESE topics
+- Subtitles should describe the scope or connect the diverse topics
 
 ${difficultyText}
 

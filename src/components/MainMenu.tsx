@@ -28,7 +28,7 @@ import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, sav
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
-import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate } from '@/lib/ai/stats';
+import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
@@ -164,6 +164,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             setAIModel(data.models[0].id);
           }
         }
+        // Initialize pricing from OpenRouter (async, non-blocking)
+        initializePricing().catch(err => {
+          if (import.meta.env.DEV) {
+            console.warn('Failed to initialize AI model pricing:', err);
+          }
+        });
       })
       .catch(() => {
         // Silent fail - AI features will be disabled

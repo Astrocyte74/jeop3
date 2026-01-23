@@ -34,7 +34,7 @@ import {
 import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2, Upload, Info } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { useAuth } from '@/lib/auth';
-import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate } from '@/lib/ai/stats';
+import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 
 // Custom source type for per-category sources
 export interface CustomSource {
@@ -308,6 +308,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             setAIModel(data.models[0].id);
           }
         }
+        // Initialize pricing from OpenRouter (async, non-blocking)
+        initializePricing().catch(err => {
+          if (import.meta.env.DEV) {
+            console.warn('Failed to initialize AI model pricing:', err);
+          }
+        });
       })
       .catch(() => {
         // Silent fail - AI features will be disabled

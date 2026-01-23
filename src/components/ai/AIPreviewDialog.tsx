@@ -322,7 +322,7 @@ function CategoriesPreview({
   onEditTeamName?: (teamIndex: number, newName: string) => void;
 }) {
   // Local state for inline editing and show answers toggle
-  const [showAnswers, setShowAnswers] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(true);
   const [editingCategory, setEditingCategory] = useState<{ catIndex: number; field: 'title' | 'contentTopic' } | null>(null);
   const [editingClue, setEditingClue] = useState<{ catIndex: number; clueIndex: number; field: 'clue' | 'response' } | null>(null);
   const [editingTeamName, setEditingTeamName] = useState<number | null>(null);
@@ -917,7 +917,7 @@ export function AIPreviewDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && onCancel()}>
-      <AlertDialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      <AlertDialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <AlertDialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-500/20 rounded-lg">

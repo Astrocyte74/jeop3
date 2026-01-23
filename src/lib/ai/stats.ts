@@ -26,48 +26,162 @@ export interface ModelPricing {
 }
 
 /**
- * Pricing data for common models
- * Based on OpenRouter pricing
+ * Fallback/default token estimates for models without benchmark data
  */
-export const MODEL_PRICING: Record<string, ModelPricing> = {
+const DEFAULT_TOKEN_ESTIMATE = 4000;
+
+/**
+ * Manual pricing overrides and token estimates from our benchmarks
+ * These override OpenRouter pricing and provide avgTokensPerGame data
+ */
+export const MODEL_PRICING: Record<string, Partial<ModelPricing>> = {
   'google/gemini-3-flash-preview': {
-    inputPrice: 0.50,
-    outputPrice: 3.00,
-    avgTokensPerGame: 4098,
-  },
-  'google/gemini-2.5-flash': {
-    inputPrice: 0.30,
-    outputPrice: 2.50,
-    avgTokensPerGame: 3978,
-  },
-  'google/gemini-2.5-flash-lite': {
-    inputPrice: 0.10,
-    outputPrice: 0.40,
-    avgTokensPerGame: 4026,
-  },
-  'z-ai/glm-4.7': {
-    inputPrice: 0.15,
-    outputPrice: 0.15,
-    avgTokensPerGame: 4500, // Estimate
-  },
-  'z-ai/glm-4.7-flash': {
-    inputPrice: 0.10,
-    outputPrice: 0.10,
-    avgTokensPerGame: 4000, // Estimate
+    avgTokensPerGame: 3024, // From benchmarks: 504 tokens/category * 6 categories
   },
   'openai/gpt-4o-mini': {
-    inputPrice: 0.15,
-    outputPrice: 0.60,
-    avgTokensPerGame: 3600, // From our benchmarks - uses fewer tokens
-  },
-  'x-ai/grok-4.1-fast': {
-    inputPrice: 0.20,
-    outputPrice: 1.00,
-    avgTokensPerGame: 5200, // From our benchmarks - uses more tokens
+    avgTokensPerGame: 2556, // From benchmarks: 426 tokens/category * 6 categories
   },
 };
 
 const STATS_KEY = 'jeop3:aiStats:v1';
+const PRICING_CACHE_KEY = 'jeop3:aiPricing:v1';
+const PRICING_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  pricing: {
+    prompt: string;
+    completion: string;
+  };
+}
+
+interface PricingCache {
+  timestamp: number;
+  pricing: Record<string, ModelPricing>;
+}
+
+/**
+ * Fetch model pricing from OpenRouter API
+ */
+async function fetchPricingFromOpenRouter(): Promise<Record<string, ModelPricing>> {
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/models');
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const models: OpenRouterModel[] = data.data || [];
+
+    const pricing: Record<string, ModelPricing> = {};
+
+    for (const model of models) {
+      const promptPrice = parseFloat(model.pricing.prompt) || 0;
+      const completionPrice = parseFloat(model.pricing.completion) || 0;
+
+      // Skip free models (price = 0)
+      if (promptPrice === 0 && completionPrice === 0) {
+        continue;
+      }
+
+      pricing[model.id] = {
+        inputPrice: promptPrice,
+        outputPrice: completionPrice,
+        avgTokensPerGame: DEFAULT_TOKEN_ESTIMATE,
+      };
+    }
+
+    return pricing;
+  } catch (error) {
+    console.error('Failed to fetch pricing from OpenRouter:', error);
+    return {};
+  }
+}
+
+/**
+ * Get cached pricing from localStorage
+ */
+function getCachedPricing(): Record<string, ModelPricing> {
+  const raw = localStorage.getItem(PRICING_CACHE_KEY);
+  if (!raw) return {};
+
+  try {
+    const cached: PricingCache = JSON.parse(raw);
+    const age = Date.now() - cached.timestamp;
+
+    // Return cached pricing if it's less than 24 hours old
+    if (age < PRICING_CACHE_DURATION) {
+      return cached.pricing;
+    }
+  } catch {
+    // Invalid cache, ignore
+  }
+
+  return {};
+}
+
+/**
+ * Save pricing to localStorage cache
+ */
+function cachePricing(pricing: Record<string, ModelPricing>): void {
+  const cached: PricingCache = {
+    timestamp: Date.now(),
+    pricing,
+  };
+  localStorage.setItem(PRICING_CACHE_KEY, JSON.stringify(cached));
+}
+
+/**
+ * Initialize pricing by fetching from OpenRouter and merging with manual overrides
+ * Call this on app startup to ensure pricing is available
+ */
+export async function initializePricing(): Promise<void> {
+  // Try to get cached pricing first
+  let cachedPricing = getCachedPricing();
+
+  // If cache is empty or expired, fetch fresh data
+  if (Object.keys(cachedPricing).length === 0) {
+    const fetchedPricing = await fetchPricingFromOpenRouter();
+
+    // Merge fetched pricing with manual overrides
+    const mergedPricing: Record<string, ModelPricing> = {};
+
+    // Start with fetched pricing
+    for (const [modelId, pricing] of Object.entries(fetchedPricing)) {
+      mergedPricing[modelId] = pricing;
+    }
+
+    // Apply manual overrides (for benchmarked token counts)
+    for (const [modelId, override] of Object.entries(MODEL_PRICING)) {
+      if (mergedPricing[modelId]) {
+        // Merge with existing fetched pricing
+        mergedPricing[modelId] = {
+          ...mergedPricing[modelId],
+          ...override,
+        };
+      } else {
+        // No fetched pricing, use override with defaults
+        mergedPricing[modelId] = {
+          inputPrice: override.inputPrice || 0,
+          outputPrice: override.outputPrice || 0,
+          avgTokensPerGame: override.avgTokensPerGame || DEFAULT_TOKEN_ESTIMATE,
+        };
+      }
+    }
+
+    cachedPricing = mergedPricing;
+    cachePricing(mergedPricing);
+  }
+}
+
+/**
+ * Get pricing info for a model from cache or fallback
+ */
+function getPricingFromCache(modelId: string): ModelPricing | null {
+  const cached = getCachedPricing();
+  return cached[modelId] || null;
+}
 
 /**
  * Get all generation stats from localStorage
@@ -189,12 +303,30 @@ export function clearGenerationStats(): void {
 
 /**
  * Get pricing info for a model
+ * Checks cache first, then manual overrides
  * Strips the 'or:' prefix if present
  */
 export function getModelPricing(modelId: string): ModelPricing | null {
   // Strip provider prefix if present
   const modelIdWithoutPrefix = modelId.replace(/^(or:|ollama:)/, '');
-  return MODEL_PRICING[modelIdWithoutPrefix] || null;
+
+  // First check the OpenRouter cache
+  const cached = getPricingFromCache(modelIdWithoutPrefix);
+  if (cached) {
+    return cached;
+  }
+
+  // Fall back to manual overrides (for models not in cache yet)
+  const manual = MODEL_PRICING[modelIdWithoutPrefix];
+  if (manual && manual.inputPrice && manual.outputPrice) {
+    return {
+      inputPrice: manual.inputPrice,
+      outputPrice: manual.outputPrice,
+      avgTokensPerGame: manual.avgTokensPerGame || DEFAULT_TOKEN_ESTIMATE,
+    };
+  }
+
+  return null;
 }
 
 /**
