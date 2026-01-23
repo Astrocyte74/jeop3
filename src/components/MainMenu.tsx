@@ -31,9 +31,10 @@ import { useAIGeneration } from '@/lib/ai/hooks';
 import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
+import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye, Info } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -122,6 +123,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   // Sign-in prompt dialog state
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+
+  // Game info dialog state
+  const [gameInfoMetadata, setGameInfoMetadata] = useState<any>(null);
 
   // AI Model button visibility (hidden by default, shown with keyboard shortcut)
   const [showAIModelSelector, setShowAIModelSelector] = useState(false);
@@ -2313,6 +2317,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                           <Download className="w-4 h-4 mr-2 text-green-400" />
                           <span>Export to File</span>
                         </DropdownMenuItem>
+                        {gameData?.game?.metadata && (
+                          <DropdownMenuItem onClick={() => setGameInfoMetadata(gameData?.game?.metadata)}>
+                            <Info className="w-4 h-4 mr-2 text-blue-400" />
+                            <span>Game Info</span>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => handleResetGame(game.id)}>
                           <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
                           <span>Reset Game</span>
@@ -2734,6 +2744,21 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         enhancingTeamName={enhancingTeamName}
         metadata={generatedGameData?.metadata}
       />
+
+      {/* Game Info Dialog */}
+      <AlertDialog open={!!gameInfoMetadata} onOpenChange={(open) => !open && setGameInfoMetadata(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Game Information</AlertDialogTitle>
+          </AlertDialogHeader>
+          <GameMetadata metadata={gameInfoMetadata} defaultOpen={true} />
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setGameInfoMetadata(null)}>
+              Close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Game Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
