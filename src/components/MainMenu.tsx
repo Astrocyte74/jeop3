@@ -2243,19 +2243,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                             <div className="text-xs text-slate-400 mt-1 truncate">{game.subtitle}</div>
                           )}
                         </div>
-                        <div className="flex flex-col gap-1 items-end">
-                          {game.visibility === 'private' && (
-                            <Badge variant="outline" className="text-xs bg-red-500/20 text-red-400 border-red-500/50 flex-shrink-0">
-                              <Lock className="w-2 h-2 mr-1" />
-                              Private
-                            </Badge>
-                          )}
-                          {inProgress && (
-                            <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/50 flex-shrink-0">
-                              In Progress
-                            </Badge>
-                          )}
-                        </div>
+                        {inProgress && (
+                          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/50 flex-shrink-0 self-start">
+                            In Progress
+                          </Badge>
+                        )}
                       </div>
                     </button>
                     <DropdownMenu>
