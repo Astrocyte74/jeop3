@@ -935,43 +935,26 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         categoriesMetadata = (categoriesResult as any)._metadata;
       }
 
-      // Generate titles - use sample content if available for better titles
-      const titleContext: Record<string, any> = { theme: theme || 'random' };
-      if (sourceMode === 'custom' && customSources) {
-        // For custom categories, build a balanced overview of all sources
-        const sourceDescriptions = customSources
-          .filter(s => s.type === 'topic' || s.type === 'paste' || s.type === 'url')
-          .map(s => {
-            if (s.type === 'topic') return s.topic || '';
-            if (s.type === 'paste') {
-              // Use first 250 chars to represent the content theme
-              return `Source: ${(s.content || '').substring(0, 250)}...`;
-            }
-            if (s.type === 'url') {
-              try {
-                const hostname = new URL(s.url || '').hostname;
-                const contentPreview = s.fetchedContent ? s.fetchedContent.substring(0, 250) : '(no content)';
-                return `Source: ${hostname} - ${contentPreview}...`;
-              } catch {
-                const contentPreview = s.fetchedContent ? s.fetchedContent.substring(0, 250) : '(no content)';
-                return `Source: ${contentPreview}...`;
-              }
-            }
-            return '';
-          })
-          .filter(Boolean);
+      // Generate titles - use actual categories for better themed titles
+      const titleContext: Record<string, any> = { theme: theme || 'random', hasContent: true };
 
-        titleContext.hasContent = true;
-        titleContext.multipleTopics = true;
-        titleContext.topicList = sourceDescriptions;
-        titleContext.sourceCount = customSources.length;
-        console.log('[MainMenu] Custom mode - using balanced topic list:', { sourceCount: sourceDescriptions.length, topics: sourceDescriptions });
-      } else if (sourceMode !== 'scratch' && referenceMaterial) {
-        titleContext.hasContent = true;
-        // Use first 1000 chars for title generation - enough to understand the theme
-        titleContext.sampleContent = referenceMaterial.substring(0, 1000);
+      // Always include the actual categories and clues that were just generated
+      if (categoriesList && categoriesList.length > 0) {
+        const categorySummaries = categoriesList.map(cat => {
+          const clueText = (cat.clues || [])
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
       }
-      console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length, multipleTopics: titleContext.multipleTopics });
+
+      console.log('[MainMenu] Generating titles with context:', {
+        hasContent: titleContext.hasContent,
+        sampleLength: titleContext.sampleContent?.length,
+        categoriesCount: categoriesList?.length
+      });
       const titlesResult = await aiGenerate(
         'game-title',
         titleContext,
@@ -1198,10 +1181,29 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       clues: Array<{ value: number; clue: string; response: string }>;
     }>;
 
+    // Build context with actual categories for better titles
+    const titleContext: Record<string, any> = {
+      theme: generatedGameData.theme || 'random',
+      count: 3,
+      hasContent: true,
+    };
+
+    // Include the actual categories and clues in the context
+    if (categoriesList && categoriesList.length > 0) {
+      const categorySummaries = categoriesList.map(cat => {
+        const clueText = (cat.clues || [])
+          .slice(0, 2) // Just first 2 clues per category
+          .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+          .join('\n');
+        return `${cat.title}\n${clueText}`;
+      }).join('\n\n');
+      titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+    }
+
     // Generate titles
     const titlesResult = await aiGenerate(
       'game-title',
-      { theme: generatedGameData.theme || 'random', count: 3 },
+      titleContext,
       generatedGameData.difficulty
     );
 
@@ -1404,9 +1406,29 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const theme = generatedGameData.theme || 'general';
       const otherTitles = generatedGameData.titles.filter((_, i) => i !== titleIndex);
 
+      // Build context with game content for better titles
+      const titleContext: Record<string, any> = {
+        theme,
+        count: 1,
+        existingTitles: otherTitles,
+        hasContent: true,
+      };
+
+      // Include the actual categories and clues in the context
+      if (generatedGameData.categories && generatedGameData.categories.length > 0) {
+        const categorySummaries = generatedGameData.categories.map(cat => {
+          const clueText = cat.clues
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
       const result = await aiGenerate(
         'game-title',
-        { theme, count: 1, existingTitles: otherTitles },
+        titleContext,
         generatedGameData.difficulty
       );
 
@@ -1443,9 +1465,26 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     try {
       const theme = generatedGameData.theme || 'general';
 
+      // Build context with actual game content for better titles
+      const titleContext: Record<string, any> = { theme, count: 3 };
+
+      // Include the actual categories and clues in the context
+      if (generatedGameData.categories && generatedGameData.categories.length > 0) {
+        titleContext.hasContent = true;
+        // Build a summary of all categories with sample clues
+        const categorySummaries = generatedGameData.categories.map(cat => {
+          const clueText = cat.clues
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
       const result = await aiGenerate(
         'game-title',
-        { theme, count: 3 },
+        titleContext,
         generatedGameData.difficulty
       );
 
@@ -1756,11 +1795,30 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     try {
       const theme = generatedGameData.theme || 'general';
 
-      // For title enhancement, we just call game-title with existing titles to avoid
+      // For title enhancement, build context with game content and existing titles to avoid
       const otherTitles = generatedGameData.titles.filter((_, i) => i !== titleIndex);
+      const titleContext: Record<string, any> = {
+        theme,
+        count: 1,
+        existingTitles: otherTitles,
+        hasContent: true,
+      };
+
+      // Include the actual categories and clues in the context
+      if (generatedGameData.categories && generatedGameData.categories.length > 0) {
+        const categorySummaries = generatedGameData.categories.map(cat => {
+          const clueText = cat.clues
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
       const result = await aiGenerate(
         'game-title',
-        { theme, count: 1, existingTitles: otherTitles },
+        titleContext,
         generatedGameData.difficulty
       );
 
