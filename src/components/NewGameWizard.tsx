@@ -34,7 +34,7 @@ import {
 import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2, Upload, Info } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { useAuth } from '@/lib/auth';
-import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
+import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate } from '@/lib/ai/stats';
 
 // Custom source type for per-category sources
 export interface CustomSource {
@@ -602,6 +602,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
                         {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
                           const stats = getModelStats(model.id);
+                          const costEstimate = getCostEstimate(model.id);
                           return (
                             <DropdownMenuItem
                               key={model.id}
@@ -615,11 +616,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                     <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
                                   )}
                                 </div>
-                                {stats && (
-                                  <div className="text-xs text-slate-500 mt-0.5">
-                                    {formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}
-                                  </div>
-                                )}
+                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                  {stats && (
+                                    <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                  )}
+                                  <span className="text-green-400">💰 {costEstimate}</span>
+                                </div>
                               </div>
                             </DropdownMenuItem>
                           );
@@ -649,11 +651,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                     <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
                                   )}
                                 </div>
-                                {stats && (
-                                  <div className="text-xs text-slate-500 mt-0.5">
-                                    {formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}
-                                  </div>
-                                )}
+                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                  {stats && (
+                                    <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                  )}
+                                  <span className="text-green-400">🆓 Free</span>
+                                </div>
                               </div>
                             </DropdownMenuItem>
                           );
@@ -672,8 +675,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         {(() => {
                           const stats = aiModel ? getModelStats(aiModel) : null;
                           const fastestModel = getModelsBySpeed()[0];
+                          const costEstimate = aiModel ? getCostEstimate(aiModel) : null;
+                          const isOllama = availableModels.find(m => m.id === aiModel)?.provider === 'ollama';
                           return (
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               {stats && (
                                 <span className="text-xs text-slate-600">
                                   Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
@@ -681,6 +686,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                               )}
                               {fastestModel && fastestModel.modelId === aiModel && (
                                 <span className="text-xs text-green-500">⚡ Fastest</span>
+                              )}
+                              {costEstimate && !isOllama && (
+                                <span className="text-xs text-green-500">💰 {costEstimate}</span>
+                              )}
+                              {isOllama && (
+                                <span className="text-xs text-green-500">🆓 Free</span>
                               )}
                             </div>
                           );
