@@ -2220,7 +2220,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               {sortedGames.map((game) => {
                 const gameData = loadCustomGames().find(g => g.id === game.id);
                 const savedState = loadGameState(game.id);
-                const inProgress = savedState && savedState.teams && savedState.teams.length > 0;
+                const inProgress = savedState && savedState.used && Object.keys(savedState.used).length > 0;
                 return (
                   <div
                     key={game.id}
