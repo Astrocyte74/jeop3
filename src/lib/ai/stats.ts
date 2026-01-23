@@ -149,7 +149,10 @@ export async function initializePricing(): Promise<void> {
 
   // If cache is empty or expired, fetch fresh data
   if (Object.keys(cachedPricing).length === 0) {
+    console.log('🔄 Fetching pricing from OpenRouter...');
     const fetchedPricing = await fetchPricingFromOpenRouter();
+
+    console.log(`📊 Fetched pricing for ${Object.keys(fetchedPricing).length} models:`, Object.keys(fetchedPricing));
 
     // Merge fetched pricing with manual overrides
     const mergedPricing: Record<string, ModelPricing> = {};
@@ -167,6 +170,7 @@ export async function initializePricing(): Promise<void> {
           ...mergedPricing[modelId],
           ...override,
         };
+        console.log(`✅ Applied override to ${modelId}:`, override);
       } else {
         // No fetched pricing, use override with defaults
         mergedPricing[modelId] = {
@@ -174,11 +178,16 @@ export async function initializePricing(): Promise<void> {
           outputPrice: override.outputPrice || 0,
           avgTokensPerGame: override.avgTokensPerGame || DEFAULT_TOKEN_ESTIMATE,
         };
+        console.warn(`⚠️  No fetched pricing for ${modelId}, using override:`, mergedPricing[modelId]);
       }
     }
 
+    console.log(`💰 Final merged pricing:`, Object.keys(mergedPricing));
+
     cachedPricing = mergedPricing;
     cachePricing(mergedPricing);
+  } else {
+    console.log(`✅ Using cached pricing for ${Object.keys(cachedPricing).length} models`);
   }
 }
 
