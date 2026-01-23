@@ -234,8 +234,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   };
 
   const filteredGames = games.filter((game) => {
-    // Search filter
-    return game.title.toLowerCase().includes(searchQuery.toLowerCase());
+    // Search filter - search both title and subtitle
+    const query = searchQuery.toLowerCase();
+    return game.title.toLowerCase().includes(query) ||
+           (game.subtitle && game.subtitle.toLowerCase().includes(query));
   });
 
   // Sorting logic - apply sorting to filtered games
