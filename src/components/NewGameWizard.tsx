@@ -275,13 +275,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Current source being added
   const [currentSourceType, setCurrentSourceType] = useState<'topic' | 'paste' | 'url'>('topic');
   const [currentSourceContent, setCurrentSourceContent] = useState('');
-  // Default to 6 for first source, 1 for subsequent sources if first source was less than 6
-  const getDefaultCategoryCount = (): 1 | 2 | 3 | 4 | 5 | 6 => {
-    if (customSources.length === 0) return 6; // First source defaults to 6
-    // If first source used less than 6, default to 1 for subsequent sources
-    const firstSourceCount = customSources[0]?.categoryCount ?? 6;
-    return firstSourceCount < 6 ? 1 : 6;
-  };
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(6);
   const [fetchError, setFetchError] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
@@ -437,12 +430,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     if (currentSourceType === 'topic') {
       newSource.topic = currentSourceContent.trim();
       setCustomSources([...customSources, newSource]);
-      resetCurrentSource();
+      resetCurrentSource(newSource.categoryCount);
       scrollToSourcesList();
     } else if (currentSourceType === 'paste') {
       newSource.content = currentSourceContent.trim();
       setCustomSources([...customSources, newSource]);
-      resetCurrentSource();
+      resetCurrentSource(newSource.categoryCount);
       scrollToSourcesList();
     } else if (currentSourceType === 'url') {
       setIsFetching(true);
@@ -454,7 +447,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           newSource.url = currentSourceContent.trim();
           newSource.fetchedContent = result.text;
           setCustomSources([...customSources, newSource]);
-          resetCurrentSource();
+          resetCurrentSource(newSource.categoryCount);
           scrollToSourcesList();
         } else {
           setFetchError(result.error || 'Failed to fetch content from URL');
@@ -468,12 +461,29 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   };
 
   // Reset current source input for next entry
-  const resetCurrentSource = () => {
+  // addedSourceCount is the category count of the source being added (if any)
+  const resetCurrentSource = (addedSourceCount?: number) => {
     setCurrentSourceContent('');
-    // Use the smart default based on first source behavior
-    const defaultCount = getDefaultCategoryCount();
-    // But also respect remaining categories limit
-    const remaining = getRemainingCategories();
+    // Calculate remaining categories based on what the state WILL be after adding the source
+    const currentTotal = getTotalCategoryCount();
+    const newTotal = addedSourceCount !== undefined ? currentTotal + addedSourceCount : currentTotal;
+    const remaining = 6 - newTotal;
+
+    // Determine default: if first source used less than 6, subsequent sources default to 1
+    let defaultCount: 1 | 2 | 3 | 4 | 5 | 6;
+    if (customSources.length === 0 && addedSourceCount === undefined) {
+      // No sources yet, this is for initial state
+      defaultCount = 6;
+    } else if (customSources.length === 0) {
+      // We're adding the first source now, next one should be 1 if this wasn't 6
+      defaultCount = addedSourceCount! < 6 ? 1 : 6;
+    } else {
+      // We already have sources, check the first one
+      const firstSourceCount = customSources[0]?.categoryCount ?? 6;
+      defaultCount = firstSourceCount < 6 ? 1 : 6;
+    }
+
+    // Respect remaining categories limit
     const finalCount = Math.min(defaultCount, Math.max(1, remaining));
     setCurrentSourceCategoryCount(finalCount as 1 | 2 | 3 | 4 | 5 | 6);
     setSourceInputError('');
