@@ -34,7 +34,7 @@ import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/com
 import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye, Info } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye, Info, Wand2 } from 'lucide-react';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -2265,6 +2265,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
+                        {/* Play - main action */}
                         <DropdownMenuItem onClick={() => {
                           const fullGame = gameData?.game || {
                             id: game.id,
@@ -2279,46 +2280,66 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                           <Play className="w-4 h-4 mr-2 text-green-400" />
                           <span>Play Game</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          const fullGame = gameData?.game || {
-                            id: game.id,
-                            title: game.title,
-                            subtitle: game.subtitle || '',
-                            categories: [],
-                            rows: 5,
-                          };
-                          onOpenEditor(fullGame);
-                        }}>
-                          <Edit className="w-4 h-4 mr-2 text-blue-400" />
-                          <span>Edit with Board Editor</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          const fullGame = gameData?.game || {
-                            id: game.id,
-                            title: game.title,
-                            subtitle: game.subtitle || '',
-                            categories: [],
-                            rows: 5,
-                          };
-                          handleEditWithAIPreview(fullGame);
-                        }}>
-                          <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                          <span>Edit with AI Preview</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleExportGame(game)}>
-                          <Download className="w-4 h-4 mr-2 text-green-400" />
-                          <span>Export to File</span>
-                        </DropdownMenuItem>
+
+                        {/* Edit section */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <Edit className="w-4 h-4 mr-2 text-blue-400" />
+                            <span>Edit</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem onClick={() => {
+                              const fullGame = gameData?.game || {
+                                id: game.id,
+                                title: game.title,
+                                subtitle: game.subtitle || '',
+                                categories: [],
+                                rows: 5,
+                              };
+                              handleEditWithAIPreview(fullGame);
+                            }}>
+                              <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                              <span>AI Editor</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              const fullGame = gameData?.game || {
+                                id: game.id,
+                                title: game.title,
+                                subtitle: game.subtitle || '',
+                                categories: [],
+                                rows: 5,
+                              };
+                              onOpenEditor(fullGame);
+                            }}>
+                              <Wand2 className="w-4 h-4 mr-2 text-blue-400" />
+                              <span>Board Editor</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSeparator />
+
+                        {/* Info */}
                         {gameData?.game?.metadata && (
                           <DropdownMenuItem onClick={() => setGameInfoMetadata(gameData?.game?.metadata)}>
                             <Info className="w-4 h-4 mr-2 text-blue-400" />
                             <span>Game Info</span>
                           </DropdownMenuItem>
                         )}
+
+                        <DropdownMenuSeparator />
+
+                        {/* Utilities */}
+                        <DropdownMenuItem onClick={() => handleExportGame(game)}>
+                          <Download className="w-4 h-4 mr-2 text-green-400" />
+                          <span>Export</span>
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleResetGame(game.id)}>
                           <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
-                          <span>Reset Game</span>
+                          <span>Reset Progress</span>
                         </DropdownMenuItem>
+
+                        {/* Settings - visibility toggle */}
                         {game.source === 'custom' && canEditGame(game, user?.emailAddresses?.[0]?.emailAddress || null) && (
                           <>
                             <DropdownMenuSeparator />
@@ -2337,6 +2358,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                             </DropdownMenuItem>
                           </>
                         )}
+
+                        {/* Danger zone */}
                         {game.source === 'custom' && (
                           <>
                             <DropdownMenuSeparator />
@@ -2357,12 +2380,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-slate-400">AI Game Creation</span>
-                <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
-                  Approved users only
-                </Badge>
-              </div>
               <Button
                 variant="default"
                 className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
