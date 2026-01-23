@@ -32,13 +32,17 @@ const DEFAULT_TOKEN_ESTIMATE = 4000;
 
 /**
  * Manual pricing overrides and token estimates from our benchmarks
- * These override OpenRouter pricing and provide avgTokensPerGame data
+ * These provide pricing for models not in OpenRouter or as fallback
  */
 export const MODEL_PRICING: Record<string, Partial<ModelPricing>> = {
   'google/gemini-3-flash-preview': {
+    inputPrice: 0.50,
+    outputPrice: 3.00,
     avgTokensPerGame: 3024, // From benchmarks: 504 tokens/category * 6 categories
   },
   'openai/gpt-4o-mini': {
+    inputPrice: 0.15,
+    outputPrice: 0.60,
     avgTokensPerGame: 2556, // From benchmarks: 426 tokens/category * 6 categories
   },
 };
