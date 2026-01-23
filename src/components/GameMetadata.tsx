@@ -6,9 +6,10 @@ import { formatTime } from '@/lib/ai/stats';
 interface GameMetadataProps {
   metadata?: GameMetadata;
   defaultOpen?: boolean;
+  collapsible?: boolean; // If false, content is always expanded (for dialogs)
 }
 
-export function GameMetadata({ metadata, defaultOpen = false }: GameMetadataProps) {
+export function GameMetadata({ metadata, defaultOpen = false, collapsible = true }: GameMetadataProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   if (!metadata) return null;
@@ -33,28 +34,43 @@ export function GameMetadata({ metadata, defaultOpen = false }: GameMetadataProp
     return model;
   };
 
-  const sourceModeLabels: Record<string, string> = {
-    scratch: 'From Scratch',
-    topic: 'From Topic',
-    content: 'From Content',
-    url: 'From URL',
-    custom: 'Multi-Source',
+  // Get source mode label - handle the actual sourceMode values from the wizard
+  const getSourceModeLabel = (): string | null => {
+    if (!metadata.sourceMode) return null;
+
+    const labels: Record<string, string> = {
+      scratch: 'From Scratch', // Random theme
+      paste: 'From Content',   // Pasted content
+      url: 'From URL',         // Fetched from URL
+      custom: 'Multi-Source',  // Multiple sources
+    };
+
+    // For 'scratch' mode, if there's a sourceMaterial, it might have been from content
+    if (metadata.sourceMode === 'scratch' && metadata.sourceMaterial) {
+      return 'From Content';
+    }
+
+    return labels[metadata.sourceMode] || metadata.sourceMode;
   };
+
+  const shouldShow = collapsible ? isOpen : true;
 
   return (
     <div className="border-l border-slate-700/50">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 w-full text-left py-2 text-sm text-slate-400 hover:text-slate-300 transition-colors select-none"
-      >
-        <Info className="w-4 h-4" />
-        <span>Game Info</span>
-        <span className={`ml-auto transition-transform ${isOpen ? 'rotate-180' : ''}`}>
-          ▼
-        </span>
-      </button>
+      {collapsible && (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 w-full text-left py-2 text-sm text-slate-400 hover:text-slate-300 transition-colors select-none"
+        >
+          <Info className="w-4 h-4" />
+          <span>Game Info</span>
+          <span className={`ml-auto transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+            ▼
+          </span>
+        </button>
+      )}
 
-      {isOpen && (
+      {shouldShow && (
         <div className="space-y-3 pl-6 pb-3 text-sm">
           {/* Creation Info */}
           {(metadata.generatedAt || metadata.modelUsed || metadata.generationTimeMs) && (
@@ -88,7 +104,7 @@ export function GameMetadata({ metadata, defaultOpen = false }: GameMetadataProp
               {metadata.sourceMode && (
                 <div className="flex items-center gap-2 text-slate-300">
                   <Layers className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs">{sourceModeLabels[metadata.sourceMode] || metadata.sourceMode}</span>
+                  <span className="text-xs">{getSourceModeLabel()}</span>
                 </div>
               )}
               {metadata.difficulty && (

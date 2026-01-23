@@ -14,7 +14,9 @@ import type {
 } from './types';
 
 // Consistent system instruction for all AI calls
-const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.`;
+const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.
+
+CRITICAL: Always use Western/Arabic numerals (0-9) for ALL numbers. Never use Bengali, Arabic-Indic, or any other numeral systems.`;
 
 /**
  * Build prompt for a specific AI operation

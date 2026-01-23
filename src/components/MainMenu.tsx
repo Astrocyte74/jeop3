@@ -2751,7 +2751,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Game Information</AlertDialogTitle>
           </AlertDialogHeader>
-          <GameMetadata metadata={gameInfoMetadata} defaultOpen={true} />
+          <GameMetadata metadata={gameInfoMetadata} collapsible={false} />
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setGameInfoMetadata(null)}>
               Close
