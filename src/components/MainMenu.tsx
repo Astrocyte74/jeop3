@@ -1022,13 +1022,32 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         });
       }
 
+      // Build enhanced metadata with source info
+      const enhancedMetadata = {
+        ...categoriesMetadata,
+        sourceMode,
+        difficulty,
+        ...(sourceMode === 'custom' && customSources ? {
+          customSources: customSources.map(s => ({
+            type: s.type,
+            content: s.type === 'topic' ? s.topic || '' :
+                     s.type === 'url' ? s.url || '' :
+                     (s.content || '').substring(0, 200) + '...',
+          }))
+        } : {}),
+        ...(sourceMode !== 'custom' && sourceMode !== 'scratch' && referenceMaterial && {
+          sourceMaterial: referenceMaterial.substring(0, 200) + '...',
+        }),
+        ...(referenceUrl && { sourceUrl: referenceUrl }),
+      };
+
       const newGame: Game = {
         title: titlesList[0].title,
         subtitle: titlesList[0].subtitle,
         categories: gameCategories,
         rows: 5,
         suggestedTeamNames: suggestedTeamNames,
-        metadata: categoriesMetadata,
+        metadata: enhancedMetadata,
       };
 
       // Store the generated game data for later use
@@ -1043,7 +1062,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         referenceUrl,
         referenceMaterial: sourceMode !== 'custom' ? referenceMaterial : undefined, // Store for single-source mode
         sourceCharacters: referenceMaterial?.length,
-        metadata: categoriesMetadata,
+        metadata: enhancedMetadata,
       });
 
       // Success! Close wizard and show preview dialog
@@ -1181,6 +1200,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       clues: Array<{ value: number; clue: string; response: string }>;
     }>;
 
+    // Capture metadata from AI generation
+    const categoriesMetadata = (result as any)._metadata;
+
     // Build context with actual categories for better titles
     const titleContext: Record<string, any> = {
       theme: generatedGameData.theme || 'random',
@@ -1245,6 +1267,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       suggestedTeamNames,
       categories: gameCategories,
       rows: 5,
+      metadata: categoriesMetadata,
     };
 
     setGeneratedGameData({

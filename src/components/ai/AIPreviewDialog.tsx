@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Wand2, Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import type { AIPromptType } from '@/lib/ai/types';
+import { GameMetadata as GameMetadataComponent } from '@/components/GameMetadata';
+import type { GameMetadata } from '@/lib/storage';
 
 // ============================================
 // TYPES
@@ -85,11 +87,7 @@ export interface AIPreviewDialogProps {
   enhancingTitle?: number | null;
   rewritingTeamName?: number | null;
   enhancingTeamName?: number | null;
-  metadata?: {
-    modelUsed?: string;
-    generatedAt?: string;
-    generationTimeMs?: number;
-  };
+  metadata?: GameMetadata;
 }
 
 // ============================================
@@ -788,41 +786,6 @@ export function AIPreviewDialog({
     return labels[type] || 'AI Generation';
   };
 
-  const formatModelName = (modelId?: string): string => {
-    if (!modelId) return 'Unknown';
-
-    // Parse provider:model format
-    const parts = modelId.split(':');
-    const provider = parts[0];
-    const modelName = parts.slice(1).join(':');
-
-    // Format the model name for display
-    if (provider === 'or' || provider === 'openrouter') {
-      return `🤖 ${modelName}`;
-    } else if (provider === 'ollama') {
-      return `🦙 ${modelName}`;
-    }
-    return modelName;
-  };
-
-  const formatGenerationTime = (ms?: number): string => {
-    if (!ms) return '';
-    if (ms < 1000) return `${ms}ms`;
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0
-      ? `${minutes} min ${remainingSeconds}s`
-      : `${minutes} min`;
-  };
-
-  const formatTimestamp = (iso?: string): string => {
-    if (!iso) return '';
-    const date = new Date(iso);
-    return date.toLocaleString();
-  };
-
   const renderContent = () => {
     switch (type) {
       case 'game-title':
@@ -928,27 +891,10 @@ export function AIPreviewDialog({
               <AlertDialogDescription>{getTypeLabel()}</AlertDialogDescription>
             </div>
           </div>
-          {/* Metadata display */}
-          {metadata && (metadata.modelUsed || metadata.generatedAt || metadata.generationTimeMs) && (
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              {metadata.modelUsed && (
-                <span className="flex items-center gap-1">
-                  Model: <span className="font-medium text-slate-400">{formatModelName(metadata.modelUsed)}</span>
-                </span>
-              )}
-              {metadata.generationTimeMs && (
-                <span className="flex items-center gap-1">
-                  Time: <span className="font-medium text-slate-400">{formatGenerationTime(metadata.generationTimeMs)}</span>
-                </span>
-              )}
-              {metadata.generatedAt && (
-                <span className="flex items-center gap-1">
-                  Generated: <span className="font-medium text-slate-400">{formatTimestamp(metadata.generatedAt)}</span>
-                </span>
-              )}
-            </div>
-          )}
         </AlertDialogHeader>
+
+        {/* Metadata display - collapsible */}
+        {metadata && <GameMetadataComponent metadata={metadata} defaultOpen={false} />}
 
         <div className="py-4 relative break-words">
           {/* Loading indicator at top */}
