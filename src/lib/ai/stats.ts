@@ -2,6 +2,7 @@
  * AI Generation Statistics Tracker
  *
  * Tracks generation times per model to provide estimates and comparisons.
+ * Also includes pricing information for cost estimates.
  */
 
 export interface GenerationStats {
@@ -13,6 +14,58 @@ export interface GenerationStats {
   slowestTimeMs: number;
   lastGeneratedAt: string;
 }
+
+/**
+ * Model pricing information (per million tokens)
+ * Prices from OpenRouter as of 2025-01
+ */
+export interface ModelPricing {
+  inputPrice: number;  // Price per million input tokens
+  outputPrice: number; // Price per million output tokens
+  avgTokensPerGame: number; // Average tokens used to generate a full 6-category game
+}
+
+/**
+ * Pricing data for common models
+ * Based on OpenRouter pricing
+ */
+export const MODEL_PRICING: Record<string, ModelPricing> = {
+  'google/gemini-3-flash-preview': {
+    inputPrice: 0.50,
+    outputPrice: 3.00,
+    avgTokensPerGame: 4098,
+  },
+  'google/gemini-2.5-flash': {
+    inputPrice: 0.30,
+    outputPrice: 2.50,
+    avgTokensPerGame: 3978,
+  },
+  'google/gemini-2.5-flash-lite': {
+    inputPrice: 0.10,
+    outputPrice: 0.40,
+    avgTokensPerGame: 4026,
+  },
+  'z-ai/glm-4.7': {
+    inputPrice: 0.15,
+    outputPrice: 0.15,
+    avgTokensPerGame: 4500, // Estimate
+  },
+  'z-ai/glm-4.7-flash': {
+    inputPrice: 0.10,
+    outputPrice: 0.10,
+    avgTokensPerGame: 4000, // Estimate
+  },
+  'openai/gpt-4o-mini': {
+    inputPrice: 0.15,
+    outputPrice: 0.60,
+    avgTokensPerGame: 3600, // From our benchmarks - uses fewer tokens
+  },
+  'x-ai/grok-4.1-fast': {
+    inputPrice: 0.20,
+    outputPrice: 1.00,
+    avgTokensPerGame: 5200, // From our benchmarks - uses more tokens
+  },
+};
 
 const STATS_KEY = 'jeop3:aiStats:v1';
 
@@ -132,4 +185,75 @@ export function getHumanEstimate(modelId: string): string {
  */
 export function clearGenerationStats(): void {
   localStorage.removeItem(STATS_KEY);
+}
+
+/**
+ * Get pricing info for a model
+ * Strips the 'or:' prefix if present
+ */
+export function getModelPricing(modelId: string): ModelPricing | null {
+  // Strip provider prefix if present
+  const modelIdWithoutPrefix = modelId.replace(/^(or:|ollama:)/, '');
+  return MODEL_PRICING[modelIdWithoutPrefix] || null;
+}
+
+/**
+ * Calculate cost per game for a model (in dollars)
+ */
+export function getCostPerGame(modelId: string): number | null {
+  const pricing = getModelPricing(modelId);
+  if (!pricing) return null;
+
+  // Assume 50/50 split input/output tokens
+  const inputTokens = pricing.avgTokensPerGame * 0.5;
+  const outputTokens = pricing.avgTokensPerGame * 0.5;
+
+  const inputCost = (inputTokens / 1_000_000) * pricing.inputPrice;
+  const outputCost = (outputTokens / 1_000_000) * pricing.outputPrice;
+
+  return inputCost + outputCost;
+}
+
+/**
+ * Get games per dollar for a model
+ */
+export function getGamesPerDollar(modelId: string): number | null {
+  const costPerGame = getCostPerGame(modelId);
+  if (!costPerGame || costPerGame === 0) return null;
+  return 1 / costPerGame;
+}
+
+/**
+ * Format cost for display (e.g., "0.72¢", "$0.72")
+ */
+export function formatCost(dollars: number): string {
+  if (dollars < 0.01) {
+    const cents = dollars * 100;
+    return `${cents.toFixed(2)}¢`;
+  } else {
+    return `$${dollars.toFixed(2)}`;
+  }
+}
+
+/**
+ * Get a human-readable cost estimate (e.g., "~140 games/$1", "0.72¢ per game")
+ */
+export function getCostEstimate(modelId: string): string {
+  const costPerGame = getCostPerGame(modelId);
+
+  if (!costPerGame) {
+    return 'Pricing info unavailable';
+  }
+
+  // Games per dollar
+  const gamesPerDollar = getGamesPerDollar(modelId);
+
+  if (gamesPerDollar && gamesPerDollar >= 100) {
+    return `~${Math.round(gamesPerDollar)} games/$1`;
+  } else if (gamesPerDollar) {
+    return `${gamesPerDollar.toFixed(0)} games/$1`;
+  }
+
+  // Fallback to cost per game
+  return formatCost(costPerGame) + ' per game';
 }

@@ -1,0 +1,997 @@
+{
+  "gemini-2.5-flash-lite": {
+    "name": "Gemini 2.5 Flash Lite",
+    "model": "google/gemini-2.5-flash-lite",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 1952.26,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This first U.S. president is often called the 'Father of His Country'.",
+              "response": "Who is George Washington?"
+            },
+            {
+              "value": 400,
+              "clue": "He was the only U.S. president to serve non-consecutive terms, returning to the White House four years after leaving it.",
+              "response": "Who is Grover Cleveland?"
+            },
+            {
+              "value": 600,
+              "clue": "This president, a former actor and governor of California, signed the National Affordable Housing Act of 1990.",
+              "response": "Who is Ronald Reagan?"
+            },
+            {
+              "value": 800,
+              "clue": "His nickname was 'Old Hickory', and he founded the Democratic Party.",
+              "response": "Who is Andrew Jackson?"
+            },
+            {
+              "value": 1000,
+              "clue": "This president, who served during the War of 1812, was also the Secretary of State and Secretary of War under James Madison.",
+              "response": "Who is James Monroe?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 319,
+            "completion_tokens": 302,
+            "total_tokens": 621
+          },
+          "cost_usd": 1.527e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This first U.S. president is often called the 'Father of His Country'.\",\n      \"response\": \"Who is George Washington?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"He was the only U.S. president to serve non-consecutive terms, returning to the White House four years after leaving it.\",\n      \"response\": \"Who is Grover Cleveland?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This president, a former actor and governor of California, si"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 3066.38,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This planet is often called the Red Planet because of the iron oxide on its surface.",
+              "response": "What is Mars?"
+            },
+            {
+              "value": 400,
+              "clue": "Known for its spectacular rings, this gas giant is made of ice and rock.",
+              "response": "What is Saturn?"
+            },
+            {
+              "value": 600,
+              "clue": "This planet is the hottest in our solar system, with surface temperatures reaching about 900\u00b0F.",
+              "response": "What is Venus?"
+            },
+            {
+              "value": 800,
+              "clue": "This planet spins on its side, with an axial tilt of about 98 degrees.",
+              "response": "What is Uranus?"
+            },
+            {
+              "value": 1000,
+              "clue": "With wind speeds up to 1,200 mph, this distant planet is the windiest in our solar system.",
+              "response": "What is Neptune?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 485,
+            "completion_tokens": 282,
+            "total_tokens": 767
+          },
+          "cost_usd": 1.613e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This planet is often called the Red Planet because of the iron oxide on its surface.\",\n      \"response\": \"What is Mars?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"Known for its spectacular rings, this gas giant is made of ice and rock.\",\n      \"response\": \"What is Saturn?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This planet is the hottest in our solar system, with surface temperatures reaching about 900\u00b0F.\",\n      \"response\": "
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 1922.33,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This armored Avenger's first solo film in 2008 kicked off the entire shared universe.",
+              "response": "What is Iron Man?"
+            },
+            {
+              "value": 400,
+              "clue": "This team of heroes, comprised of a super-soldier, a god of thunder, and a giant green rage monster, first assembled in their own film.",
+              "response": "What are The Avengers?"
+            },
+            {
+              "value": 600,
+              "clue": "In 'Guardians of the Galaxy,' this character famously has a tree-like appearance and limited vocabulary.",
+              "response": "What is Groot?"
+            },
+            {
+              "value": 800,
+              "clue": "The post-credits scene of 'Ant-Man and the Wasp' revealed Janet van Dyne had been trapped in the Quantum Realm, a revelation that directly sets up the events of this film.",
+              "response": "What is Avengers: Endgame?"
+            },
+            {
+              "value": 1000,
+              "clue": "The villain of 'Thor: The Dark World' sought to reunite the Aether with its original wielder, Malekith, who hailed from this dark realm.",
+              "response": "What is Svartalfheim?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 314,
+            "completion_tokens": 338,
+            "total_tokens": 652
+          },
+          "cost_usd": 1.6659999999999997e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This armored Avenger's first solo film in 2008 kicked off the entire shared universe.\",\n      \"response\": \"What is Iron Man?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"This team of heroes, comprised of a super-soldier, a god of thunder, and a giant green rage monster, first assembled in their own film.\",\n      \"response\": \"What are The Avengers?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"In 'Guardians of the Galaxy,' this charac"
+      }
+    ]
+  },
+  "gemini-2.5-flash": {
+    "name": "Gemini 2.5 Flash",
+    "model": "google/gemini-2.5-flash",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 2586.67,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "He was the first to live in the White House, though it was still under construction during his term.",
+              "response": "Who was John Adams?"
+            },
+            {
+              "value": 400,
+              "clue": "This general of the Union Army during the Civil War later served two terms as the nation's leader.",
+              "response": "Who was Ulysses S. Grant?"
+            },
+            {
+              "value": 600,
+              "clue": "His 'New Frontier' program aimed to tackle poverty, disease, and ignorance both at home and abroad.",
+              "response": "Who was John F. Kennedy?"
+            },
+            {
+              "value": 800,
+              "clue": "Only non-elected chief executive, he assumed the office after the resignation of Richard Nixon.",
+              "response": "Who was Gerald Ford?"
+            },
+            {
+              "value": 1000,
+              "clue": "This Virginian was the primary author of the Declaration of Independence and later oversaw the Louisiana Purchase.",
+              "response": "Who was Thomas Jefferson?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 319,
+            "completion_tokens": 293,
+            "total_tokens": 612
+          },
+          "cost_usd": 8.282000000000001e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"He was the first to live in the White House, though it was still under construction during his term.\",\n      \"response\": \"Who was John Adams?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"This general of the Union Army during the Civil War later served two terms as the nation's leader.\",\n      \"response\": \"Who was Ulysses S. Grant?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"His 'New Frontier' program aimed to tackle poverty, diseas"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 2040.36,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This planet is famous for its prominent ring system made of ice and rock.",
+              "response": "What is Saturn?"
+            },
+            {
+              "value": 400,
+              "clue": "Known as the Red Planet, this celestial body gets its color from iron oxide on its surface.",
+              "response": "What is Mars?"
+            },
+            {
+              "value": 600,
+              "clue": "With a mass greater than all other planets combined, this is the largest planet in our solar system.",
+              "response": "What is Jupiter?"
+            },
+            {
+              "value": 800,
+              "clue": "This planet holds the record for being the windiest, with speeds reaching up to 1,200 mph.",
+              "response": "What is Neptune?"
+            },
+            {
+              "value": 1000,
+              "clue": "Unlike most planets, this one rotates on its side, boasting an axial tilt of 98 degrees.",
+              "response": "What is Uranus?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 485,
+            "completion_tokens": 283,
+            "total_tokens": 768
+          },
+          "cost_usd": 8.530000000000001e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This planet is famous for its prominent ring system made of ice and rock.\",\n      \"response\": \"What is Saturn?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"Known as the Red Planet, this celestial body gets its color from iron oxide on its surface.\",\n      \"response\": \"What is Mars?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"With a mass greater than all other planets combined, this is the largest planet in our solar system.\",\n     "
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 3060.49,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This genius, billionaire, playboy, philanthropist first suited up in 2008, kicking off a cinematic universe.",
+              "response": "Who is Iron Man?"
+            },
+            {
+              "value": 400,
+              "clue": "He famously declared, 'I'm always angry,' before transforming into the Hulk in a 2012 ensemble film.",
+              "response": "Who is Bruce Banner?"
+            },
+            {
+              "value": 600,
+              "clue": "This mythical weapon, wielded by Thor, was destroyed by his sister Hela in 'Thor: Ragnarok'.",
+              "response": "What is Mjolnir?"
+            },
+            {
+              "value": 800,
+              "clue": "The villain in 'Black Panther' whose true name is N'Jadaka, but who is better known by this feline-inspired moniker.",
+              "response": "Who is Killmonger?"
+            },
+            {
+              "value": 1000,
+              "clue": "In 'Spider-Man: Homecoming,' Peter Parker's high school is named after this famous inventor and Stark Industries co-founder.",
+              "response": "Who is Midtown School of Science and Technology?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 314,
+            "completion_tokens": 326,
+            "total_tokens": 640
+          },
+          "cost_usd": 9.092000000000001e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This genius, billionaire, playboy, philanthropist first suited up in 2008, kicking off a cinematic universe.\",\n      \"response\": \"Who is Iron Man?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"He famously declared, 'I'm always angry,' before transforming into the Hulk in a 2012 ensemble film.\",\n      \"response\": \"Who is Bruce Banner?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This mythical weapon, wielded by Thor, was destroyed by "
+      }
+    ]
+  },
+  "glm-4.7-flash": {
+    "name": "GLM 4.7 Flash",
+    "model": "z-ai/glm-4.7-flash",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 15510.68,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This man was the first person to hold this office established by the U.S. Constitution.",
+              "response": "Who is George Washington?"
+            },
+            {
+              "value": 400,
+              "clue": "This 16th president issued the Emancipation Proclamation, effectively ending legal slavery in Confederate states during the Civil War.",
+              "response": "Who is Abraham Lincoln?"
+            },
+            {
+              "value": 600,
+              "clue": "After winning the 2020 election, this person became the first woman to serve as Vice President of the United States.",
+              "response": "Who is Kamala Harris?"
+            },
+            {
+              "value": 800,
+              "clue": "In 1906, this President became the first American to be awarded the Nobel Peace Prize for mediating the Russo-Japanese War.",
+              "response": "Who is Theodore Roosevelt?"
+            },
+            {
+              "value": 1000,
+              "clue": "This individual is the only president in U.S. history who was never elected to either the presidency or the vice presidency, assuming office upon the resignation of his predecessor.",
+              "response": "Who is Gerald Ford?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 295,
+            "completion_tokens": 1587,
+            "total_tokens": 1882
+          },
+          "cost_usd": 6.5545e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This man was the first person to hold this office established by the U.S. Constitution.\",\n      \"response\": \"Who is George Washington?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"This 16th president issued the Emancipation Proclamation, effectively ending legal slavery in Confederate states during the Civil War.\",\n      \"response\": \"Who is Abraham Lincoln?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"After winning the 2020 election"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 10324.91,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "How many planets are in our solar system?",
+              "response": "Eight"
+            },
+            {
+              "value": 400,
+              "clue": "This planet is often called the Red Planet because of iron oxide on its surface.",
+              "response": "Mars"
+            },
+            {
+              "value": 600,
+              "clue": "This planet holds the record for having a mass greater than all the other planets in the system combined.",
+              "response": "Jupiter"
+            },
+            {
+              "value": 800,
+              "clue": "This planet is unique because it rotates on its side with an axial tilt of 98 degrees.",
+              "response": "Uranus"
+            },
+            {
+              "value": 1000,
+              "clue": "This planet experiences winds reaching speeds of up to 1,200 miles per hour.",
+              "response": "Neptune"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 456,
+            "completion_tokens": 1208,
+            "total_tokens": 1664
+          },
+          "cost_usd": 5.151200000000001e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"How many planets are in our solar system?\",\n      \"response\": \"Eight\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"This planet is often called the Red Planet because of iron oxide on its surface.\",\n      \"response\": \"Mars\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This planet holds the record for having a mass greater than all the other planets in the system combined.\",\n      \"response\": \"Jupiter\"\n    },\n    {\n      \"value\": 800,\n "
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": false,
+          "parse_error": "JSON parse error: Expecting property name enclosed in double quotes:",
+          "all_values_present": false,
+          "missing_values": [],
+          "unique_answers": false,
+          "duplicate_answers": [],
+          "clue_count": 0,
+          "response_time_ms": 35552.38,
+          "clues": [],
+          "quality_score": 0,
+          "token_usage": {
+            "prompt_tokens": 293,
+            "completion_tokens": 2000,
+            "total_tokens": 2293
+          },
+          "cost_usd": 8.2051e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This 2008 film started it all for the Marvel Cinematic Universe.\",\n      \"response\": \"What is Iron Man?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"This Norse god is the primary antagonist of The Avengers and the adoptive brother of Thor.\",\n      \"response\": \"Who is Loki?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This actor played Steve Rogers in Captain America: The First Avenger and later reprises the role in the Marvel Cinema"
+      }
+    ]
+  },
+  "glm-4.7": {
+    "name": "GLM 4.7",
+    "model": "z-ai/glm-4.7",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": false,
+          "parse_error": "JSON parse error: Expecting property name enclosed in double quotes:",
+          "all_values_present": false,
+          "missing_values": [],
+          "unique_answers": false,
+          "duplicate_answers": [],
+          "clue_count": 0,
+          "response_time_ms": 32257.58,
+          "clues": [],
+          "quality_score": 0,
+          "token_usage": {
+            "prompt_tokens": 290,
+            "completion_tokens": 2138,
+            "total_tokens": 2428
+          },
+          "cost_usd": 3.3230000000000002e-09
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"He was the first Commander-in-Chief of the United States.\",\n      \"response\": \"Who is George Washington?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"Nicknamed \\\"Honest Abe\\\", this leader issued the Emancipation Proclamation during the Civil War.\",\n      \"response\": \"Who is Abraham Lincoln?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"Theodore Roosevelt's foreign policy was famously summarized by this phrase involving a large walkin"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 17377.51,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "Known as the Red Planet due to iron oxide on its surface.",
+              "response": "What is Mars?"
+            },
+            {
+              "value": 400,
+              "clue": "Famous for its prominent ring system made of ice and rock.",
+              "response": "What is Saturn?"
+            },
+            {
+              "value": 600,
+              "clue": "The largest planet, with a mass greater than all other planets combined.",
+              "response": "What is Jupiter?"
+            },
+            {
+              "value": 800,
+              "clue": "The windiest planet, with speeds up to 1,200 mph.",
+              "response": "What is Neptune?"
+            },
+            {
+              "value": 1000,
+              "clue": "This planet rotates on its side with an axial tilt of 98 degrees.",
+              "response": "What is Uranus?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 456,
+            "completion_tokens": 1565,
+            "total_tokens": 2021
+          },
+          "cost_usd": 2.5299e-09
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"Known as the Red Planet due to iron oxide on its surface.\",\n      \"response\": \"What is Mars?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"Famous for its prominent ring system made of ice and rock.\",\n      \"response\": \"What is Saturn?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"The largest planet, with a mass greater than all other planets combined.\",\n      \"response\": \"What is Jupiter?\"\n    },\n    {\n      \"value\": 800,\n      \"clue\""
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 73280.79,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "Released in 2008, this film starring Robert Downey Jr. kicked off the entire franchise.",
+              "response": "What is Iron Man?"
+            },
+            {
+              "value": 400,
+              "clue": "This Asgardian god of mischief is Thor's adopted brother, often played by Tom Hiddleston.",
+              "response": "Who is Loki?"
+            },
+            {
+              "value": 600,
+              "clue": "This android, a member of the Avengers, was created by combining the Mind Stone with the artificial intelligence J.A.R.V.I.S.",
+              "response": "Who is Vision?"
+            },
+            {
+              "value": 800,
+              "clue": "In *Doctor Strange*, the hero protects the New York Sanctum from this zealot who steals pages from the Book of Cagliostro.",
+              "response": "Who is Kaecilius?"
+            },
+            {
+              "value": 1000,
+              "clue": "In *Captain Marvel*, the alien Flerken that poses as a pet cat is named after the character from *Top Gun* played by Anthony Edwards.",
+              "response": "Who is Goose?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 293,
+            "completion_tokens": 5180,
+            "total_tokens": 5473
+          },
+          "cost_usd": 7.887199999999999e-09
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"Released in 2008, this film starring Robert Downey Jr. kicked off the entire franchise.\",\n      \"response\": \"What is Iron Man?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"This Asgardian god of mischief is Thor's adopted brother, often played by Tom Hiddleston.\",\n      \"response\": \"Who is Loki?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This android, a member of the Avengers, was created by combining the Mind Stone with the artifi"
+      }
+    ]
+  },
+  "gpt-4o-mini": {
+    "name": "GPT-4o Mini",
+    "model": "openai/gpt-4o-mini",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": false,
+          "duplicate_answers": [
+            "Value 800: who is franklin d. roosevelt?"
+          ],
+          "clue_count": 5,
+          "response_time_ms": 6681.82,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This founding father was the first President of the United States.",
+              "response": "Who is George Washington?"
+            },
+            {
+              "value": 400,
+              "clue": "He delivered the Gettysburg Address in 1863.",
+              "response": "Who is Abraham Lincoln?"
+            },
+            {
+              "value": 600,
+              "clue": "This President is known for the New Deal programs to help recover from the Great Depression.",
+              "response": "Who is Franklin D. Roosevelt?"
+            },
+            {
+              "value": 800,
+              "clue": "This President was the only one to serve more than two terms, from 1933 to 1945.",
+              "response": "Who is Franklin D. Roosevelt?"
+            },
+            {
+              "value": 1000,
+              "clue": "He was a former peanut farmer before becoming the 39th President of the United States.",
+              "response": "Who is Jimmy Carter?"
+            }
+          ],
+          "quality_score": 7,
+          "token_usage": {
+            "prompt_tokens": 298,
+            "completion_tokens": 205,
+            "total_tokens": 503
+          },
+          "cost_usd": 1.6769999999999997e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\"value\": 200, \"clue\": \"This founding father was the first President of the United States.\", \"response\": \"Who is George Washington?\"},\n    {\"value\": 400, \"clue\": \"He delivered the Gettysburg Address in 1863.\", \"response\": \"Who is Abraham Lincoln?\"},\n    {\"value\": 600, \"clue\": \"This President is known for the New Deal programs to help recover from the Great Depression.\", \"response\": \"Who is Franklin D. Roosevelt?\"},\n    {\"value\": 800, \"clue\": \"This President was the only one to"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 4367.82,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This planet is the closest to the Sun.",
+              "response": "What is Mercury?"
+            },
+            {
+              "value": 400,
+              "clue": "Known as the 'Red Planet', this planet has iron oxide on its surface.",
+              "response": "What is Mars?"
+            },
+            {
+              "value": 600,
+              "clue": "This planet is famous for its prominent ring system made of ice and rock.",
+              "response": "What is Saturn?"
+            },
+            {
+              "value": 800,
+              "clue": "With an axial tilt of 98 degrees, this planet rotates on its side.",
+              "response": "What is Uranus?"
+            },
+            {
+              "value": 1000,
+              "clue": "This planet is the largest in the solar system, with a mass greater than all other planets combined.",
+              "response": "What is Jupiter?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 460,
+            "completion_tokens": 218,
+            "total_tokens": 678
+          },
+          "cost_usd": 1.998e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This planet is the closest to the Sun.\",\n      \"response\": \"What is Mercury?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"Known as the 'Red Planet', this planet has iron oxide on its surface.\",\n      \"response\": \"What is Mars?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This planet is famous for its prominent ring system made of ice and rock.\",\n      \"response\": \"What is Saturn?\"\n    },\n    {\n      \"value\": 800,\n      \"clue\": \"With"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 5556.25,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This superhero wields a shield made of vibranium.",
+              "response": "Who is Captain America?"
+            },
+            {
+              "value": 400,
+              "clue": "This Norse god of thunder is known for his iconic hammer, Mjolnir.",
+              "response": "Who is Thor?"
+            },
+            {
+              "value": 600,
+              "clue": "This character is known for saying, 'I am Iron Man' at the end of the Infinity Saga.",
+              "response": "Who is Tony Stark?"
+            },
+            {
+              "value": 800,
+              "clue": "This film features the character T'Challa, who becomes the king of Wakanda.",
+              "response": "What is Black Panther?"
+            },
+            {
+              "value": 1000,
+              "clue": "This actor portrayed the character Vision in the Marvel Cinematic Universe, first appearing in 'Avengers: Age of Ultron'.",
+              "response": "Who is Paul Bettany?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 296,
+            "completion_tokens": 215,
+            "total_tokens": 511
+          },
+          "cost_usd": 1.734e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\"value\": 200, \"clue\": \"This superhero wields a shield made of vibranium.\", \"response\": \"Who is Captain America?\"},\n    {\"value\": 400, \"clue\": \"This Norse god of thunder is known for his iconic hammer, Mjolnir.\", \"response\": \"Who is Thor?\"},\n    {\"value\": 600, \"clue\": \"This character is known for saying, 'I am Iron Man' at the end of the Infinity Saga.\", \"response\": \"Who is Tony Stark?\"},\n    {\"value\": 800, \"clue\": \"This film features the character T'Challa, who becomes the ki"
+      }
+    ]
+  },
+  "grok-4.1-fast": {
+    "name": "Grok 4.1 Fast",
+    "model": "x-ai/grok-4.1-fast",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 19093.96,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "America's first president & commander of the Continental Army during the Revolution.",
+              "response": "Who is George Washington?"
+            },
+            {
+              "value": 400,
+              "clue": "This tall Illinoisan issued the Emancipation Proclamation during the Civil War.",
+              "response": "Who is Abraham Lincoln?"
+            },
+            {
+              "value": 600,
+              "clue": "The only one elected to four terms, he led the U.S. through the Great Depression & World War II.",
+              "response": "Who is Franklin D. Roosevelt?"
+            },
+            {
+              "value": 800,
+              "clue": "Despite losing the popular vote, this man became president after the disputed election of 1876.",
+              "response": "Who is Rutherford B. Hayes?"
+            },
+            {
+              "value": 1000,
+              "clue": "Born in 1782 in Kinderhook, New York, he was the first not born a British subject.",
+              "response": "Who is Martin Van Buren?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 442,
+            "completion_tokens": 1463,
+            "total_tokens": 1905
+          },
+          "cost_usd": 8.199e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\"value\": 200, \"clue\": \"America's first president & commander of the Continental Army during the Revolution.\", \"response\": \"Who is George Washington?\"},\n    {\"value\": 400, \"clue\": \"This tall Illinoisan issued the Emancipation Proclamation during the Civil War.\", \"response\": \"Who is Abraham Lincoln?\"},\n    {\"value\": 600, \"clue\": \"The only one elected to four terms, he led the U.S. through the Great Depression & World War II.\", \"response\": \"Who is Franklin D. Roosevelt?\"},\n    {"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 20532.01,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This planet has a mass greater than all other planets combined.",
+              "response": "What is Jupiter?"
+            },
+            {
+              "value": 400,
+              "clue": "Famous for its prominent ring system made of ice and rock.",
+              "response": "What is Saturn?"
+            },
+            {
+              "value": 600,
+              "clue": "Known as the Red Planet due to iron oxide on its surface.",
+              "response": "What is Mars?"
+            },
+            {
+              "value": 800,
+              "clue": "The hottest planet with surface temperatures around 900\u00b0F.",
+              "response": "What is Venus?"
+            },
+            {
+              "value": 1000,
+              "clue": "This planet rotates on its side with an axial tilt of 98 degrees.",
+              "response": "What is Uranus?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 600,
+            "completion_tokens": 1753,
+            "total_tokens": 2353
+          },
+          "cost_usd": 9.964999999999998e-10
+        },
+        "error": null,
+        "response_text": "{\"clues\":[{\"value\":200,\"clue\":\"This planet has a mass greater than all other planets combined.\",\"response\":\"What is Jupiter?\"},{\"value\":400,\"clue\":\"Famous for its prominent ring system made of ice and rock.\",\"response\":\"What is Saturn?\"},{\"value\":600,\"clue\":\"Known as the Red Planet due to iron oxide on its surface.\",\"response\":\"What is Mars?\"},{\"value\":800,\"clue\":\"The hottest planet with surface temperatures around 900\u00b0F.\",\"response\":\"What is Venus?\"},{\"value\":1000,\"clue\":\"This planet rotates on"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 17704.61,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This 2008 film starring Robert Downey Jr. launched the entire MCU.",
+              "response": "What is Iron Man?"
+            },
+            {
+              "value": 400,
+              "clue": "This star-spangled hero crashed a plane into the Arctic during World War II.",
+              "response": "Who is Captain America?"
+            },
+            {
+              "value": 600,
+              "clue": "In this 2012 blockbuster, the heroes assemble to fight the Chitauri invasion.",
+              "response": "What is The Avengers?"
+            },
+            {
+              "value": 800,
+              "clue": "This Mad Titan snaps his fingers after acquiring all six Infinity Stones.",
+              "response": "Who is Thanos?"
+            },
+            {
+              "value": 1000,
+              "clue": "This planet, guarded by the Stonekeeper Red Skull, holds the Soul Stone.",
+              "response": "What is Vormir?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 440,
+            "completion_tokens": 1289,
+            "total_tokens": 1729
+          },
+          "cost_usd": 7.325e-10
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\"value\": 200, \"clue\": \"This 2008 film starring Robert Downey Jr. launched the entire MCU.\", \"response\": \"What is Iron Man?\"},\n    {\"value\": 400, \"clue\": \"This star-spangled hero crashed a plane into the Arctic during World War II.\", \"response\": \"Who is Captain America?\"},\n    {\"value\": 600, \"clue\": \"In this 2012 blockbuster, the heroes assemble to fight the Chitauri invasion.\", \"response\": \"What is The Avengers?\"},\n    {\"value\": 800, \"clue\": \"This Mad Titan snaps his fingers "
+      }
+    ]
+  },
+  "kimi-k2-thinking": {
+    "name": "Kimi K2 Thinking",
+    "model": "moonshotai/kimi-k2-thinking",
+    "results": [
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": false,
+          "parse_error": "JSON parse error: Unterminated string starting at: line 4 column 28 ",
+          "all_values_present": false,
+          "missing_values": [],
+          "unique_answers": false,
+          "duplicate_answers": [],
+          "clue_count": 0,
+          "response_time_ms": 228266.56,
+          "clues": [],
+          "quality_score": 0,
+          "token_usage": {
+            "prompt_tokens": 305,
+            "completion_tokens": 2000,
+            "total_tokens": 2305
+          },
+          "cost_usd": 3.622e-09
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\"value\": 200, \"clue\": \"He was the first to hold this nation's highest elected office, serving from 1789 to 1797.\", \"response\": \"Who is George Washington?\"},\n    {\"value\": 400, \"clue\": \"He authored the Declaration of Independence before becoming"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 39530.96,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This planet is known as the Red Planet due to iron oxide on its surface.",
+              "response": "What is Mars?"
+            },
+            {
+              "value": 400,
+              "clue": "It's the only planet known to support life.",
+              "response": "What is Earth?"
+            },
+            {
+              "value": 600,
+              "clue": "This planet has the strongest winds in the solar system, reaching speeds up to 1,200 mph.",
+              "response": "What is Neptune?"
+            },
+            {
+              "value": 800,
+              "clue": "This planet rotates on its side with an axial tilt of 98 degrees.",
+              "response": "What is Uranus?"
+            },
+            {
+              "value": 1000,
+              "clue": "This planet's mass is greater than all other planets in the solar system combined.",
+              "response": "What is Jupiter?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 467,
+            "completion_tokens": 1173,
+            "total_tokens": 1640
+          },
+          "cost_usd": 2.2395499999999998e-09
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\n      \"value\": 200,\n      \"clue\": \"This planet is known as the Red Planet due to iron oxide on its surface.\",\n      \"response\": \"What is Mars?\"\n    },\n    {\n      \"value\": 400,\n      \"clue\": \"It's the only planet known to support life.\",\n      \"response\": \"What is Earth?\"\n    },\n    {\n      \"value\": 600,\n      \"clue\": \"This planet has the strongest winds in the solar system, reaching speeds up to 1,200 mph.\",\n      \"response\": \"What is Neptune?\"\n    },\n    {\n      \"value\": 8"
+      },
+      {
+        "success": true,
+        "evaluation": {
+          "valid_json": true,
+          "parse_error": null,
+          "all_values_present": true,
+          "missing_values": [],
+          "unique_answers": true,
+          "duplicate_answers": [],
+          "clue_count": 5,
+          "response_time_ms": 62989.26,
+          "clues": [
+            {
+              "value": 200,
+              "clue": "This 2008 film starring Robert Downey Jr. launched the Marvel Cinematic Universe",
+              "response": "What is Iron Man?"
+            },
+            {
+              "value": 400,
+              "clue": "The name of the purple Titan who collected the Infinity Stones",
+              "response": "Who is Thanos?"
+            },
+            {
+              "value": 600,
+              "clue": "The fictional African nation that is home to Black Panther",
+              "response": "What is Wakanda?"
+            },
+            {
+              "value": 800,
+              "clue": "The nearly indestructible metal found in Captain America's shield and Black Panther's suit",
+              "response": "What is Vibranium?"
+            },
+            {
+              "value": 1000,
+              "clue": "The name of the Flerken who scratches Nick Fury's eye in Captain Marvel",
+              "response": "Who is Goose?"
+            }
+          ],
+          "quality_score": 10,
+          "token_usage": {
+            "prompt_tokens": 305,
+            "completion_tokens": 2456,
+            "total_tokens": 2761
+          },
+          "cost_usd": 4.42e-09
+        },
+        "error": null,
+        "response_text": "{\n  \"clues\": [\n    {\"value\": 200, \"clue\": \"This 2008 film starring Robert Downey Jr. launched the Marvel Cinematic Universe\", \"response\": \"What is Iron Man?\"},\n    {\"value\": 400, \"clue\": \"The name of the purple Titan who collected the Infinity Stones\", \"response\": \"Who is Thanos?\"},\n    {\"value\": 600, \"clue\": \"The fictional African nation that is home to Black Panther\", \"response\": \"What is Wakanda?\"},\n    {\"value\": 800, \"clue\": \"The nearly indestructible metal found in Captain America's shield "
+      }
+    ]
+  }
+}
