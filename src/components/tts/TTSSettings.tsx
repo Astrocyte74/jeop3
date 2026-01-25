@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Volume2, VolumeX, Loader2, Check, Settings, X, Sliders } from 'lucide-react';
+import { Volume2, VolumeX, Loader2, Check, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -18,7 +18,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
 import {
   getTTSSettings,
   updateTTSSettings,
@@ -31,7 +30,7 @@ import {
  * TTS Submenu with all settings
  * Can be used in both MainMenu and GameBoard
  */
-export function TTSSubmenu({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
+export function TTSSubmenu() {
   const [settings, setSettings] = useState(getTTSSettings());
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -245,16 +244,18 @@ export function TTSSubmenu({ onOpenChange }: { onOpenChange?: (open: boolean) =>
                   <div className="flex items-center justify-between mb-1">
                     <Label className="text-xs">Speed: {settings.speed}x</Label>
                   </div>
-                  <Slider
-                    value={[settings.speed]}
+                  <input
+                    type="range"
                     min={0.5}
                     max={2.0}
                     step={0.1}
-                    onValueChange={([value]) => {
+                    value={settings.speed}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
                       const updated = updateTTSSettings({ speed: value });
                       setSettings(updated);
                     }}
-                    className="mt-1"
+                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500"
                   />
                   <div className="flex justify-between text-xs text-slate-500 mt-1">
                     <span>0.5x</span>
