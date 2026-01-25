@@ -264,15 +264,13 @@ export function ClueDialog({
           <div className="flex-1 clue-text">{clue}</div>
           {ttsEnabled && (
             <div className="flex items-center gap-1">
-              {audio.isPlaying && (
-                <button
-                  onClick={stopPlayback}
-                  className="flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
-                  title="Stop playback"
-                >
-                  <Square className="w-5 h-5" />
-                </button>
-              )}
+              <button
+                onClick={stopPlayback}
+                className={`flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors ${audio.isPlaying ? 'visible' : 'invisible'}`}
+                title="Stop playback"
+              >
+                <Square className="w-5 h-5" />
+              </button>
               <button
                 onClick={playClue}
                 disabled={audio.isClueLoading}
@@ -301,15 +299,13 @@ export function ClueDialog({
             <div className="flex-1 clue-response">{response}</div>
             {ttsEnabled && (
               <div className="flex items-center gap-1">
-                {audio.isPlaying && (
-                  <button
-                    onClick={stopPlayback}
-                    className="flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
-                    title="Stop playback"
-                  >
-                    <Square className="w-5 h-5" />
-                  </button>
-                )}
+                <button
+                  onClick={stopPlayback}
+                  className={`flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors ${audio.isPlaying ? 'visible' : 'invisible'}`}
+                  title="Stop playback"
+                >
+                  <Square className="w-5 h-5" />
+                </button>
                 <button
                   onClick={playAnswer}
                   disabled={audio.isAnswerLoading}
