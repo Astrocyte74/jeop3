@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Team } from '@/lib/storage';
 import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle, Volume2, Loader2, Square, AlertCircle } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
