@@ -1282,6 +1282,15 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               Continue
             </Button>
           )}
+          {currentStep === 'choose-mode' && creationMode === 'import-json' && (
+            <Button
+              type="button"
+              onClick={handleNext}
+              className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white"
+            >
+              Import JSON
+            </Button>
+          )}
           {currentStep !== 'choose-mode' && creationMode === 'ai' && (
             <Button
               type="button"
