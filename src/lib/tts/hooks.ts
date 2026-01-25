@@ -245,9 +245,10 @@ export function useTTSClue(clueText: string, answerText: string) {
   const synthesizeAudio = useCallback(async (text: string, type: 'clue' | 'answer'): Promise<void> => {
     // Check cache first
     const cacheKey = `${type}:${text}`;
+    console.log('[TTS] Cache key for', type, ':', cacheKey.substring(0, 100));
     const cachedUrl = audioCacheRef.current.get(cacheKey);
     if (cachedUrl) {
-      console.log('[TTS] CACHE HIT for', type, '- returning cached URL');
+      console.log('[TTS] CACHE HIT for', type, '- returning cached URL:', cachedUrl.substring(0, 80));
       setAudio(prev => ({
         ...prev,
         [type === 'clue' ? 'clueAudioUrl' : 'answerAudioUrl']: cachedUrl,
@@ -256,7 +257,7 @@ export function useTTSClue(clueText: string, answerText: string) {
     }
 
     // Start loading
-    console.log('[TTS] Synthesizing', type, 'text:', text.substring(0, 50));
+    console.log('[TTS] Synthesizing', type, 'FULL TEXT:', text);
     setAudio(prev => ({
       ...prev,
       [type === 'clue' ? 'isClueLoading' : 'isAnswerLoading']: true,
@@ -281,6 +282,7 @@ export function useTTSClue(clueText: string, answerText: string) {
 
     // Cache the result (LRU cache handles eviction)
     audioCacheRef.current.set(cacheKey, audioUrl);
+    console.log('[TTS] Cached with key:', cacheKey.substring(0, 100));
 
     setAudio(prev => ({
       ...prev,
