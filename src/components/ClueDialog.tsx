@@ -58,9 +58,17 @@ export function ClueDialog({
 
   // Auto-read clue when dialog opens if enabled
   useEffect(() => {
+    console.log('[ClueDialog] Auto-read check:', {
+      isOpen,
+      ttsEnabled,
+      autoRead: ttsSettings.autoRead,
+      snakeGameResult: !!snakeGameResult,
+    });
     if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
+      console.log('[ClueDialog] Triggering auto-read');
       // Small delay to ensure the dialog is fully rendered
       const timer = setTimeout(() => {
+        console.log('[ClueDialog] Calling playClue()');
         playClue();
         // Preload the answer while reading the clue
         preloadAnswer();
