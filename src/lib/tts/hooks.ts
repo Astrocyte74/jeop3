@@ -190,6 +190,23 @@ export function useTTSClue(clueText: string, answerText: string) {
     };
   }, [audio.clueAudioUrl, audio.answerAudioUrl]);
 
+  const playAudioUrl = useCallback((url: string) => {
+    // Stop any currently playing audio
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+    }
+
+    const audioElement = new Audio(url);
+    audioElementRef.current = audioElement;
+
+    audioElement.play().catch(err => {
+      console.error('[TTS] Failed to play:', err);
+      setAudio(prev => ({ ...prev, isPlaying: false }));
+      audioElementRef.current = null;
+    });
+  }, []);
+
   // Auto-play after synthesis completes if a play was requested
   useEffect(() => {
     console.log('[TTS] Auto-play check:', {
@@ -249,23 +266,6 @@ export function useTTSClue(clueText: string, answerText: string) {
       [type === 'clue' ? 'isClueLoading' : 'isAnswerLoading']: false,
     }));
   }, []); // No dependencies needed - uses closure values
-
-  const playAudioUrl = useCallback((url: string) => {
-    // Stop any currently playing audio
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current.currentTime = 0;
-    }
-
-    const audioElement = new Audio(url);
-    audioElementRef.current = audioElement;
-
-    audioElement.play().catch(err => {
-      console.error('[TTS] Failed to play:', err);
-      setAudio(prev => ({ ...prev, isPlaying: false }));
-      audioElementRef.current = null;
-    });
-  }, []);
 
   const playClue = useCallback(() => {
     console.log('[TTS] playClue called:', {
