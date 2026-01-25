@@ -12,7 +12,7 @@ const DEFAULT_TTS_SETTINGS: TTSSettings = {
   autoRead: false,
   defaultVoice: '',
   speed: 1.0,
-  language: 'en',
+  language: 'en-us',
 };
 
 /**
@@ -26,6 +26,10 @@ export function getTTSSettings(): TTSSettings {
 
   try {
     const parsed = JSON.parse(stored);
+    // Migration: fix old "en" language code
+    if (parsed.language === 'en') {
+      parsed.language = 'en-us';
+    }
     return { ...DEFAULT_TTS_SETTINGS, ...parsed };
   } catch {
     return { ...DEFAULT_TTS_SETTINGS };
