@@ -10,7 +10,6 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   AlertDialog,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -26,15 +25,14 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2, Upload, Info } from 'lucide-react';
+import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, AlertCircle, RefreshCw, Plus, Trash2, Loader2, Upload, Check } from 'lucide-react';
 import { getAIApiBase, fetchArticleContent } from '@/lib/ai/service';
 import { useAuth } from '@/lib/auth';
-import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
+import { getModelStats, formatTime, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 
 // Custom source type for per-category sources
 export interface CustomSource {
@@ -47,16 +45,14 @@ export interface CustomSource {
   fetchedContent?: string; // For URL sources after fetching
 }
 
-export interface WizardStep {
-  type: 'creation-mode' | 'manual-confirm' | 'source' | 'custom-categories' | 'theme' | 'difficulty';
-  creationMode?: 'ai' | 'manual' | 'import-json';
-  sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
-  referenceMaterial?: string;
-  referenceUrl?: string;
-  customSources?: CustomSource[];
-  theme?: string;
-  difficulty?: 'easy' | 'normal' | 'hard';
-}
+// New wizard steps for the redesigned flow
+export type WizardStep =
+  | 'choose-mode'      // AI/Manual/Import selection
+  | 'choose-source'    // Topic/Paste/URL selection (AI only)
+  | 'add-content'      // Enter topic/content/URL (AI only)
+  | 'review-sources'   // Review and add more sources (AI only)
+  | 'theme-difficulty' // Theme and difficulty selection (AI only)
+  | 'manual-editor';   // Manual editing mode
 
 export interface WizardCompleteData {
   mode: 'ai' | 'manual' | 'import-json';
@@ -257,15 +253,15 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, error }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
-  // Tab state: 'ai', 'manual', 'import'
-  const [activeTab, setActiveTab] = useState<'ai' | 'manual' | 'import'>('ai');
+  // New wizard step state
+  const [currentStep, setCurrentStep] = useState<WizardStep>('choose-mode');
 
-  // Step state for AI mode flow
-  const [step, setStep] = useState<'sources' | 'theme' | 'difficulty'>('sources');
+  // Creation mode: 'ai' | 'manual' | 'import-json'
+  const [creationMode, setCreationMode] = useState<'ai' | 'manual' | 'import-json'>('ai');
 
   // AI mode state
   const [customSources, setCustomSources] = useState<CustomSource[]>([]);
@@ -277,6 +273,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [currentSourceContent, setCurrentSourceContent] = useState('');
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(6);
   const [fetchError, setFetchError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
   const [isFetching, setIsFetching] = useState(false);
 
@@ -284,7 +281,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const sourcesListRef = useRef<HTMLDivElement>(null);
 
   // Load available AI models on mount
   useEffect(() => {
@@ -316,27 +312,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       });
   }, []);
 
-  // Reset state and auto-focus when wizard opens
-  useEffect(() => {
-    if (open) {
-      setActiveTab('ai');
-      setStep('sources');
-      setCustomSources([]);
-      setTheme('');
-      setDifficulty('normal');
-      setCurrentSourceType('topic');
-      setCurrentSourceContent('');
-      setCurrentSourceCategoryCount(6);
-      setIsFetching(false);
-      setFetchError('');
-      setSourceInputError('');
-      // Auto-focus the input after a small delay to ensure the dialog is rendered
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 100);
-    }
-  }, [open]);
-
   // ==================== AI Model Selection ====================
   const handleAIModelChange = (modelId: string) => {
     setAIModel(modelId);
@@ -363,21 +338,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
   const getRemainingCategories = () => {
     return 6 - getTotalCategoryCount();
-  };
-
-  const getDisplayLabel = (source: CustomSource): string => {
-    if (source.type === 'topic') return `Topic: "${source.topic}"`;
-    if (source.type === 'paste') return `Pasted Content (${source.content?.length.toLocaleString() || 0} chars)`;
-    if (source.type === 'url') {
-      const url = source.url || '';
-      try {
-        const hostname = new URL(url).hostname;
-        return `URL: ${hostname}`;
-      } catch {
-        return `URL: ${url.substring(0, 30)}...`;
-      }
-    }
-    return 'Unknown source';
   };
 
   // Auto-adjust category count if it exceeds remaining categories
@@ -410,56 +370,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     return true;
   };
 
-  // Scroll to sources list after adding
-  const scrollToSourcesList = () => {
-    setTimeout(() => {
-      sourcesListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }, 100);
-  };
-
-  // Add current source to the list
-  const handleAddSourceToList = async () => {
-    if (!validateCurrentSource()) return;
-
-    const newSource: CustomSource = {
-      id: crypto.randomUUID(),
-      type: currentSourceType,
-      categoryCount: currentSourceCategoryCount,
-    };
-
-    if (currentSourceType === 'topic') {
-      newSource.topic = currentSourceContent.trim();
-      setCustomSources([...customSources, newSource]);
-      resetCurrentSource(newSource.categoryCount);
-      scrollToSourcesList();
-    } else if (currentSourceType === 'paste') {
-      newSource.content = currentSourceContent.trim();
-      setCustomSources([...customSources, newSource]);
-      resetCurrentSource(newSource.categoryCount);
-      scrollToSourcesList();
-    } else if (currentSourceType === 'url') {
-      setIsFetching(true);
-      setFetchError('');
-      try {
-        const authToken = await getToken().catch(() => null);
-        const result = await fetchArticleContent(currentSourceContent.trim(), authToken);
-        if (result.success && result.text) {
-          newSource.url = currentSourceContent.trim();
-          newSource.fetchedContent = result.text;
-          setCustomSources([...customSources, newSource]);
-          resetCurrentSource(newSource.categoryCount);
-          scrollToSourcesList();
-        } else {
-          setFetchError(result.error || 'Failed to fetch content from URL');
-        }
-      } catch (err) {
-        setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
-      } finally {
-        setIsFetching(false);
-      }
-    }
-  };
-
   // Reset current source input for next entry
   // addedSourceCount is the category count of the source being added (if any)
   const resetCurrentSource = (addedSourceCount?: number) => {
@@ -488,6 +398,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setCurrentSourceCategoryCount(finalCount as 1 | 2 | 3 | 4 | 5 | 6);
     setSourceInputError('');
     setFetchError('');
+    setSuccessMessage('');
   };
 
   const handleRemoveSource = (id: string) => {
@@ -511,45 +422,146 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
+  const handleFetchArticle = async () => {
+    if (!currentSourceContent.trim() || !isValidUrl(currentSourceContent.trim())) {
+      setFetchError('Please enter a valid URL');
+      return;
+    }
+    setIsFetching(true);
+    setFetchError('');
+    setSuccessMessage('');
+    try {
+      const authToken = await getToken().catch(() => null);
+      const result = await fetchArticleContent(currentSourceContent.trim(), authToken);
+      if (result.success && result.text) {
+        // Show success message briefly
+        setSuccessMessage('Content fetched successfully!');
+        setTimeout(() => setSuccessMessage(''), 3000);
+      } else {
+        setFetchError(result.error || 'Failed to fetch content from URL');
+      }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
+    } finally {
+      setIsFetching(false);
+    }
+  };
+
   // ==================== Navigation ====================
   const handleBack = () => {
-    if (step === 'theme') {
-      setStep('sources');
-    } else if (step === 'difficulty') {
-      setStep('theme');
+    switch (currentStep) {
+      case 'choose-source':
+        setCurrentStep('choose-mode');
+        break;
+      case 'add-content':
+        setCurrentStep('choose-source');
+        break;
+      case 'review-sources':
+        setCurrentStep('add-content');
+        break;
+      case 'theme-difficulty':
+        setCurrentStep('review-sources');
+        break;
     }
   };
 
-  const handleSourcesNext = () => {
-    if (customSources.length === 0) {
-      setSourceInputError('Please add at least one source');
-      return;
+  const handleNext = async () => {
+    switch (currentStep) {
+      case 'choose-mode':
+        if (creationMode === 'ai') {
+          setCurrentStep('choose-source');
+        } else if (creationMode === 'manual') {
+          handleManualConfirm();
+        } else if (creationMode === 'import-json') {
+          handleImportJSON();
+        }
+        break;
+      case 'choose-source':
+        setCurrentStep('add-content');
+        break;
+      case 'add-content':
+        // Validate and add source before proceeding
+        if (!validateCurrentSource()) {
+          return; // Stay on this step if validation fails
+        }
+        // For URL sources, we need to fetch first
+        if (currentSourceType === 'url') {
+          setIsFetching(true);
+          setFetchError('');
+          try {
+            const authToken = await getToken().catch(() => null);
+            const result = await fetchArticleContent(currentSourceContent.trim(), authToken);
+            if (result.success && result.text) {
+              const newSource: CustomSource = {
+                id: crypto.randomUUID(),
+                type: currentSourceType,
+                categoryCount: currentSourceCategoryCount,
+                url: currentSourceContent.trim(),
+                fetchedContent: result.text,
+              };
+              setCustomSources([...customSources, newSource]);
+              resetCurrentSource(newSource.categoryCount);
+              setCurrentStep('review-sources');
+            } else {
+              setFetchError(result.error || 'Failed to fetch content from URL');
+              return; // Stay on this step
+            }
+          } catch (err) {
+            setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
+            return; // Stay on this step
+          } finally {
+            setIsFetching(false);
+          }
+        } else {
+          // For topic and paste, add directly
+          const newSource: CustomSource = {
+            id: crypto.randomUUID(),
+            type: currentSourceType,
+            categoryCount: currentSourceCategoryCount,
+          };
+          if (currentSourceType === 'topic') {
+            newSource.topic = currentSourceContent.trim();
+          } else {
+            newSource.content = currentSourceContent.trim();
+          }
+          setCustomSources([...customSources, newSource]);
+          resetCurrentSource(newSource.categoryCount);
+          setCurrentStep('review-sources');
+        }
+        break;
+      case 'review-sources':
+        // Validate we have at least one source
+        if (customSources.length === 0) {
+          setSourceInputError('Please add at least one source');
+          return;
+        }
+        setCurrentStep('theme-difficulty');
+        break;
+      case 'theme-difficulty':
+        handleComplete();
+        break;
     }
-    if (getTotalCategoryCount() === 0) {
-      setSourceInputError('Please select at least one category');
-      return;
-    }
-    setStep('theme');
-  };
-
-  const handleThemeNext = () => {
-    setStep('difficulty');
   };
 
   const handleComplete = () => {
-    onComplete({
-      mode: 'ai',
+    // Validate we have at least one source before completing
+    if (creationMode === 'ai' && customSources.length === 0) {
+      setSourceInputError('Please add at least one source');
+      return;
+    }
+    const data: WizardCompleteData = {
+      mode: creationMode,
       theme: theme || 'random',
       difficulty,
       sourceMode: 'custom',
       customSources,
-    });
-    // Reset handled by useEffect on open change
+    };
+    onComplete(data);
   };
 
   const handleClose = () => {
     onClose();
-    // Reset handled by useEffect on open change
+    resetWizard();
   };
 
   const handleManualConfirm = () => {
@@ -562,230 +574,201 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     onImportJSON?.();
   };
 
+  // Reset wizard when opening
+  const resetWizard = () => {
+    setCurrentStep('choose-mode');
+    setCreationMode('ai');
+    setCustomSources([]);
+    setTheme('');
+    setDifficulty('normal');
+    setCurrentSourceType('topic');
+    setCurrentSourceContent('');
+    setCurrentSourceCategoryCount(6);
+    setFetchError('');
+    setSuccessMessage('');
+    setSourceInputError('');
+  };
+
+  // Reset when dialog opens/closes
+  useEffect(() => {
+    if (open) {
+      resetWizard();
+    }
+  }, [open]);
+
+  // Helper to get step info for progress indicator
+  const getStepInfo = () => {
+    if (creationMode === 'manual') return { current: 1, total: 1 };
+    if (creationMode === 'import-json') return { current: 1, total: 1 };
+    // AI mode steps
+    const steps: WizardStep[] = ['choose-source', 'add-content', 'review-sources', 'theme-difficulty'];
+    const currentIndex = steps.indexOf(currentStep);
+    return { current: currentIndex + 1, total: steps.length };
+  };
+
+  const canGoBack = () => {
+    if (creationMode === 'manual' || creationMode === 'import-json') return false;
+    return currentStep !== 'choose-source' && currentStep !== 'choose-mode';
+  };
+
+  const getNextLabel = () => {
+    if (currentStep === 'review-sources') return 'Review & Continue';
+    if (currentStep === 'theme-difficulty') return 'Generate Game';
+    return 'Continue';
+  };
+
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <AlertDialogContent className="max-w-md max-h-[90vh] flex flex-col">
         <AlertDialogHeader>
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-lg">
-                <Wand2 className="w-5 h-5 text-purple-400" />
+              <div className={`p-2 rounded-lg ${
+                creationMode === 'ai' ? 'bg-purple-500/20' :
+                creationMode === 'manual' ? 'bg-orange-500/20' : 'bg-cyan-500/20'
+              }`}>
+                {creationMode === 'ai' && <Wand2 className="w-5 h-5 text-purple-400" />}
+                {creationMode === 'manual' && <Edit className="w-5 h-5 text-orange-400" />}
+                {creationMode === 'import-json' && <Upload className="w-5 h-5 text-cyan-400" />}
               </div>
               <div>
                 <AlertDialogTitle>Create New Game</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {activeTab === 'ai' && step === 'sources' && 'Add sources to generate categories with AI'}
-                  {activeTab === 'ai' && step === 'theme' && 'Choose a theme for your game'}
-                  {activeTab === 'ai' && step === 'difficulty' && 'Select difficulty level'}
-                  {activeTab === 'manual' && 'Manually create all game content'}
-                  {activeTab === 'import' && 'Import a game from a JSON file'}
+                  {currentStep === 'choose-mode' && 'Choose how you want to create your game'}
+                  {currentStep === 'choose-source' && 'What type of content do you have?'}
+                  {currentStep === 'add-content' && 'Enter your content'}
+                  {currentStep === 'review-sources' && `Review your ${customSources.length} source${customSources.length > 1 ? 's' : ''}`}
+                  {currentStep === 'theme-difficulty' && 'Finalize your game settings'}
                 </AlertDialogDescription>
               </div>
             </div>
 
-            {/* AI Model Selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-slate-700 bg-slate-900/50 h-8 px-2"
-                  disabled={isLoading}
-                >
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-400" />
-                  <span className="text-xs">{formatModelName(aiModel)}</span>
-                  <ChevronDown className="w-3 h-3 ml-1 text-slate-400" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                {availableModels.length === 0 ? (
-                  <DropdownMenuItem disabled>
-                    <span className="text-slate-500 text-xs">No models available</span>
-                  </DropdownMenuItem>
-                ) : (
-                  <>
-                    {/* Performance stats header */}
-                    <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
-                      Performance based on your history
-                    </div>
-
-                    {/* OpenRouter section */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span className="text-blue-400 mr-2">🤖</span>
-                        <span>OpenRouter</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
-                        {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
-                          const stats = getModelStats(model.id);
-                          const costEstimate = getCostEstimate(model.id);
-                          return (
-                            <DropdownMenuItem
-                              key={model.id}
-                              onClick={() => handleAIModelChange(model.id)}
-                              className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="truncate">{model.name}</span>
-                                  {aiModel === model.id && (
-                                    <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
-                                  )}
-                                </div>
-                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                  {stats && (
-                                    <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
-                                  )}
-                                  <span className="text-green-400">💰 {costEstimate}</span>
-                                </div>
-                              </div>
-                            </DropdownMenuItem>
-                          );
-                        })}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
-                    {/* Ollama section */}
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger>
-                        <span className="text-green-400 mr-2">🦙</span>
-                        <span>Ollama</span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
-                        {availableModels.filter(m => m.provider === 'ollama').map((model) => {
-                          const stats = getModelStats(model.id);
-                          return (
-                            <DropdownMenuItem
-                              key={model.id}
-                              onClick={() => handleAIModelChange(model.id)}
-                              className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="truncate">{model.name}</span>
-                                  {aiModel === model.id && (
-                                    <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
-                                  )}
-                                </div>
-                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                  {stats && (
-                                    <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
-                                  )}
-                                  <span className="text-green-400">🆓 Free</span>
-                                </div>
-                              </div>
-                            </DropdownMenuItem>
-                          );
-                        })}
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-
-                    <DropdownMenuSeparator />
-
-                    {/* Current selection with stats */}
-                    <DropdownMenuItem disabled className="focus:bg-transparent">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs text-slate-500">
-                          Selected: {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None'}
-                        </div>
-                        {(() => {
-                          const stats = aiModel ? getModelStats(aiModel) : null;
-                          const fastestModel = getModelsBySpeed()[0];
-                          const costEstimate = aiModel ? getCostEstimate(aiModel) : null;
-                          const isOllama = availableModels.find(m => m.id === aiModel)?.provider === 'ollama';
-                          return (
-                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                              {stats && (
-                                <span className="text-xs text-slate-600">
-                                  Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
-                                </span>
-                              )}
-                              {fastestModel && fastestModel.modelId === aiModel && (
-                                <span className="text-xs text-green-500">⚡ Fastest</span>
-                              )}
-                              {costEstimate && !isOllama && (
-                                <span className="text-xs text-green-500">💰 {costEstimate}</span>
-                              )}
-                              {isOllama && (
-                                <span className="text-xs text-green-500">🆓 Free</span>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
+            {/* AI Model Selector - only show for AI mode */}
+            {creationMode === 'ai' && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-slate-700 bg-slate-900/50 h-8 px-2"
+                    disabled={isLoading}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-purple-400" />
+                    <span className="text-xs">{formatModelName(aiModel)}</span>
+                    <ChevronDown className="w-3 h-3 ml-1 text-slate-400" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {availableModels.length === 0 ? (
+                    <DropdownMenuItem disabled>
+                      <span className="text-slate-500 text-xs">No models available</span>
                     </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                  ) : (
+                    <>
+                      {/* Performance stats header */}
+                      <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
+                        Performance based on your history
+                      </div>
+
+                      {/* OpenRouter section */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <span className="text-blue-400 mr-2">🤖</span>
+                          <span>OpenRouter</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                          {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
+                            const stats = getModelStats(model.id);
+                            const costEstimate = getCostEstimate(model.id);
+                            return (
+                              <DropdownMenuItem
+                                key={model.id}
+                                onClick={() => handleAIModelChange(model.id)}
+                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate">{model.name}</span>
+                                    {aiModel === model.id && (
+                                      <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                    {stats && (
+                                      <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                    )}
+                                    <span className="text-green-400">💰 {costEstimate}</span>
+                                  </div>
+                                </div>
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+
+                      {/* Ollama section */}
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <span className="text-green-400 mr-2">🦙</span>
+                          <span>Ollama</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                          {availableModels.filter(m => m.provider === 'ollama').map((model) => {
+                            const stats = getModelStats(model.id);
+                            return (
+                              <DropdownMenuItem
+                                key={model.id}
+                                onClick={() => handleAIModelChange(model.id)}
+                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="truncate">{model.name}</span>
+                                    {aiModel === model.id && (
+                                      <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                    )}
+                                  </div>
+                                  {stats && (
+                                    <div className="text-xs text-slate-500 mt-0.5">
+                                      Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
+                                    </div>
+                                  )}
+                                </div>
+                              </DropdownMenuItem>
+                            );
+                          })}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </AlertDialogHeader>
 
-        {/* Tab Selector */}
-        <div className="px-6 pt-2 pb-4 border-b border-slate-700/50">
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => setActiveTab('ai')}
-              className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-all border-b-2 ${
-                activeTab === 'ai'
-                  ? 'border-purple-400 text-slate-200 bg-slate-800/50'
-                  : 'border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/30'
-              }`}
-            >
-              <Wand2 className="w-4 h-4 inline mr-1.5" />
-              AI
-            </button>
-            <button
-              onClick={() => setActiveTab('manual')}
-              className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-all border-b-2 ${
-                activeTab === 'manual'
-                  ? 'border-orange-400 text-slate-200 bg-slate-800/50'
-                  : 'border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/30'
-              }`}
-            >
-              <Edit className="w-4 h-4 inline mr-1.5" />
-              Manual
-            </button>
-            <button
-              onClick={() => setActiveTab('import')}
-              className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-all border-b-2 ${
-                activeTab === 'import'
-                  ? 'border-cyan-400 text-slate-200 bg-slate-800/50'
-                  : 'border-transparent text-slate-500 hover:text-slate-400 hover:bg-slate-800/30'
-              }`}
-            >
-              <Upload className="w-4 h-4 inline mr-1.5" />
-              Import
-            </button>
-          </div>
-        </div>
-
-        {/* Progress Indicator - shows selected choices */}
-        {activeTab === 'ai' && step !== 'sources' && (
-          <div className="px-6 pb-4 border-b border-slate-700/50">
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-md">
-                AI Generate
-              </span>
-              {customSources.length > 0 && (
-                <span className="px-2 py-1 bg-yellow-500/20 text-yellow-300 rounded-md">
-                  {customSources.length} source{customSources.length !== 1 ? 's' : ''}, {getTotalCategoryCount()} categor{getTotalCategoryCount() !== 1 ? 'ies' : 'y'}
-                </span>
-              )}
-              {step === 'difficulty' && theme && (
-                <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">
-                  Theme: {theme || 'random'}
-                </span>
-              )}
-              {step === 'difficulty' && (
-                <span className="px-2 py-1 bg-slate-700 text-slate-300 rounded-md">
-                  Difficulty: {difficulty === 'easy' ? 'Easy' : difficulty === 'normal' ? 'Normal' : 'Hard'}
-                </span>
-              )}
+        {/* Progress Indicator - AI mode only */}
+        {creationMode === 'ai' && currentStep !== 'choose-mode' && (
+          <div className="px-6 py-3 border-b border-slate-700/50">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400">Step {getStepInfo().current} of {getStepInfo().total}</span>
+              <div className="flex gap-1">
+                {(['choose-source', 'add-content', 'review-sources', 'theme-difficulty'] as WizardStep[]).map((s, i) => (
+                  <div
+                    key={s}
+                    className={`w-6 h-1.5 rounded-full transition-colors ${
+                      (['choose-source', 'add-content', 'review-sources', 'theme-difficulty'] as WizardStep[]).indexOf(currentStep) >= i
+                        ? 'bg-purple-500'
+                        : 'bg-slate-700'
+                    }`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         )}
 
+        {/* Loading State */}
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
@@ -793,519 +776,525 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
           </div>
         ) : (
-          <div className="overflow-y-auto flex-1 -mx-6 px-6">
-            {/* ==================== AI TAB ==================== */}
-            {activeTab === 'ai' && step === 'sources' && (
-              <div className="py-4 space-y-5">
-                {/* Source type selection */}
-                <div className="space-y-3">
-                  <Label className="text-sm text-slate-300">Source Type</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={() => {
-                        setCurrentSourceType('topic');
-                        setCurrentSourceContent('');
-                        setSourceInputError('');
-                        setFetchError('');
-                        setTimeout(() => inputRef.current?.focus(), 0);
-                      }}
-                      className={`p-3 rounded-lg border text-center transition-all ${
-                        currentSourceType === 'topic'
-                          ? 'bg-purple-500/20 border-purple-500 text-purple-300 shadow-lg shadow-purple-500/10'
-                          : 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
-                      }`}
-                      title="Generate categories from any topic or theme"
-                    >
-                      <Zap className="w-5 h-5 mx-auto mb-1.5" />
-                      <span className="text-xs font-medium">Topic</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCurrentSourceType('paste');
-                        setCurrentSourceContent('');
-                        setSourceInputError('');
-                        setFetchError('');
-                        setTimeout(() => textareaRef.current?.focus(), 0);
-                      }}
-                      className={`p-3 rounded-lg border text-center transition-all ${
-                        currentSourceType === 'paste'
-                          ? 'bg-blue-500/20 border-blue-500 text-blue-300 shadow-lg shadow-blue-500/10'
-                          : 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
-                      }`}
-                      title="Paste notes, articles, or other content"
-                    >
-                      <FileText className="w-5 h-5 mx-auto mb-1.5" />
-                      <span className="text-xs font-medium">Paste</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCurrentSourceType('url');
-                        setCurrentSourceContent('');
-                        setSourceInputError('');
-                        setFetchError('');
-                        setTimeout(() => inputRef.current?.focus(), 0);
-                      }}
-                      className={`p-3 rounded-lg border text-center transition-all ${
-                        currentSourceType === 'url'
-                          ? 'bg-green-500/20 border-green-500 text-green-300 shadow-lg shadow-green-500/10'
-                          : 'bg-slate-700/30 border-slate-600 text-slate-400 hover:border-slate-500 hover:bg-slate-700/50'
-                      }`}
-                      title="Fetch content from a webpage"
-                    >
-                      <Globe className="w-5 h-5 mx-auto mb-1.5" />
-                      <span className="text-xs font-medium">URL</span>
-                    </button>
-                  </div>
-                  {/* Type descriptions */}
-                  <div className="flex gap-2 text-xs text-slate-500">
-                    {currentSourceType === 'topic' && (
-                      <p className="bg-purple-500/5 text-purple-300 px-2 py-1 rounded border border-purple-500/10">
-                        ⚡ Fastest — just enter a topic name
+          <div className="overflow-y-auto flex-1 -mx-6 px-6 py-4">
+            {/* ==================== STEP 1: CHOOSE MODE ==================== */}
+            {currentStep === 'choose-mode' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => setCreationMode('ai')}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                    creationMode === 'ai'
+                      ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-purple-500/20 rounded-lg">
+                      <Wand2 className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-200 mb-1">Generate with AI</h3>
+                      <p className="text-sm text-slate-400">
+                        Enter a topic or paste content to automatically generate a full Jeopardy game
                       </p>
-                    )}
-                    {currentSourceType === 'paste' && (
-                      <p className="bg-blue-500/5 text-blue-300 px-2 py-1 rounded border border-blue-500/10">
-                        📄 Perfect for notes, articles, transcripts
-                      </p>
-                    )}
-                    {currentSourceType === 'url' && (
-                      <p className="bg-green-500/5 text-green-300 px-2 py-1 rounded border border-green-500/10">
-                        🌐 Auto-fetches from Wikipedia & web pages
-                      </p>
+                    </div>
+                    {creationMode === 'ai' && (
+                      <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      </div>
                     )}
                   </div>
-                </div>
+                </button>
 
-                {/* Content input */}
-                <div className="space-y-2">
-                  <Label htmlFor="currentSourceContent" className="text-sm text-slate-300">
-                    {currentSourceType === 'topic' && 'Topic Name'}
-                    {currentSourceType === 'paste' && 'Content to Analyze'}
-                    {currentSourceType === 'url' && 'Webpage URL'}
-                  </Label>
-                  {currentSourceType === 'paste' ? (
-                    <Textarea
-                      ref={textareaRef}
-                      id="currentSourceContent"
+                <button
+                  onClick={() => setCreationMode('manual')}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                    creationMode === 'manual'
+                      ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-orange-500/20 rounded-lg">
+                      <Edit className="w-5 h-5 text-orange-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-200 mb-1">Manual Editor</h3>
+                      <p className="text-sm text-slate-400">
+                        Create all questions and answers yourself with full control
+                      </p>
+                    </div>
+                    {creationMode === 'manual' && (
+                      <div className="w-5 h-5 rounded-full bg-orange-500 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setCreationMode('import-json')}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                    creationMode === 'import-json'
+                      ? 'border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/10'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-cyan-500/20 rounded-lg">
+                      <Upload className="w-5 h-5 text-cyan-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-200 mb-1">Import JSON</h3>
+                      <p className="text-sm text-slate-400">
+                        Load a game from a previously exported JSON file
+                      </p>
+                    </div>
+                    {creationMode === 'import-json' && (
+                      <div className="w-5 h-5 rounded-full bg-cyan-500 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* ==================== STEP 2: CHOOSE SOURCE TYPE ==================== */}
+            {currentStep === 'choose-source' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    setCurrentSourceType('topic');
+                    setCurrentSourceContent('');
+                    setSourceInputError('');
+                    setFetchError('');
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                    currentSourceType === 'topic'
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-500/20 rounded-lg">
+                      <Zap className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-200 mb-1">Topic</h3>
+                      <p className="text-sm text-slate-400">
+                        Fastest option — just enter any topic name
+                      </p>
+                    </div>
+                    {currentSourceType === 'topic' && (
+                      <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCurrentSourceType('paste');
+                    setCurrentSourceContent('');
+                    setSourceInputError('');
+                    setFetchError('');
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                    currentSourceType === 'paste'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/20 rounded-lg">
+                      <FileText className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-200 mb-1">Paste Content</h3>
+                      <p className="text-sm text-slate-400">
+                        Paste notes, articles, or other text content
+                      </p>
+                    </div>
+                    {currentSourceType === 'paste' && (
+                      <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCurrentSourceType('url');
+                    setCurrentSourceContent('');
+                    setSourceInputError('');
+                    setFetchError('');
+                  }}
+                  className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                    currentSourceType === 'url'
+                      ? 'border-green-500 bg-green-500/10'
+                      : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-green-500/20 rounded-lg">
+                      <Globe className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-200 mb-1">URL</h3>
+                      <p className="text-sm text-slate-400">
+                        Fetch content from Wikipedia or any webpage
+                      </p>
+                    </div>
+                    {currentSourceType === 'url' && (
+                      <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                        <div className="w-2 h-2 rounded-full bg-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </div>
+            )}
+
+            {/* ==================== STEP 3: ADD CONTENT ==================== */}
+            {currentStep === 'add-content' && (
+              <div className="space-y-4">
+                {currentSourceType === 'topic' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="topicInput" className="text-sm text-slate-300">Topic Name</Label>
+                    <Input
+                      id="topicInput"
+                      ref={inputRef}
                       value={currentSourceContent}
                       onChange={(e) => {
                         setCurrentSourceContent(e.target.value);
                         setSourceInputError('');
                       }}
-                      placeholder="Paste notes, transcripts, or articles..."
-                      className="bg-slate-700/50 border-slate-600 min-h-[120px] max-h-[200px] resize-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10"
-                      maxLength={MAX_CHARS}
-                      autoFocus
-                    />
-                  ) : (
-                    <div className="relative">
-                      <Input
-                        ref={inputRef}
-                        id="currentSourceContent"
-                        type={currentSourceType === 'url' ? 'url' : 'text'}
-                        value={currentSourceContent}
-                        onChange={(e) => {
-                          setCurrentSourceContent(e.target.value);
-                          setSourceInputError('');
-                        }}
-                        placeholder={
-                          currentSourceType === 'url'
-                            ? 'https://en.wikipedia.org/wiki/Topic'
-                            : 'e.g., US Presidents, Space Exploration, 1990s Music'
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && currentSourceContent.trim()) {
+                          handleNext();
                         }
-                        className="bg-slate-700/50 border-slate-600 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/10 pr-20"
-                        autoFocus
-                      />
-                      {/* Sparkle button for random topic/URL */}
+                      }}
+                      placeholder="e.g., US Presidents, Space Exploration, 1990s Music"
+                      className="bg-slate-800/50 border-slate-700"
+                    />
+                    <div className="flex gap-2">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={currentSourceType === 'topic' ? handleGenerateRandomTopic : handleRandomWikipediaURL}
-                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 px-2 text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-                        title={currentSourceType === 'topic' ? 'Get a random Jeopardy topic' : 'Get a random Wikipedia article'}
+                        onClick={handleGenerateRandomTopic}
+                        className="text-purple-400 hover:text-purple-300"
                       >
-                        <Sparkles className="w-4 h-4" />
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        Random Topic
                       </Button>
                     </div>
-                  )}
-                  {currentSourceType === 'paste' && currentSourceContent.length > 0 && currentSourceContent.length < MIN_CHARS && (
-                    <p className="text-xs text-orange-400 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      Minimum {MIN_CHARS} characters required ({currentSourceContent.length} / {MIN_CHARS})
-                    </p>
-                  )}
-                  {currentSourceType === 'paste' && (
-                    <p className="text-xs text-slate-500 flex items-center justify-between">
-                      <span>{currentSourceContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</span>
-                      {currentSourceContent.length >= MIN_CHARS && (
-                        <span className="text-green-400">✓ Ready to add</span>
-                      )}
-                    </p>
-                  )}
-                  {currentSourceType === 'topic' && (
-                    <p className="text-xs text-slate-500">
-                      💡 Be specific for better results — "US Presidents" instead of "History"
-                    </p>
-                  )}
-                  {currentSourceType === 'url' && (
-                    <p className="text-xs text-slate-500">
-                      💡 Works best with Wikipedia articles and educational content
-                    </p>
-                  )}
-                </div>
-
-                {/* Category count */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm text-slate-300">Categories from this source</Label>
-                    <span className="text-xs text-slate-500">
-                      {getRemainingCategories()} slot{getRemainingCategories() === 1 ? '' : 's'} available
-                    </span>
                   </div>
-                  <select
-                    value={currentSourceCategoryCount}
-                    onChange={(e) => {
-                      const parsed = parseInt(e.target.value);
-                      const valid = Math.max(1, Math.min(6, parsed || 1));
-                      setCurrentSourceCategoryCount(valid as 1 | 2 | 3 | 4 | 5 | 6);
-                    }}
-                    className="w-full bg-slate-700/50 border border-slate-600 rounded-lg px-3 py-2.5 text-slate-200 hover:border-slate-500 transition-colors cursor-pointer"
-                  >
-                    {[6, 1, 2, 3, 4, 5].map(n => {
-                      const remaining = getRemainingCategories();
-                      const isDisabled = n > remaining;
-                      const label = n === 1 ? 'y' : 'ies';
-                      const hint = n === 6 ? '' : n === 1 ? ' (recommended)' : n === 2 ? ' (balanced)' : '';
-                      const displayLabel = n === 6 ? 'Full Game (6 Categories)' : `${n} categor${label}${hint}`;
+                )}
 
-                      return (
-                        <option
-                          key={n}
-                          value={n}
-                          disabled={isDisabled}
-                          className="bg-slate-800"
+                {currentSourceType === 'paste' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="pasteInput" className="text-sm text-slate-300">Content to Analyze</Label>
+                    <Textarea
+                      ref={textareaRef}
+                      id="pasteInput"
+                      value={currentSourceContent}
+                      onChange={(e) => {
+                        setCurrentSourceContent(e.target.value);
+                        setSourceInputError('');
+                      }}
+                      placeholder={`Paste your notes, articles, or other content here...`}
+                      className="min-h-[200px] bg-slate-800/50 border-slate-700 text-sm"
+                    />
+                    <p className="text-xs text-slate-500">
+                      {currentSourceContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters
+                    </p>
+                  </div>
+                )}
+
+                {currentSourceType === 'url' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="urlInput" className="text-sm text-slate-300">Webpage URL</Label>
+                    <Input
+                      id="urlInput"
+                      ref={inputRef}
+                      value={currentSourceContent}
+                      onChange={(e) => {
+                        setCurrentSourceContent(e.target.value);
+                        setSourceInputError('');
+                        setFetchError('');
+                      }}
+                      placeholder="https://en.wikipedia.org/wiki/Ancient_Egypt"
+                      className="bg-slate-800/50 border-slate-700"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleRandomWikipediaURL}
+                        className="text-green-400 hover:text-green-300"
+                      >
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        Random Wikipedia
+                      </Button>
+                      {isValidUrl(currentSourceContent) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleFetchArticle}
+                          disabled={isFetching}
+                          className="text-blue-400 hover:text-blue-300"
                         >
-                          {displayLabel}
-                        </option>
+                          {isFetching ? (
+                            <>
+                              <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                              Fetching...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="w-3 h-3 mr-1" />
+                              Test Fetch
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    {fetchError && (
+                      <p className="text-sm text-red-400">{fetchError}</p>
+                    )}
+                    {successMessage && (
+                      <p className="text-sm text-green-400">{successMessage}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Category Count */}
+                <div className="space-y-2">
+                  <Label className="text-sm text-slate-300">Categories to Generate</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[1, 2, 3, 4, 5, 6].map((count) => {
+                      const remaining = getRemainingCategories();
+                      const isValid = count <= remaining;
+                      return (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => isValid && setCurrentSourceCategoryCount(count as 1 | 2 | 3 | 4 | 5 | 6)}
+                          disabled={!isValid}
+                          className={`py-2 px-3 rounded-lg border text-center transition-all ${
+                            !isValid
+                              ? 'opacity-30 cursor-not-allowed border-slate-800'
+                              : currentSourceCategoryCount === count
+                                ? 'bg-purple-500/20 border-purple-500 text-purple-300'
+                                : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:border-slate-600 cursor-pointer'
+                          }`}
+                        >
+                          {count}
+                        </button>
                       );
                     })}
-                  </select>
+                  </div>
                   <p className="text-xs text-slate-500">
-                    Each source generates this many categories. Total cannot exceed 6.
+                    This will generate {currentSourceCategoryCount} categor{currentSourceCategoryCount > 1 ? 'ies' : 'y'}
+                    {getRemainingCategories() < 6 && ` (${getRemainingCategories()} remaining)`}
                   </p>
                 </div>
 
-                {/* Error messages */}
                 {sourceInputError && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-300">{sourceInputError}</p>
-                  </div>
-                )}
-                {fetchError && (
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-sm text-red-300">{fetchError}</p>
-                  </div>
-                )}
-
-                {/* Sources list */}
-                {customSources.length > 0 && (
-                  <div ref={sourcesListRef} className="space-y-3 pt-3 border-t border-slate-700/50">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-slate-400">
-                        <span className="text-slate-300 font-medium">{customSources.length} source{customSources.length !== 1 ? 's' : ''}</span> added
-                      </p>
-                      <div className={`text-sm font-semibold px-3 py-1.5 rounded-full ${getTotalCategoryCount() === 6 ? 'bg-green-500/20 text-green-300 border border-green-500/30' : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/30'}`}>
-                        {getTotalCategoryCount()} / 6 categories
-                      </div>
-                    </div>
-                    {getTotalCategoryCount() < 6 && (
-                      <p className="text-xs text-slate-500 flex items-center gap-1.5">
-                        <Info className="w-3.5 h-3.5" />
-                        Optionally add more sources ({getRemainingCategories()} categor{getRemainingCategories() === 1 ? 'y' : 'ies'} remaining)
-                      </p>
-                    )}
-                    <div className="space-y-2">
-                      {customSources.map((source) => {
-                        const typeConfig = {
-                          topic: { icon: Zap, color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', label: 'Topic' },
-                          paste: { icon: FileText, color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20', label: 'Pasted Content' },
-                          url: { icon: Globe, color: 'text-green-400', bg: 'bg-green-500/10', border: 'border-green-500/20', label: 'URL' },
-                        }[source.type];
-                        const Icon = typeConfig.icon;
-
-                        return (
-                          <div key={source.id} className={`bg-slate-800/50 border ${typeConfig.border} rounded-lg p-3 hover:bg-slate-800/70 transition-colors group`}>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1.5">
-                                  <div className={`p-1.5 rounded ${typeConfig.bg} ${typeConfig.color}`}>
-                                    <Icon className="w-3.5 h-3.5" />
-                                  </div>
-                                  <span className="text-xs text-slate-500">{typeConfig.label}</span>
-                                  <span className="px-1.5 py-0.5 bg-slate-700 text-slate-300 text-xs rounded-full border border-slate-600">
-                                    {source.categoryCount} categor{source.categoryCount === 1 ? 'y' : 'ies'}
-                                  </span>
-                                </div>
-                                <p className="text-sm font-medium text-slate-200 truncate mb-0.5">{getDisplayLabel(source)}</p>
-                                {source.type === 'topic' && (
-                                  <p className="text-xs text-slate-500 italic">"{source.topic}"</p>
-                                )}
-                                {source.type === 'url' && (
-                                  <p className="text-xs text-slate-500 truncate">{source.url}</p>
-                                )}
-                                {source.type === 'paste' && (
-                                  <p className="text-xs text-slate-500">{source.content?.length.toLocaleString() || 0} characters</p>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => handleRemoveSource(source.id)}
-                                className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                                title="Remove this source"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {getRemainingCategories() === 0 && customSources.length > 0 && (
-                      <div className="flex items-center justify-center gap-2 py-2 px-4 bg-green-500/10 border border-green-500/20 rounded-lg">
-                        <span className="text-green-400">✓</span>
-                        <p className="text-sm text-green-300 font-medium">All 6 categories allocated!</p>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-3 rounded-lg">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {sourceInputError}
                   </div>
                 )}
               </div>
             )}
 
-            {/* Theme step */}
-            {activeTab === 'ai' && step === 'theme' && (
-              <div className="py-4 space-y-4">
+            {/* ==================== STEP 4: REVIEW SOURCES ==================== */}
+            {currentStep === 'review-sources' && (
+              <div className="space-y-4">
+                {/* Sources List */}
                 <div className="space-y-2">
-                  <Label htmlFor="theme">Game Theme</Label>
-                  <Input
-                    ref={inputRef}
-                    id="theme"
-                    value={theme}
-                    onChange={(e) => setTheme(e.target.value)}
-                    placeholder="Optional overall theme (leave blank for auto-generated title)"
-                    className="bg-slate-800/50 border-slate-700"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleThemeNext();
-                      }
-                    }}
-                  />
-                  <p className="text-xs text-slate-500">
-                    Your sources already define specific topics - this is optional for the game title
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Difficulty step */}
-            {activeTab === 'ai' && step === 'difficulty' && (
-              <div className="py-4 space-y-3">
-                <p className="text-sm text-slate-400 mb-2">How challenging should the questions be?</p>
-                {difficultyOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setDifficulty(option.value)}
-                    className={`
-                      w-full text-left p-4 rounded-lg border transition-all
-                      ${difficulty === option.value
-                        ? 'bg-purple-500/20 border-purple-500/50 ring-2 ring-purple-500/30'
-                        : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
-                      }
-                    `}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">{option.icon}</span>
-                      <div>
-                        <div className="font-semibold text-slate-200">{option.title}</div>
-                        <div className="text-sm text-slate-400 mt-1">{option.desc}</div>
+                  {customSources.map((source) => (
+                    <div
+                      key={source.id}
+                      className="p-3 bg-slate-800/50 border border-slate-700 rounded-lg flex items-center justify-between"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          {source.type === 'topic' && <Zap className="w-4 h-4 text-purple-400" />}
+                          {source.type === 'paste' && <FileText className="w-4 h-4 text-blue-400" />}
+                          {source.type === 'url' && <Globe className="w-4 h-4 text-green-400" />}
+                          <span className="text-sm font-medium text-slate-200 truncate">
+                            {source.type === 'topic' && source.topic}
+                            {source.type === 'paste' && 'Pasted Content'}
+                            {source.type === 'url' && source.url}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          {source.categoryCount} categor{source.categoryCount > 1 ? 'ies' : 'y'}
+                        </p>
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleRemoveSource(source.id)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* ==================== MANUAL TAB ==================== */}
-            {activeTab === 'manual' && (
-              <div className="py-4 space-y-6">
-                {/* What's involved */}
-                <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                  <h3 className="font-semibold text-yellow-300 mb-2">⚠️ Manual creation requires significant effort</h3>
-                  <p className="text-sm text-slate-300 mb-2">You'll need to manually enter:</p>
-                  <ul className="text-sm text-slate-300 space-y-1 ml-4">
-                    <li>• 6 category titles</li>
-                    <li>• 30 clues (5 per category)</li>
-                    <li>• 30 correct responses/answers</li>
-                    <li>• Dollar values for each clue</li>
-                  </ul>
-                  <p className="text-xs text-slate-400 mt-3">This can take 30-60 minutes or more to complete.</p>
+                  ))}
                 </div>
 
-                {/* AI alternative */}
-                <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
-                  <h3 className="font-semibold text-purple-300 mb-2">✨ Or let AI do the work for you</h3>
-                  <p className="text-sm text-slate-300 mb-2">AI can generate a complete game in seconds:</p>
-                  <ul className="text-sm text-slate-300 space-y-1 ml-4">
-                    <li>• <span className="text-green-400">From any theme</span> - just enter a topic</li>
-                    <li>• <span className="text-blue-400">From your content</span> - paste notes, transcripts, or articles</li>
-                    <li>• <span className="text-blue-400">From a webpage</span> - paste a URL to fetch content</li>
-                  </ul>
-                  <p className="text-xs text-slate-400 mt-3">All clues fact-checked and ready to play!</p>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex flex-col gap-3">
-                  <Button
-                    onClick={handleManualConfirm}
-                    className="w-full bg-yellow-500 hover:bg-yellow-400 text-black font-semibold"
-                  >
-                    <Edit className="w-4 h-4 mr-2" />
-                    I understand - proceed to manual editor
-                  </Button>
-                  <Button
-                    onClick={() => setActiveTab('ai')}
-                    variant="outline"
-                    className="w-full border-purple-500/50 text-purple-300 hover:bg-purple-500/10"
-                  >
-                    <Wand2 className="w-4 h-4 mr-2" />
-                    Try AI generation instead
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* ==================== IMPORT TAB ==================== */}
-            {activeTab === 'import' && (
-              <div className="py-4 space-y-6">
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center mx-auto mb-4">
-                    <Upload className="w-8 h-8 text-cyan-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-slate-200 mb-2">Import from JSON</h3>
-                  <p className="text-sm text-slate-400 mb-6">
-                    Load a previously exported game or a JSON file in the correct format
+                {/* Add Another Source Button - PROMINENT */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep('choose-source')}
+                  disabled={getTotalCategoryCount() >= 6}
+                  className={`w-full p-4 border-2 border-dashed rounded-lg text-center transition-all group ${
+                    getTotalCategoryCount() >= 6
+                      ? 'border-slate-800 opacity-50 cursor-not-allowed'
+                      : 'border-slate-700 hover:border-purple-500 hover:bg-purple-500/5'
+                  }`}
+                >
+                  <Plus className={`w-5 h-5 mx-auto mb-2 ${getTotalCategoryCount() >= 6 ? 'text-slate-600' : 'text-slate-500 group-hover:text-purple-400'}`} />
+                  <span className={`text-sm ${getTotalCategoryCount() >= 6 ? 'text-slate-600' : 'text-slate-400 group-hover:text-purple-300'}`}>
+                    Add Another Source
+                  </span>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Total: {customSources.length} source{customSources.length !== 1 ? 's' : ''}, {getTotalCategoryCount()} / 6 categories
                   </p>
-                  <Button
-                    onClick={handleImportJSON}
-                    className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold max-w-xs"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Select JSON File
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+                </button>
 
-        {/* Error display */}
-        {error && (
-          <div className="px-6 pb-4">
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-red-300 mb-1">Generation Failed</p>
-                  <p className="text-xs text-red-400/80 mb-3">{error}</p>
-                  <Button
-                    onClick={handleComplete}
-                    size="sm"
-                    variant="outline"
-                    className="text-xs border-red-500/30 text-red-300 hover:bg-red-500/20 hover:text-red-200"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" />
-                    Try Again
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <AlertDialogFooter>
-          <div className="flex gap-2 w-full">
-            {/* Back button for AI tab when not in sources step */}
-            {activeTab === 'ai' && step !== 'sources' ? (
-              <Button
-                variant="outline"
-                onClick={handleBack}
-                className="flex-1"
-                disabled={isLoading}
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            ) : (
-              <AlertDialogCancel onClick={handleClose} className="flex-1" disabled={isLoading}>
-                Cancel
-              </AlertDialogCancel>
-            )}
-
-            {/* Add Source button for AI sources step - shown in middle */}
-            {activeTab === 'ai' && step === 'sources' && (
-              <Button
-                onClick={handleAddSourceToList}
-                className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white"
-                disabled={isFetching || (currentSourceType === 'paste' && currentSourceContent.length < MIN_CHARS) || !currentSourceContent.trim() || currentSourceCategoryCount > getRemainingCategories() || isLoading}
-              >
-                {isFetching ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Fetching...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Source
-                  </>
+                {sourceInputError && (
+                  <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-3 rounded-lg">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {sourceInputError}
+                  </div>
                 )}
-              </Button>
+              </div>
             )}
 
-            {/* Action buttons for AI tab */}
-            {activeTab === 'ai' && step === 'sources' && (
-              <Button
-                onClick={handleSourcesNext}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
-                disabled={isLoading || customSources.length === 0 || getTotalCategoryCount() === 0}
-              >
-                Next
-              </Button>
-            )}
-            {activeTab === 'ai' && step === 'theme' && (
-              <Button
-                onClick={handleThemeNext}
-                className="flex-1 bg-yellow-500 hover:bg-yellow-400 text-black"
-                disabled={isLoading}
-              >
-                Next
-              </Button>
-            )}
-            {activeTab === 'ai' && step === 'difficulty' && (
-              <Button
-                onClick={handleComplete}
-                className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white"
-                disabled={isLoading || !!error}
-              >
-                <Wand2 className="w-4 h-4 mr-2" />
-                Generate Game
-              </Button>
+            {/* ==================== STEP 5: THEME & DIFFICULTY ==================== */}
+            {currentStep === 'theme-difficulty' && (
+              <div className="space-y-4">
+                {/* Theme */}
+                <div className="space-y-2">
+                  <Label htmlFor="themeInput" className="text-sm text-slate-300">
+                    Game Theme <span className="text-slate-500">(optional)</span>
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="themeInput"
+                      value={theme}
+                      onChange={(e) => setTheme(e.target.value)}
+                      placeholder="Random theme will be used"
+                      className="flex-1 bg-slate-800/50 border-slate-700"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTheme('')}
+                      className="text-slate-400 hover:text-slate-300"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Ties all categories together with a unifying theme
+                  </p>
+                </div>
+
+                {/* Difficulty */}
+                <div className="space-y-2">
+                  <Label className="text-sm text-slate-300">Difficulty Level</Label>
+                  <div className="space-y-2">
+                    {difficultyOptions.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setDifficulty(opt.value)}
+                        className={`w-full p-3 rounded-lg border text-left transition-all ${
+                          difficulty === opt.value
+                            ? 'bg-slate-700/50 border-slate-600'
+                            : 'bg-slate-800/30 border-slate-700 hover:border-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{opt.icon}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-slate-200">{opt.title}</span>
+                              {difficulty === opt.value && (
+                                <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center ml-auto">
+                                  <Check className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">{opt.desc}</p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
+        )}
+
+        {/* Footer */}
+        <AlertDialogFooter className="gap-2">
+          {canGoBack() && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleBack}
+              disabled={isLoading}
+              className="text-slate-400 hover:text-slate-300"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleClose}
+            disabled={isLoading}
+            className="text-slate-400 hover:text-slate-300"
+          >
+            Cancel
+          </Button>
+          {currentStep === 'choose-mode' && creationMode !== 'manual' && creationMode !== 'import-json' && (
+            <Button
+              type="button"
+              onClick={handleNext}
+              className="flex-1 bg-purple-600 hover:bg-purple-500 text-white"
+            >
+              Continue
+            </Button>
+          )}
+          {currentStep !== 'choose-mode' && creationMode === 'ai' && (
+            <Button
+              type="button"
+              onClick={handleNext}
+              disabled={isLoading}
+              className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white"
+            >
+              {getNextLabel()}
+            </Button>
+          )}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
   );
+
 }
