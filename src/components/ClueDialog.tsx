@@ -162,6 +162,9 @@ export function ClueDialog({
           <div className="flex items-center gap-3">
             <div className="text-2xl font-bold text-yellow-500">${value}</div>
             <h2 className="text-lg font-semibold text-slate-300">{categoryTitle}</h2>
+            {ttsEnabled && (audio.isClueLoading || audio.isAnswerLoading) && (
+              <span className="text-xs text-slate-500 italic">Preparing audio...</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {ttsEnabled && (
