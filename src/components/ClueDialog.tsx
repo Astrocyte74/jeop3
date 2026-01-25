@@ -77,6 +77,25 @@ export function ClueDialog({
     }
   }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
 
+  // Also trigger auto-read when ttsEnabled becomes true after dialog is already open
+  useEffect(() => {
+    console.log('[ClueDialog] ttsEnabled changed:', {
+      isOpen,
+      ttsEnabled,
+      autoRead: ttsSettings.autoRead,
+      snakeGameResult: !!snakeGameResult,
+    });
+    if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
+      console.log('[ClueDialog] Triggering delayed auto-read');
+      const timer = setTimeout(() => {
+        console.log('[ClueDialog] Calling playClue() (delayed)');
+        playClue();
+        preloadAnswer();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [ttsEnabled, isOpen, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
+
   // Preload answer when response is shown (if not already loaded)
   useEffect(() => {
     if (showResponse && ttsEnabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
