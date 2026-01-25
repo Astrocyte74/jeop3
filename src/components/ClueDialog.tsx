@@ -57,6 +57,8 @@ export function ClueDialog({
   }, [isOpen, snakeGameResult, onSetActiveTeam]);
 
   // Auto-read clue when dialog opens if enabled
+  const hasTriggeredAutoReadRef = useRef(false);
+
   useEffect(() => {
     const checkResult = {
       isOpen,
@@ -65,8 +67,16 @@ export function ClueDialog({
       snakeGameResult: !!snakeGameResult,
     };
     console.log('[ClueDialog] Auto-read check:', JSON.stringify(checkResult, null, 2));
-    if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
+
+    // Reset flag when dialog closes
+    if (!isOpen) {
+      hasTriggeredAutoReadRef.current = false;
+      return;
+    }
+
+    if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult && !hasTriggeredAutoReadRef.current) {
       console.log('[ClueDialog] ✓ Triggering auto-read');
+      hasTriggeredAutoReadRef.current = true;
       // Small delay to ensure the dialog is fully rendered
       const timer = setTimeout(() => {
         console.log('[ClueDialog] Calling playClue()');
@@ -79,28 +89,6 @@ export function ClueDialog({
       console.log('[ClueDialog] ✗ Auto-read skipped, conditions not met');
     }
   }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
-
-  // Also trigger auto-read when ttsEnabled becomes true after dialog is already open
-  useEffect(() => {
-    const checkResult = {
-      isOpen,
-      ttsEnabled,
-      autoRead: ttsSettings.autoRead,
-      snakeGameResult: !!snakeGameResult,
-    };
-    console.log('[ClueDialog] ttsEnabled changed:', JSON.stringify(checkResult, null, 2));
-    if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
-      console.log('[ClueDialog] ✓ Triggering delayed auto-read');
-      const timer = setTimeout(() => {
-        console.log('[ClueDialog] Calling playClue() (delayed)');
-        playClue();
-        preloadAnswer();
-      }, 100);
-      return () => clearTimeout(timer);
-    } else {
-      console.log('[ClueDialog] ✗ Delayed auto-read skipped, conditions not met');
-    }
-  }, [ttsEnabled, isOpen, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
 
   // Preload answer when response is shown (if not already loaded)
   useEffect(() => {
