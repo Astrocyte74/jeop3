@@ -58,14 +58,15 @@ export function ClueDialog({
 
   // Auto-read clue when dialog opens if enabled
   useEffect(() => {
-    console.log('[ClueDialog] Auto-read check:', {
+    const checkResult = {
       isOpen,
       ttsEnabled,
       autoRead: ttsSettings.autoRead,
       snakeGameResult: !!snakeGameResult,
-    });
+    };
+    console.log('[ClueDialog] Auto-read check:', JSON.stringify(checkResult, null, 2));
     if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
-      console.log('[ClueDialog] Triggering auto-read');
+      console.log('[ClueDialog] ✓ Triggering auto-read');
       // Small delay to ensure the dialog is fully rendered
       const timer = setTimeout(() => {
         console.log('[ClueDialog] Calling playClue()');
@@ -74,25 +75,30 @@ export function ClueDialog({
         preloadAnswer();
       }, 300);
       return () => clearTimeout(timer);
+    } else {
+      console.log('[ClueDialog] ✗ Auto-read skipped, conditions not met');
     }
   }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
 
   // Also trigger auto-read when ttsEnabled becomes true after dialog is already open
   useEffect(() => {
-    console.log('[ClueDialog] ttsEnabled changed:', {
+    const checkResult = {
       isOpen,
       ttsEnabled,
       autoRead: ttsSettings.autoRead,
       snakeGameResult: !!snakeGameResult,
-    });
+    };
+    console.log('[ClueDialog] ttsEnabled changed:', JSON.stringify(checkResult, null, 2));
     if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
-      console.log('[ClueDialog] Triggering delayed auto-read');
+      console.log('[ClueDialog] ✓ Triggering delayed auto-read');
       const timer = setTimeout(() => {
         console.log('[ClueDialog] Calling playClue() (delayed)');
         playClue();
         preloadAnswer();
       }, 100);
       return () => clearTimeout(timer);
+    } else {
+      console.log('[ClueDialog] ✗ Delayed auto-read skipped, conditions not met');
     }
   }, [ttsEnabled, isOpen, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
 

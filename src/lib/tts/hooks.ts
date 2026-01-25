@@ -209,11 +209,11 @@ export function useTTSClue(clueText: string, answerText: string) {
 
   // Auto-play after synthesis completes if a play was requested
   useEffect(() => {
-    console.log('[TTS] Auto-play check:', {
+    console.log('[TTS] Auto-play check:', JSON.stringify({
       pendingPlayType: pendingPlayTypeRef.current,
       clueUrl: audio.clueAudioUrl,
       answerUrl: audio.answerAudioUrl,
-    });
+    }, null, 2));
     if (pendingPlayTypeRef.current === 'clue' && audio.clueAudioUrl) {
       console.log('[TTS] Auto-playing clue');
       pendingPlayTypeRef.current = null;
@@ -222,6 +222,8 @@ export function useTTSClue(clueText: string, answerText: string) {
       console.log('[TTS] Auto-playing answer');
       pendingPlayTypeRef.current = null;
       playAudioUrl(audio.answerAudioUrl);
+    } else if (pendingPlayTypeRef.current) {
+      console.log('[TTS] Pending play but no URL yet, waiting...');
     }
   }, [audio.clueAudioUrl, audio.answerAudioUrl, playAudioUrl]);
 
