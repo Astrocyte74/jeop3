@@ -43,7 +43,7 @@ export function App() {
   const [snakeGameResult, setSnakeGameResult] = useState<{
     wasCorrect: boolean | null;
     teamId: string | null;
-  }>({ wasCorrect: null, teamId: null });
+  } | null>(null);
 
   // Helper to get current global game mode from localStorage
   const getGlobalGameMode = useCallback((): GameMode => {
