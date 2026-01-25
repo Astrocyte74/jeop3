@@ -31,6 +31,11 @@ import {
  * Can be used in both MainMenu and GameBoard
  */
 export function TTSSubmenu() {
+  // TTS is only available in local development mode
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
   const [settings, setSettings] = useState(getTTSSettings());
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -277,6 +282,11 @@ export function TTSSubmenu() {
  * @deprecated Use TTSSubmenu in existing menus instead
  */
 export function TTSMenuButton() {
+  // TTS is only available in local development mode
+  if (!import.meta.env.DEV) {
+    return null;
+  }
+
   const [settings, setSettings] = useState(getTTSSettings());
   const [available, setAvailable] = useState<boolean | null>(null);
 

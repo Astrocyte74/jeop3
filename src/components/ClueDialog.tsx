@@ -45,8 +45,9 @@ export function ClueDialog({
   const { isAvailable } = useTTS();
   const { audio, playClue, playAnswer, stopPlayback, preloadAnswer } = useTTSClue(clue, response);
 
-  // Only show TTS controls if enabled AND available
-  const ttsEnabled = ttsSettings.enabled && isAvailable;
+  // TTS is only available in local development mode
+  const isLocalDev = import.meta.env.DEV;
+  const ttsActuallyEnabled = ttsSettings.enabled && isAvailable && isLocalDev;
 
   // Auto-show response and set active team when coming from snake game
   useEffect(() => {
@@ -66,20 +67,20 @@ export function ClueDialog({
       return;
     }
 
-    if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult && !hasTriggeredAutoReadRef.current) {
+    if (isOpen && ttsActuallyEnabled && ttsSettings.autoRead && !snakeGameResult && !hasTriggeredAutoReadRef.current) {
       console.log('[ClueDialog] Triggering auto-read');
       hasTriggeredAutoReadRef.current = true;
       // Immediate playback - no delay needed
       playClue();
     }
-  }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue]);
+  }, [isOpen, ttsActuallyEnabled, ttsSettings.autoRead, snakeGameResult, playClue]);
 
   // Preload answer when response is shown (if not already loaded)
   useEffect(() => {
-    if (showResponse && ttsEnabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
+    if (showResponse && ttsActuallyEnabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
       preloadAnswer();
     }
-  }, [showResponse, ttsEnabled, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
+  }, [showResponse, ttsActuallyEnabled, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
 
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
   const [clueIcons, setClueIcons] = useState<IconMatch[]>([]);
@@ -162,12 +163,12 @@ export function ClueDialog({
           <div className="flex items-center gap-3">
             <div className="text-2xl font-bold text-yellow-500">${value}</div>
             <h2 className="text-lg font-semibold text-slate-300">{categoryTitle}</h2>
-            {ttsEnabled && (audio.isClueLoading || audio.isAnswerLoading) && (
+            {ttsActuallyEnabled && (audio.isClueLoading || audio.isAnswerLoading) && (
               <span className="text-xs text-slate-500 italic">Preparing audio...</span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {ttsEnabled && (
+            {ttsActuallyEnabled && (
               <div className="flex items-center gap-1">
                 {audio.isPlaying && (
                   <button
@@ -332,7 +333,7 @@ export function ClueDialog({
             onClick={() => {
               setShowResponse(true);
               // Auto-play answer when showing response if TTS is enabled
-              if (ttsEnabled) {
+              if (ttsActuallyEnabled) {
                 console.log('[ClueDialog] Show Answer clicked, playing answer audio');
                 playAnswer();
               }
