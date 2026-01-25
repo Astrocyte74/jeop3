@@ -35,6 +35,7 @@ import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
 import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Info, Wand2 } from 'lucide-react';
+import { TTSSettingsDialog, TTSMenuButton } from '@/components/tts/TTSSettings';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -125,6 +126,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   // Game info dialog state
   const [gameInfoMetadata, setGameInfoMetadata] = useState<any>(null);
+
+  // TTS Settings dialog state
+  const [ttsSettingsOpen, setTTSSettingsOpen] = useState(false);
 
   // AI Model button visibility (hidden by default, shown with keyboard shortcut)
   const [showAIModelSelector, setShowAIModelSelector] = useState(false);
@@ -2311,6 +2315,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </Button>
 
             <div className="mt-6 flex gap-2">
+              {/* TTS Menu Button */}
+              <TTSMenuButton onOpenSettings={() => setTTSSettingsOpen(true)} />
+
               {/* Theme dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -2716,6 +2723,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           </AlertDialogContent>
         </AlertDialog>
       </SignedOut>
+
+      {/* TTS Settings Dialog */}
+      <TTSSettingsDialog open={ttsSettingsOpen} onOpenChange={setTTSSettingsOpen} />
     </div>
   );
 }

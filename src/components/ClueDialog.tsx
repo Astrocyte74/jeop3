@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle } from 'lucide-react';
+import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle, Volume2, Loader2 } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { getIconSize } from '@/lib/themes';
 import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
+import { useTTSClue } from '@/lib/tts/hooks';
+import { getTTSSettings } from '@/lib/tts';
 
 interface ClueDialogProps {
   isOpen: boolean;
@@ -39,6 +41,8 @@ export function ClueDialog({
   snakeGameResult,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
+  const ttsSettings = getTTSSettings();
+  const { audio, playClue, playAnswer, preloadAnswer } = useTTSClue(clue, response);
 
   // Auto-show response and set active team when coming from snake game
   useEffect(() => {
@@ -47,6 +51,27 @@ export function ClueDialog({
       onSetActiveTeam(snakeGameResult.teamId);
     }
   }, [isOpen, snakeGameResult, onSetActiveTeam]);
+
+  // Auto-read clue when dialog opens if enabled
+  useEffect(() => {
+    if (isOpen && ttsSettings.enabled && ttsSettings.autoRead && !snakeGameResult) {
+      // Small delay to ensure the dialog is fully rendered
+      const timer = setTimeout(() => {
+        playClue();
+        // Preload the answer while reading the clue
+        preloadAnswer();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, ttsSettings.enabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
+
+  // Preload answer when response is shown (if not already loaded)
+  useEffect(() => {
+    if (showResponse && ttsSettings.enabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
+      preloadAnswer();
+    }
+  }, [showResponse, ttsSettings.enabled, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
+
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
   const [clueIcons, setClueIcons] = useState<IconMatch[]>([]);
   const [answerIcons, setAnswerIcons] = useState<IconMatch[]>([]);
@@ -221,10 +246,44 @@ export function ClueDialog({
         )}
 
         {/* Clue */}
-        <div className="clue-text">{clue}</div>
+        <div className="flex items-start gap-3">
+          <div className="flex-1 clue-text">{clue}</div>
+          {ttsSettings.enabled && (
+            <button
+              onClick={playClue}
+              disabled={audio.isClueLoading}
+              className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors"
+              title="Read clue"
+            >
+              {audio.isClueLoading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Volume2 className="w-5 h-5" />
+              )}
+            </button>
+          )}
+        </div>
 
         {/* Response */}
-        <div className="clue-response">{response}</div>
+        {showResponse && (
+          <div className="flex items-start gap-3">
+            <div className="flex-1 clue-response">{response}</div>
+            {ttsSettings.enabled && (
+              <button
+                onClick={playAnswer}
+                disabled={audio.isAnswerLoading}
+                className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors"
+                title="Read answer"
+              >
+                {audio.isAnswerLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Volume2 className="w-5 h-5" />
+                )}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Snake Game Result Indicator */}
         {showResponse && snakeGameResult && snakeGameResult.wasCorrect !== null && (
