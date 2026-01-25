@@ -71,19 +71,33 @@ export async function getFavoriteVoices(): Promise<TTSVoice[]> {
 }
 
 /**
+ * Normalize text for TTS synthesis
+ * Removes empty lines and trims whitespace to prevent line count errors
+ */
+function normalizeText(text: string): string {
+  return text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join('\n');
+}
+
+/**
  * Synthesize speech from text
  */
 export async function synthesize(request: TTSSynthesizeRequest): Promise<TTSSynthesizeResponse | null> {
   const settings = getTTSSettings();
 
   try {
+    const normalizedText = normalizeText(request.text);
+
     const response = await fetch(`${settings.apiUrl}/synthesize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: request.text,
+        text: normalizedText,
         voice: request.voice || settings.defaultVoice,
         speed: request.speed ?? settings.speed,
         language: request.language ?? settings.language,
