@@ -422,12 +422,6 @@ export function TTSDirectSettings() {
             <span>Auto Read Clues</span>
           </DropdownMenuItem>
 
-          {/* Voice Settings */}
-          <DropdownMenuItem disabled={checking}>
-            <Settings className="w-4 h-4 mr-2 text-slate-400" />
-            <span>Voice Settings</span>
-          </DropdownMenuItem>
-
           {/* Voice Settings Submenu */}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
