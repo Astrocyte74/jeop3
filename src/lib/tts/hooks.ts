@@ -141,17 +141,28 @@ export function useTTSClue(clueText: string, answerText: string) {
   // Store the current audio element for cleanup and control
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
 
+  // Track ALL audio elements for cleanup
+  const allAudioElementsRef = useRef<Set<HTMLAudioElement>>(new Set());
+
   // Track pending play type for auto-play after synthesis
   const pendingPlayTypeRef = useRef<'clue' | 'answer' | null>(null);
 
   // Reset audio state when clue/answer changes
   useEffect(() => {
+    console.log('[TTS] Resetting audio state for new clue/answer');
     // Stop any playing audio
     if (audioElementRef.current) {
       audioElementRef.current.pause();
       audioElementRef.current.currentTime = 0;
       audioElementRef.current = null;
     }
+    // Clear ALL tracked audio elements
+    allAudioElementsRef.current.forEach(element => {
+      element.pause();
+      element.currentTime = 0;
+    });
+    allAudioElementsRef.current.clear();
+
     setAudio({
       clueAudioUrl: null,
       answerAudioUrl: null,
@@ -171,12 +182,16 @@ export function useTTSClue(clueText: string, answerText: string) {
 
     const handlePlay = () => setAudio(prev => ({ ...prev, isPlaying: true }));
     const handleEnded = () => {
+      console.log('[TTS] Audio ended, removing from tracking');
       setAudio(prev => ({ ...prev, isPlaying: false }));
       audioElementRef.current = null;
+      allAudioElementsRef.current.delete(element);
     };
     const handleError = () => {
+      console.log('[TTS] Audio error, removing from tracking');
       setAudio(prev => ({ ...prev, isPlaying: false }));
       audioElementRef.current = null;
+      allAudioElementsRef.current.delete(element);
     };
 
     element.addEventListener('play', handlePlay);
@@ -191,34 +206,39 @@ export function useTTSClue(clueText: string, answerText: string) {
   }, [audio.clueAudioUrl, audio.answerAudioUrl]);
 
   const playAudioUrl = useCallback((url: string) => {
-    // Stop any currently playing audio
-    if (audioElementRef.current) {
-      audioElementRef.current.pause();
-      audioElementRef.current.currentTime = 0;
-    }
+    // Stop ALL audio elements to prevent any mixing
+    console.log('[TTS] Stopping all audio elements, count:', allAudioElementsRef.current.size);
+    allAudioElementsRef.current.forEach(element => {
+      element.pause();
+      element.currentTime = 0;
+    });
+    allAudioElementsRef.current.clear();
 
     const audioElement = new Audio(url);
     audioElementRef.current = audioElement;
+    allAudioElementsRef.current.add(audioElement);
 
+    console.log('[TTS] Playing audio URL:', url.substring(0, 80));
     audioElement.play().catch(err => {
       console.error('[TTS] Failed to play:', err);
       setAudio(prev => ({ ...prev, isPlaying: false }));
       audioElementRef.current = null;
+      allAudioElementsRef.current.delete(audioElement);
     });
   }, []);
 
   // Auto-play after synthesis completes if a play was requested
   useEffect(() => {
     if (pendingPlayTypeRef.current === 'clue' && audio.clueAudioUrl) {
-      console.log('[TTS] Auto-playing clue');
+      console.log('[TTS] Auto-playing clue, URL:', audio.clueAudioUrl.substring(0, 50));
       pendingPlayTypeRef.current = null;
       playAudioUrl(audio.clueAudioUrl);
     } else if (pendingPlayTypeRef.current === 'answer' && audio.answerAudioUrl) {
-      console.log('[TTS] Auto-playing answer');
+      console.log('[TTS] Auto-playing answer, URL:', audio.answerAudioUrl.substring(0, 50));
       pendingPlayTypeRef.current = null;
       playAudioUrl(audio.answerAudioUrl);
     } else if (pendingPlayTypeRef.current) {
-      console.log('[TTS] Pending play but no URL yet, waiting...');
+      console.log('[TTS] Pending play but no URL yet, waiting... Type:', pendingPlayTypeRef.current);
     }
   }, [audio.clueAudioUrl, audio.answerAudioUrl, playAudioUrl]);
 
@@ -227,6 +247,7 @@ export function useTTSClue(clueText: string, answerText: string) {
     const cacheKey = `${type}:${text}`;
     const cachedUrl = audioCacheRef.current.get(cacheKey);
     if (cachedUrl) {
+      console.log('[TTS] CACHE HIT for', type, '- returning cached URL');
       setAudio(prev => ({
         ...prev,
         [type === 'clue' ? 'clueAudioUrl' : 'answerAudioUrl']: cachedUrl,
@@ -235,6 +256,7 @@ export function useTTSClue(clueText: string, answerText: string) {
     }
 
     // Start loading
+    console.log('[TTS] Synthesizing', type, 'text:', text.substring(0, 50));
     setAudio(prev => ({
       ...prev,
       [type === 'clue' ? 'isClueLoading' : 'isAnswerLoading']: true,
@@ -242,6 +264,8 @@ export function useTTSClue(clueText: string, answerText: string) {
     }));
 
     const result = await synthesize({ text });
+
+    console.log('[TTS] Synthesis result for', type, ':', result);
 
     if (!result) {
       setAudio(prev => ({
@@ -253,6 +277,7 @@ export function useTTSClue(clueText: string, answerText: string) {
     }
 
     const audioUrl = getAudioUrl(result);
+    console.log('[TTS] Generated audio URL for', type, ':', audioUrl.substring(0, 80));
 
     // Cache the result (LRU cache handles eviction)
     audioCacheRef.current.set(cacheKey, audioUrl);
@@ -265,29 +290,41 @@ export function useTTSClue(clueText: string, answerText: string) {
   }, []); // No dependencies needed - uses closure values
 
   const playClue = useCallback(() => {
+    console.log('[TTS] playClue called, has URL:', !!audio.clueAudioUrl);
     if (audio.clueAudioUrl) {
       playAudioUrl(audio.clueAudioUrl);
     } else if (clueText) {
+      console.log('[TTS] playClue: Setting pending play to "clue" and synthesizing');
       pendingPlayTypeRef.current = 'clue';
       synthesizeAudio(clueText, 'clue');
     }
   }, [audio.clueAudioUrl, clueText, synthesizeAudio, playAudioUrl]);
 
   const playAnswer = useCallback(() => {
+    console.log('[TTS] playAnswer called, has URL:', !!audio.answerAudioUrl);
     if (audio.answerAudioUrl) {
       playAudioUrl(audio.answerAudioUrl);
     } else if (answerText) {
+      console.log('[TTS] playAnswer: Setting pending play to "answer" and synthesizing');
       pendingPlayTypeRef.current = 'answer';
       synthesizeAudio(answerText, 'answer');
     }
   }, [audio.answerAudioUrl, answerText, synthesizeAudio, playAudioUrl]);
 
   const stopPlayback = useCallback(() => {
+    console.log('[TTS] Stopping playback, clearing all audio');
     if (audioElementRef.current) {
       audioElementRef.current.pause();
       audioElementRef.current.currentTime = 0;
       audioElementRef.current = null;
     }
+    // Stop ALL tracked audio elements
+    allAudioElementsRef.current.forEach(element => {
+      element.pause();
+      element.currentTime = 0;
+    });
+    allAudioElementsRef.current.clear();
+
     setAudio(prev => ({ ...prev, isPlaying: false }));
     pendingPlayTypeRef.current = null;
   }, []);
