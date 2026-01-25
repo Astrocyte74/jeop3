@@ -60,14 +60,6 @@ export function ClueDialog({
   const hasTriggeredAutoReadRef = useRef(false);
 
   useEffect(() => {
-    const checkResult = {
-      isOpen,
-      ttsEnabled,
-      autoRead: ttsSettings.autoRead,
-      snakeGameResult: !!snakeGameResult,
-    };
-    console.log('[ClueDialog] Auto-read check:', JSON.stringify(checkResult, null, 2));
-
     // Reset flag when dialog closes
     if (!isOpen) {
       hasTriggeredAutoReadRef.current = false;
@@ -75,18 +67,15 @@ export function ClueDialog({
     }
 
     if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult && !hasTriggeredAutoReadRef.current) {
-      console.log('[ClueDialog] ✓ Triggering auto-read');
+      console.log('[ClueDialog] Triggering auto-read');
       hasTriggeredAutoReadRef.current = true;
       // Small delay to ensure the dialog is fully rendered
       const timer = setTimeout(() => {
-        console.log('[ClueDialog] Calling playClue()');
         playClue();
         // Preload the answer while reading the clue
         preloadAnswer();
       }, 300);
       return () => clearTimeout(timer);
-    } else {
-      console.log('[ClueDialog] ✗ Auto-read skipped, conditions not met');
     }
   }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
 

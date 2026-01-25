@@ -209,11 +209,6 @@ export function useTTSClue(clueText: string, answerText: string) {
 
   // Auto-play after synthesis completes if a play was requested
   useEffect(() => {
-    console.log('[TTS] Auto-play check:', JSON.stringify({
-      pendingPlayType: pendingPlayTypeRef.current,
-      clueUrl: audio.clueAudioUrl,
-      answerUrl: audio.answerAudioUrl,
-    }, null, 2));
     if (pendingPlayTypeRef.current === 'clue' && audio.clueAudioUrl) {
       console.log('[TTS] Auto-playing clue');
       pendingPlayTypeRef.current = null;
@@ -270,15 +265,9 @@ export function useTTSClue(clueText: string, answerText: string) {
   }, []); // No dependencies needed - uses closure values
 
   const playClue = useCallback(() => {
-    console.log('[TTS] playClue called:', {
-      clueAudioUrl: audio.clueAudioUrl,
-      clueText: clueText?.substring(0, 30),
-    });
     if (audio.clueAudioUrl) {
-      console.log('[TTS] Playing cached clue audio');
       playAudioUrl(audio.clueAudioUrl);
     } else if (clueText) {
-      console.log('[TTS] Synthesizing clue audio, pending play');
       pendingPlayTypeRef.current = 'clue';
       synthesizeAudio(clueText, 'clue');
     }
