@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle, Volume2, Loader2, Square, AlertCircle } from 'lucide-react';
+import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle, Volume2, Loader2, Square } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { getIconSize } from '@/lib/themes';
 import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
@@ -169,6 +169,46 @@ export function ClueDialog({
             <h2 className="text-lg font-semibold text-slate-300">{categoryTitle}</h2>
           </div>
           <div className="flex items-center gap-2">
+            {ttsEnabled && (
+              <div className="flex items-center gap-1">
+                {audio.isPlaying && (
+                  <button
+                    onClick={stopPlayback}
+                    className="p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
+                    title="Stop playback"
+                  >
+                    <Square className="w-4 h-4" />
+                  </button>
+                )}
+                {showResponse ? (
+                  <button
+                    onClick={playAnswer}
+                    disabled={audio.isAnswerLoading}
+                    className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50"
+                    title="Read answer"
+                  >
+                    {audio.isAnswerLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Volume2 className="w-4 h-4" />
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    onClick={playClue}
+                    disabled={audio.isClueLoading}
+                    className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50"
+                    title="Read clue"
+                  >
+                    {audio.isClueLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Volume2 className="w-4 h-4" />
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
             {onSwitchToSnake && (
               <GameModeMenu
                 currentMode={globalGameMode}
@@ -260,73 +300,11 @@ export function ClueDialog({
         )}
 
         {/* Clue */}
-        <div className="flex items-start gap-3">
-          <div className="flex-1 clue-text">{clue}</div>
-          {ttsEnabled && (
-            <div className="flex items-center gap-1">
-              <button
-                onClick={stopPlayback}
-                className={`flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors ${audio.isPlaying ? 'visible' : 'invisible'}`}
-                title="Stop playback"
-              >
-                <Square className="w-5 h-5" />
-              </button>
-              <button
-                onClick={playClue}
-                disabled={audio.isClueLoading}
-                className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50"
-                title="Read clue"
-              >
-                {audio.isClueLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Volume2 className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-          )}
-          {audio.clueError && (
-            <div className="flex items-center gap-1 text-xs text-red-400">
-              <AlertCircle className="w-4 h-4" />
-              <span>Audio failed</span>
-            </div>
-          )}
-        </div>
+        <div className="clue-text">{clue}</div>
 
         {/* Response */}
         {showResponse && (
-          <div className="flex items-start gap-3">
-            <div className="flex-1 clue-response">{response}</div>
-            {ttsEnabled && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={stopPlayback}
-                  className={`flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors ${audio.isPlaying ? 'visible' : 'invisible'}`}
-                  title="Stop playback"
-                >
-                  <Square className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={playAnswer}
-                  disabled={audio.isAnswerLoading}
-                  className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50"
-                  title="Read answer"
-                >
-                  {audio.isAnswerLoading ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Volume2 className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            )}
-            {audio.answerError && (
-              <div className="flex items-center gap-1 text-xs text-red-400">
-                <AlertCircle className="w-4 h-4" />
-                <span>Audio failed</span>
-              </div>
-            )}
-          </div>
+          <div className="clue-response">{response}</div>
         )}
 
         {/* Snake Game Result Indicator */}
@@ -353,7 +331,14 @@ export function ClueDialog({
         {/* Show/Hide button */}
         {!showResponse && (
           <button
-            onClick={() => setShowResponse(true)}
+            onClick={() => {
+              setShowResponse(true);
+              // Auto-play answer when showing response if TTS is enabled
+              if (ttsEnabled) {
+                console.log('[ClueDialog] Show Answer clicked, playing answer audio');
+                playAnswer();
+              }
+            }}
             className="px-8 py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-bold text-xl rounded-lg transition-all mx-auto"
           >
             <Eye className="w-5 h-5 mr-2 inline" />

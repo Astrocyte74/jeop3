@@ -72,13 +72,20 @@ export async function getFavoriteVoices(): Promise<TTSVoice[]> {
 
 /**
  * Normalize text for TTS synthesis
- * Force single-line output and add cache-busting to prevent Kokoro server issues
+ * Force single-line output, collapse spaces, and ensure ending punctuation
  */
 function normalizeText(text: string): string {
   // Replace all line breaks with spaces
   let normalized = text.replace(/[\r\n]+/g, ' ').trim();
   // Collapse multiple spaces
   normalized = normalized.replace(/\s+/g, ' ');
+
+  // Ensure text ends with punctuation for better TTS quality
+  // Add period if no ending punctuation (. ! ? ; :)
+  if (normalized.length > 0 && !/[.!?;:]$/.test(normalized)) {
+    normalized += '.';
+  }
+
   return normalized;
 }
 
