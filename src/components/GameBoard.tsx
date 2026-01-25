@@ -11,6 +11,7 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { type GameMode } from '@/components/GameModeMenu';
+import { TTSSubmenu } from '@/components/tts/TTSSettings';
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2 } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
@@ -526,6 +527,9 @@ export function GameBoard({
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
                 )}
+
+                {/* Text-to-Speech Submenu - only in local development */}
+                {import.meta.env.DEV && <TTSSubmenu />}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 

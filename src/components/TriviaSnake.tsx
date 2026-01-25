@@ -14,8 +14,7 @@ interface TriviaSnakeProps {
   activeTeamId: string;
   currentMode: GameMode;
   onClose: () => void;
-  onCorrect: (teamId: string) => void;
-  onIncorrect: (teamId: string) => void;
+  onGameComplete: (wasCorrect: boolean, teamId: string) => void;
   onModeChange?: (mode: GameMode) => void;
 }
 
@@ -68,13 +67,13 @@ const getSpeedForValue = (value: number): number => {
 // Calculate initial snake length based on clue value
 const getSnakeLengthForValue = (value: number): number => {
   const lengths: Record<number, number> = {
-    200: 3,
-    400: 4,
-    600: 5,
-    800: 6,
-    1000: 7,
+    200: 6,
+    400: 8,
+    600: 10,
+    800: 12,
+    1000: 14,
   };
-  return lengths[value] || 3;
+  return lengths[value] || 6;
 };
 
 export function TriviaSnake({
@@ -88,8 +87,7 @@ export function TriviaSnake({
   activeTeamId,
   currentMode,
   onClose,
-  onCorrect,
-  onIncorrect,
+  onGameComplete,
   onModeChange,
 }: TriviaSnakeProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -490,17 +488,24 @@ export function TriviaSnake({
           triggerScreenShake(3, 200); // Gentle shake
           createConfetti();
           setGameStatus('won');
-          onCorrect(selectedTeamId);
-          setTimeout(() => onClose(), 1500);
+          // Notify parent and close after brief celebration
+          setTimeout(() => {
+            onGameComplete(true, selectedTeamId);
+            onClose();
+          }, 800);
+          return;
         } else {
           // Wrong answer - red flash and strong shake
           createParticles(pixelX, pixelY, '#ff0000', 25);
           triggerScreenShake(8, 300); // Strong shake
           setGameStatus('lost');
-          onIncorrect(selectedTeamId);
-          setTimeout(() => onClose(), 1500);
+          // Notify parent and close after brief moment
+          setTimeout(() => {
+            onGameComplete(false, selectedTeamId);
+            onClose();
+          }, 1000);
+          return;
         }
-        return;
       }
 
       // Grow snake
@@ -509,7 +514,7 @@ export function TriviaSnake({
       // Move snake
       snakeRef.current = [wrappedHead, ...snake.slice(0, -1)];
     }
-  }, [answerOptions, currentResponse, onCorrect, onIncorrect, onClose, BOARD_SIZE, selectedTeamId, createParticles, triggerScreenShake, createConfetti]);
+  }, [answerOptions, currentResponse, onGameComplete, onClose, BOARD_SIZE, selectedTeamId, createParticles, triggerScreenShake, createConfetti]);
 
   // Animation loop - smooth rendering with fixed timestep for logic
   useEffect(() => {
@@ -712,8 +717,11 @@ export function TriviaSnake({
               <div>
                 <p className="font-semibold text-white mb-2">Difficulty:</p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li>Higher values = Faster snake speed</li>
-                  <li>Higher values = Longer snake (harder to maneuver)</li>
+                  <li>$200: 6 segments (slowest)</li>
+                  <li>$400: 8 segments</li>
+                  <li>$600: 10 segments</li>
+                  <li>$800: 12 segments</li>
+                  <li>$1000: 14 segments (fastest)</li>
                 </ul>
               </div>
             </div>
@@ -791,25 +799,6 @@ export function TriviaSnake({
             className="border-2 border-slate-600 rounded"
           />
         </div>
-
-        {/* Game Status Overlay */}
-        {gameStatus === 'won' && (
-          <div className="absolute inset-0 bg-green-900/50 flex items-center justify-center">
-            <div className="bg-slate-900 p-6 rounded-lg text-center">
-              <p className="text-3xl mb-2">🎉 Correct!</p>
-              <p className="text-white text-xl">+${currentValue}</p>
-            </div>
-          </div>
-        )}
-        {gameStatus === 'lost' && (
-          <div className="absolute inset-0 bg-red-900/50 flex items-center justify-center">
-            <div className="bg-slate-900 p-6 rounded-lg text-center">
-              <p className="text-3xl mb-2">❌ Wrong!</p>
-              <p className="text-white text-xl">-${currentValue}</p>
-              <p className="text-slate-400 mt-2">Correct: {currentResponse}</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

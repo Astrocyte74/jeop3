@@ -39,6 +39,12 @@ export function App() {
     clueIndex: number;
   }>({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
 
+  // Track snake game result for showing in ClueDialog
+  const [snakeGameResult, setSnakeGameResult] = useState<{
+    wasCorrect: boolean | null;
+    teamId: string | null;
+  } | null>(null);
+
   // Helper to get current global game mode from localStorage
   const getGlobalGameMode = useCallback((): GameMode => {
     return (localStorage.getItem('gameMode') as GameMode) || 'regular';
@@ -200,6 +206,7 @@ export function App() {
     });
 
     setClueDialog({ isOpen: false, clueId: '' });
+    setSnakeGameResult(null); // Reset after marking
   }, [gameState, currentGame, clueDialog]);
 
   const handleMarkIncorrect = useCallback((teamId: string) => {
@@ -221,6 +228,7 @@ export function App() {
     });
 
     setClueDialog({ isOpen: false, clueId: '' });
+    setSnakeGameResult(null); // Reset after marking
   }, [gameState, currentGame, clueDialog]);
 
   const handleSetActiveTeam = useCallback((teamId: string) => {
@@ -284,52 +292,20 @@ export function App() {
     });
   }, []);
 
-  // Trivia Snake handlers
-  const handleSnakeCorrect = useCallback((teamId: string) => {
-    if (!gameState || !currentGame || !triviaSnake.isOpen) return;
+  // Trivia Snake handler - game completed, open ClueDialog with answer revealed
+  const handleSnakeGameComplete = useCallback((wasCorrect: boolean, teamId: string) => {
+    if (!triviaSnake.isOpen) return;
 
     const { categoryIndex, clueIndex } = triviaSnake;
-    const clue = currentGame.categories[categoryIndex]?.clues[clueIndex];
-    if (!clue) return;
-
     const clueId = `${categoryIndex}:${clueIndex}`;
 
-    setGameState((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        used: { ...prev.used, [clueId]: true },
-        teams: prev.teams.map((t) =>
-          t.id === teamId ? { ...t, score: t.score + clue.value } : t
-        ),
-      };
-    });
+    // Store the result for ClueDialog to show
+    setSnakeGameResult({ wasCorrect, teamId });
 
-    // Note: TriviaSnake component handles closing with delay
-  }, [gameState, currentGame, triviaSnake]);
-
-  const handleSnakeIncorrect = useCallback((teamId: string) => {
-    if (!gameState || !currentGame || !triviaSnake.isOpen) return;
-
-    const { categoryIndex, clueIndex } = triviaSnake;
-    const clue = currentGame.categories[categoryIndex]?.clues[clueIndex];
-    if (!clue) return;
-
-    const clueId = `${categoryIndex}:${clueIndex}`;
-
-    setGameState((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        used: { ...prev.used, [clueId]: true },
-        teams: prev.teams.map((t) =>
-          t.id === teamId ? { ...t, score: t.score - clue.value } : t
-        ),
-      };
-    });
-
-    // Note: TriviaSnake component handles closing with delay after max attempts
-  }, [gameState, currentGame, triviaSnake]);
+    // Close snake game and open ClueDialog with answer revealed
+    setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 });
+    setClueDialog({ isOpen: true, clueId });
+  }, [triviaSnake]);
 
   const handleExitToMenu = useCallback(() => {
     setMode('menu');
@@ -488,11 +464,15 @@ export function App() {
               teams={gameState.teams}
               activeTeamId={gameState.activeTeamId}
               globalGameMode={getGlobalGameMode()}
-              onClose={() => setClueDialog({ isOpen: false, clueId: '' })}
+              onClose={() => {
+                setClueDialog({ isOpen: false, clueId: '' });
+                setSnakeGameResult(null);
+              }}
               onMarkCorrect={handleMarkCorrect}
               onMarkIncorrect={handleMarkIncorrect}
               onSetActiveTeam={handleSetActiveTeam}
               onSwitchToSnake={handleSwitchToSnake}
+              snakeGameResult={snakeGameResult}
             />
           )}
           {currentSnakeData && (
@@ -507,8 +487,7 @@ export function App() {
               activeTeamId={gameState.activeTeamId}
               currentMode={getGlobalGameMode()}
               onClose={() => setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 })}
-              onCorrect={handleSnakeCorrect}
-              onIncorrect={handleSnakeIncorrect}
+              onGameComplete={handleSnakeGameComplete}
               onModeChange={handleGameModeChange}
             />
           )}

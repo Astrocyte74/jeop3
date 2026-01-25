@@ -28,6 +28,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Wand2, Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import type { AIPromptType } from '@/lib/ai/types';
+import { GameMetadata as GameMetadataComponent } from '@/components/GameMetadata';
+import type { GameMetadata } from '@/lib/storage';
 
 // ============================================
 // TYPES
@@ -85,11 +87,7 @@ export interface AIPreviewDialogProps {
   enhancingTitle?: number | null;
   rewritingTeamName?: number | null;
   enhancingTeamName?: number | null;
-  metadata?: {
-    modelUsed?: string;
-    generatedAt?: string;
-    generationTimeMs?: number;
-  };
+  metadata?: GameMetadata;
 }
 
 // ============================================
@@ -322,7 +320,7 @@ function CategoriesPreview({
   onEditTeamName?: (teamIndex: number, newName: string) => void;
 }) {
   // Local state for inline editing and show answers toggle
-  const [showAnswers, setShowAnswers] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(true);
   const [editingCategory, setEditingCategory] = useState<{ catIndex: number; field: 'title' | 'contentTopic' } | null>(null);
   const [editingClue, setEditingClue] = useState<{ catIndex: number; clueIndex: number; field: 'clue' | 'response' } | null>(null);
   const [editingTeamName, setEditingTeamName] = useState<number | null>(null);
@@ -788,41 +786,6 @@ export function AIPreviewDialog({
     return labels[type] || 'AI Generation';
   };
 
-  const formatModelName = (modelId?: string): string => {
-    if (!modelId) return 'Unknown';
-
-    // Parse provider:model format
-    const parts = modelId.split(':');
-    const provider = parts[0];
-    const modelName = parts.slice(1).join(':');
-
-    // Format the model name for display
-    if (provider === 'or' || provider === 'openrouter') {
-      return `🤖 ${modelName}`;
-    } else if (provider === 'ollama') {
-      return `🦙 ${modelName}`;
-    }
-    return modelName;
-  };
-
-  const formatGenerationTime = (ms?: number): string => {
-    if (!ms) return '';
-    if (ms < 1000) return `${ms}ms`;
-    const seconds = Math.floor(ms / 1000);
-    if (seconds < 60) return `${seconds}s`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return remainingSeconds > 0
-      ? `${minutes} min ${remainingSeconds}s`
-      : `${minutes} min`;
-  };
-
-  const formatTimestamp = (iso?: string): string => {
-    if (!iso) return '';
-    const date = new Date(iso);
-    return date.toLocaleString();
-  };
-
   const renderContent = () => {
     switch (type) {
       case 'game-title':
@@ -917,7 +880,7 @@ export function AIPreviewDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && onCancel()}>
-      <AlertDialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+      <AlertDialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <AlertDialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-500/20 rounded-lg">
@@ -928,29 +891,12 @@ export function AIPreviewDialog({
               <AlertDialogDescription>{getTypeLabel()}</AlertDialogDescription>
             </div>
           </div>
-          {/* Metadata display */}
-          {metadata && (metadata.modelUsed || metadata.generatedAt || metadata.generationTimeMs) && (
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-              {metadata.modelUsed && (
-                <span className="flex items-center gap-1">
-                  Model: <span className="font-medium text-slate-400">{formatModelName(metadata.modelUsed)}</span>
-                </span>
-              )}
-              {metadata.generationTimeMs && (
-                <span className="flex items-center gap-1">
-                  Time: <span className="font-medium text-slate-400">{formatGenerationTime(metadata.generationTimeMs)}</span>
-                </span>
-              )}
-              {metadata.generatedAt && (
-                <span className="flex items-center gap-1">
-                  Generated: <span className="font-medium text-slate-400">{formatTimestamp(metadata.generatedAt)}</span>
-                </span>
-              )}
-            </div>
-          )}
         </AlertDialogHeader>
 
-        <div className="py-4 relative">
+        {/* Metadata display - collapsible */}
+        {metadata && <GameMetadataComponent metadata={metadata} defaultOpen={false} />}
+
+        <div className="py-4 relative break-words">
           {/* Loading indicator at top */}
           {isLoading && regeneratingCounts && (
             <div ref={scrollRef} className="mb-4 bg-purple-500/20 border border-purple-500/50 rounded-lg p-4 flex items-center gap-4">

@@ -14,7 +14,9 @@ import type {
 } from './types';
 
 // Consistent system instruction for all AI calls
-const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.`;
+const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.
+
+CRITICAL: Always use Western/Arabic numerals (0-9) for ALL numbers. Never use Bengali, Arabic-Indic, or any other numeral systems.`;
 
 /**
  * Build prompt for a specific AI operation
@@ -67,7 +69,42 @@ Generate something completely different and fresh.
 
 ${context.sampleContent}
 
-Analyze the categories and questions above, then create titles that capture the theme and tone.
+CRITICAL: You MUST analyze the categories, clues, and answers above. Create titles that are DIRECTLY themed to the actual content.
+
+Requirements:
+- ALL titles MUST reflect the specific themes, people, places, events, or concepts in the content above
+- Use references, wordplay, or connections to the actual categories and clues
+- AVOID generic titles like "Universal Intellect", "The Sweet Spot", "Equilibrium Quest", etc.
+- Make them clever and specific to THIS game's content
+- Subtitles should describe the scope (e.g., "Moses 1 & The Plan of Salvation")
+
+${difficultyText}
+
+${existingTitlesText}
+
+Return JSON format:
+{
+  "titles": [
+    { "title": "...", "subtitle": "..." },
+    { "title": "...", "subtitle": "..." },
+    { "title": "...", "subtitle": "..." }
+  ]
+}`;
+        } else if (context.multipleTopics && context.topicList) {
+          // Multi-source mode: use topic list for context
+          const topicListText = context.topicList.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n');
+          return `Generate 3 engaging Jeopardy game title options based on these multiple source topics:
+
+${topicListText}
+
+CRITICAL: This is a multi-category game with ${context.sourceCount || context.topicList.length} different sources. You MUST create titles that reflect the actual topics above.
+
+Requirements:
+- ALL titles MUST be themed to the specific topics listed
+- Use references, wordplay, or connections to the actual topics
+- AVOID generic titles like "Universal Intellect", "The Sweet Spot", "Equilibrium Quest", etc.
+- Make them clever and specific to THESE topics
+- Subtitles should describe the scope or connect the diverse topics
 
 ${difficultyText}
 
@@ -113,7 +150,11 @@ Return JSON format:
 ${difficultyText}
 ${valueGuidanceText}
 
-Each category should have 5 clues with values [200, 400, 600, 800, 1000].
+REQUIREMENTS:
+- Each category has 5 clues [200, 400, 600, 800, 1000]
+- The clue must NOT contain or reveal the answer
+- Each clue must have a DIFFERENT unique answer
+- Responses must be specific and factual
 
 Return JSON format:
 {
@@ -138,24 +179,20 @@ Return JSON format:
       user: (() => {
         const referenceMaterial = context.referenceMaterial || '';
 
-        return `Generate ${context.count || 6} Jeopardy categories based on the following source material.
+        return `Generate ${context.count || 6} Jeopardy categories from the source material below.
 
-Source material (${referenceMaterial.length.toLocaleString()} characters):
+Source (${referenceMaterial.length.toLocaleString()} chars):
 """${referenceMaterial}"""
-
 ${context.theme ? `Theme: ${context.theme}` : ''}
 ${difficultyText}
 ${valueGuidanceText}
 
-IMPORTANT INSTRUCTIONS:
-1. Create categories that cover the key topics, people, events, places, and concepts from the source material above
-2. All clues must be answerable using ONLY the information provided in the source material
-3. Do NOT fabricate facts or include outside knowledge
-4. Each category needs TWO names:
-   - "title" - A creative, catchy display name for players (e.g., "Historical Events", "Famous Figures")
-   - "contentTopic" - The descriptive topic name for AI context (e.g., "World War II Battles", "Scientists")
-
-The title should be fun and creative while the contentTopic should be clear and descriptive.
+REQUIREMENTS:
+- Create categories covering key topics, people, events, places, concepts from the source
+- All clues must be answerable using ONLY the source material
+- The clue must NOT contain or reveal the answer
+- Each clue must have a DIFFERENT unique answer
+- Each category needs: "title" (creative name) and "contentTopic" (descriptive topic)
 
 Return JSON format:
 {
@@ -240,11 +277,27 @@ Return JSON format:
     'category-replace-all': {
       system: SYSTEM_INSTRUCTION,
       user: `Replace all clues in category: "${context.categoryTitle}"
+${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Content Topic: "${context.contentTopic}"` : ''}
 
 Theme: ${context.theme || context.categoryTitle}
 Count: ${context.count || 5}
 ${difficultyText}
 ${valueGuidanceText}
+${context.referenceMaterial ? `Source material to use for questions:
+${context.referenceMaterial.substring(0, 3000)}
+
+All clues must be answerable from the source material above.
+` : ''}
+${context.existingClues && context.existingClues.length > 0 ? `Current questions being replaced (for context only):
+${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
+` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are used in OTHER categories - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+` : ''}
+
+REQUIREMENTS:
+- Each clue must have a DIFFERENT unique answer
+${context.referenceMaterial ? '- All clues must be answerable from the source material' : ''}
 
 Return JSON format:
 {
@@ -270,9 +323,22 @@ ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Cont
 Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
 ${valueGuidanceText}
+${context.referenceMaterial ? `Source material to use for questions:
+${context.referenceMaterial.substring(0, 3000)}
+
+All clues must be answerable from the source material above.
+` : ''}
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+` : ''}
+
+REQUIREMENTS:
+- The clue must NOT contain or reveal the answer
+- Each clue must have a DIFFERENT unique answer
+${context.referenceMaterial ? '- All clues must be answerable from the source material' : ''}
 
 Return JSON format:
 {
@@ -295,9 +361,21 @@ ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Cont
 Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
 ${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
+${context.referenceMaterial ? `Source material to use for question:
+${context.referenceMaterial.substring(0, 3000)}
+
+The clue must be answerable from the source material above.
+` : ''}
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+` : ''}
+
+REQUIREMENTS:
+- The clue must NOT contain or reveal the answer
+${context.referenceMaterial ? '- The clue must be answerable from the source material' : ''}
 
 Return JSON format:
 {
@@ -325,6 +403,9 @@ ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid 
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
 
+REQUIREMENTS:
+- The clue must NOT contain or reveal the answer
+
 Return JSON format:
 {
   "clue": "...",
@@ -337,14 +418,24 @@ Return JSON format:
       user: `Enhance this question to be more engaging, clearer, and better written while keeping the same meaning and answer.
 
 Original question: "${context.currentClue}"
+Correct answer: "${context.currentResponse || '(answer will be provided separately)'}"
 Category: "${context.categoryTitle}"
 Value: $${context.value}
+${context.referenceMaterial ? `Source material context:
+${context.referenceMaterial.substring(0, 2000)}
+
+Use the source material above to ensure accuracy and proper context.
+` : ''}
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used in other questions - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+` : ''}
 
 Focus on:
 - Making the question more interesting and engaging
 - Improving clarity and flow
 - Adding appropriate Jeopardy-style wording (e.g., "This is...", "What is...")
 - Keeping the same answer and core meaning
+- Using source material if provided to ensure accuracy
 
 Return JSON format:
 {

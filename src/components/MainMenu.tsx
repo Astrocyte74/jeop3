@@ -23,17 +23,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { GameMeta, Team, Game, Category, Clue, GameVisibility, GameState } from '@/lib/storage';
-import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion, canViewGame, canEditGame, updateGameVisibility, isAdmin } from '@/lib/storage';
+import type { GameMeta, Team, Game, Category, Clue, GameState } from '@/lib/storage';
+import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
-import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
+import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
-import { NewGameWizard, type WizardCompleteData } from '@/components/NewGameWizard';
+import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
+import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Lock, Unlock, Eye } from 'lucide-react';
+import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Info, Wand2 } from 'lucide-react';
+import { TTSDirectSettings } from '@/components/tts/TTSSettings';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -48,13 +50,16 @@ interface GeneratedGameData {
     title: string;
     contentTopic?: string;
     clues: Array<{ value: number; clue: string; response: string }>;
+    sourceMaterial?: string; // Store source material for this specific category
+    sourceUrl?: string; // Store source URL if applicable
   }>;
   titles: Array<{ title: string; subtitle: string }>;
   suggestedTeamNames: string[];
   theme: string;
   difficulty: AIDifficulty;
-  sourceMode?: 'scratch' | 'paste' | 'url';
+  sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceUrl?: string;
+  referenceMaterial?: string; // Store source material for single-source mode
   sourceCharacters?: number;
   metadata?: {
     modelUsed?: string;
@@ -80,7 +85,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [gameSort, setGameSort] = useState<'newest' | 'oldest' | 'recentlyPlayed' | 'mostPlayed' | 'inProgress' | 'notStarted' | 'completed'>('newest');
-  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'public' | 'private' | 'mine'>('all');
   const [teams, setTeams] = useState<Team[]>([
     { id: '1', name: 'Team 1', score: 0 },
     { id: '2', name: 'Team 2', score: 0 },
@@ -119,6 +123,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   // Sign-in prompt dialog state
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+
+  // Game info dialog state
+  const [gameInfoMetadata, setGameInfoMetadata] = useState<any>(null);
 
   // AI Model button visibility (hidden by default, shown with keyboard shortcut)
   const [showAIModelSelector, setShowAIModelSelector] = useState(false);
@@ -161,6 +168,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             setAIModel(data.models[0].id);
           }
         }
+        // Initialize pricing from OpenRouter (async, non-blocking)
+        initializePricing().catch(err => {
+          if (import.meta.env.DEV) {
+            console.warn('Failed to initialize AI model pricing:', err);
+          }
+        });
       })
       .catch(() => {
         // Silent fail - AI features will be disabled
@@ -222,36 +235,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   };
 
   const filteredGames = games.filter((game) => {
-    // Search filter
-    const matchesSearch = game.title.toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Visibility filter
-    const userEmail = user?.emailAddresses?.[0]?.emailAddress || null;
-    const matchesVisibility = (() => {
-      // For custom games without createdBy (created before tracking), treat as owned by current user
-      // This provides backward compatibility for existing games
-      const isMyGame = game.source === 'custom' && (!game.createdBy || game.createdBy === userEmail);
-
-      switch (visibilityFilter) {
-        case 'all':
-          // Admin: see all games
-          // Regular users: see public games + their own private games
-          return isAdmin(userEmail) || canViewGame(game, userEmail);
-        case 'public':
-          // Only public games (index games are always public)
-          return game.visibility === 'public' || game.source === 'index';
-        case 'private':
-          // Only my private games
-          return game.visibility === 'private' && isMyGame;
-        case 'mine':
-          // All my games (public + private)
-          return isMyGame;
-        default:
-          return true;
-      }
-    })();
-
-    return matchesSearch && matchesVisibility;
+    // Search filter - search both title and subtitle
+    const query = searchQuery.toLowerCase();
+    return game.title.toLowerCase().includes(query) ||
+           (game.subtitle && game.subtitle.toLowerCase().includes(query));
   });
 
   // Sorting logic - apply sorting to filtered games
@@ -469,26 +456,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     setGameStateRefreshKey(prev => prev + 1);
 
     console.log(`[MainMenu] Reset game state for ${gameId} - reset to 2 teams: ${resetTeams.map(t => t.name).join(', ')}`);
-  };
-
-  const handleToggleVisibility = (gameId: string) => {
-    const game = games.find(g => g.id === gameId);
-    if (!game || game.source === 'index') return; // Can't toggle index games
-
-    const userEmail = user?.emailAddresses?.[0]?.emailAddress || null;
-    if (!canEditGame(game, userEmail)) return; // Only owner can toggle
-
-    const newVisibility: GameVisibility = game.visibility === 'public' ? 'private' : 'public';
-    const updatedGames = updateGameVisibility(gameId, games, newVisibility);
-
-    // Update state and localStorage
-    setGames(updatedGames);
-
-    // Update custom games in localStorage
-    const customGames = updatedGames.filter(g => g.source === 'custom');
-    saveCustomGames(customGames);
-
-    console.log(`[MainMenu] Toggled visibility for ${gameId} to ${newVisibility}`);
   };
 
   const handleImportGame = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -739,7 +706,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // ==================== AI NEW GAME GENERATION ====================
 
   const handleWizardComplete = async (wizardData: WizardCompleteData) => {
-    const { mode, theme, difficulty, sourceMode, referenceMaterial, referenceUrl } = wizardData;
+    const { mode, theme, difficulty, sourceMode, referenceMaterial, referenceUrl, customSources } = wizardData;
 
     // Only AI mode should reach here - manual and import-json are handled directly in the wizard
     if (mode !== 'ai') {
@@ -753,139 +720,316 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     setIsWizardGenerating(true);
 
     try {
-      // Determine prompt type and build context based on source mode
-      const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
-        ? 'categories-generate-from-content'
-        : 'categories-generate';
+      let categoriesList: Array<{
+        title: string;
+        clues: Array<{ value: number; clue: string; response: string }>;
+      }> = [];
+      let categoriesMetadata: any = undefined;
 
-      const context: Record<string, any> = {
-        theme: theme || 'random',
-        count: 6,
-      };
+      // Handle custom sources mode - generate categories from each source
+      if (sourceMode === 'custom' && customSources && customSources.length > 0) {
+        console.log('[MainMenu] Generating categories from custom sources:', customSources);
 
-      // Add reference material for content-based generation
-      if (sourceMode !== 'scratch' && referenceMaterial) {
-        context.referenceMaterial = referenceMaterial;
-        context.referenceUrl = referenceUrl;
-        context.sourceCharacters = referenceMaterial.length;
+        // Collect all successful results and track failures
+        const failedSources: Array<{ source: CustomSource; error: string }> = [];
+
+        for (const source of customSources) {
+          // Determine prompt type based on source type and content availability
+          let promptType: AIPromptType = 'categories-generate';
+          const hasContent = (source.type === 'paste' && source.content) ||
+                            (source.type === 'url' && source.fetchedContent);
+
+          if (hasContent) {
+            promptType = 'categories-generate-from-content';
+          }
+
+          const context: Record<string, any> = {
+            theme: source.topic || 'random',
+            count: source.categoryCount,
+          };
+
+          if (source.type === 'paste' && source.content) {
+            context.referenceMaterial = source.content;
+            context.sourceCharacters = source.content.length;
+          } else if (source.type === 'url' && source.fetchedContent) {
+            context.referenceMaterial = source.fetchedContent;
+            context.referenceUrl = source.url;
+            context.sourceCharacters = source.fetchedContent.length;
+          }
+
+          console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, promptType });
+          try {
+            const sourceResult = await aiGenerate(promptType, context, difficulty);
+
+            if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
+              console.error('[MainMenu] Invalid categories result for source:', source);
+              failedSources.push({
+                source,
+                error: 'Invalid response format from AI'
+              });
+              continue;
+            }
+
+            const sourceCategories = (sourceResult as any).categories as Array<{
+              title: string;
+              clues: Array<{ value: number; clue: string; response: string }>;
+            }>;
+
+            // Validate we got the requested number of categories
+            if (sourceCategories.length !== source.categoryCount) {
+              if (sourceCategories.length < source.categoryCount) {
+                console.warn(`[MainMenu] ⚠️ Source "${source.topic || source.url || 'pasted content'}" returned only ${sourceCategories.length} of ${source.categoryCount} requested categories. Using what we got.`);
+              } else {
+                console.warn(`[MainMenu] Source returned ${sourceCategories.length} categories, requested ${source.categoryCount}. Truncating to ${source.categoryCount}.`);
+              }
+            }
+            // Only take the requested number (or fewer if AI didn't return enough)
+            const adjustedCategories = sourceCategories.slice(0, source.categoryCount);
+
+            // Attach source material to each category for later AI operations
+            const categoriesWithSource = adjustedCategories.map(cat => ({
+              ...cat,
+              sourceMaterial: source.type === 'paste' ? source.content :
+                          source.type === 'url' ? source.fetchedContent : undefined,
+              sourceUrl: source.type === 'url' ? source.url : undefined,
+            }));
+
+            categoriesList.push(...categoriesWithSource);
+
+            // Capture metadata from first successful generation
+            if (!categoriesMetadata) {
+              categoriesMetadata = (sourceResult as any)._metadata;
+            }
+          } catch (error) {
+            console.error('[MainMenu] Error generating from source:', source, error);
+            failedSources.push({
+              source,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+          }
+        }
+
+        // Check if we had any failures and if we have at least some categories
+        if (failedSources.length > 0) {
+          const sourceNames = failedSources.map(f => {
+            if (f.source.type === 'paste') {
+              return `Pasted content (${f.source.content?.length || 0} chars)`;
+            }
+            return `"${f.source.topic || f.source.url || 'source'}"`;
+          }).join(', ');
+          if (categoriesList.length === 0) {
+            // Complete failure
+            setWizardError(`Failed to generate categories from ${sourceNames}. Please try again.`);
+            setIsWizardGenerating(false);
+            return;
+          } else {
+            // Partial success - log warning but continue with what we have
+            console.group('⚠️ [MainMenu] Partial Generation Failure');
+            console.warn(`Some sources failed to generate categories. Generated ${categoriesList.length} categories from successful sources.`);
+            console.table(failedSources.map(f => ({
+              Type: f.source.type,
+              Source: f.source.type === 'paste' ? `Pasted content (${f.source.content?.length || 0} chars)` : f.source.topic || f.source.url,
+              Error: f.error
+            })));
+            console.warn('Continuing with ' + categoriesList.length + ' categories. User will see results in preview.');
+            console.groupEnd();
+          }
+        }
+      } else {
+        // Original single-source logic
+        // Determine prompt type and build context based on source mode
+        const promptType: AIPromptType = (sourceMode !== 'scratch' && referenceMaterial)
+          ? 'categories-generate-from-content'
+          : 'categories-generate';
+
+        const context: Record<string, any> = {
+          theme: theme || 'random',
+          count: 6,
+        };
+
+        // Add reference material for content-based generation
+        if (sourceMode !== 'scratch' && referenceMaterial) {
+          context.referenceMaterial = referenceMaterial;
+          context.referenceUrl = referenceUrl;
+          context.sourceCharacters = referenceMaterial.length;
+        }
+
+        // Generate categories
+        const categoriesResult = await aiGenerate(
+          promptType,
+          context,
+          difficulty
+        );
+
+        console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
+
+        if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
+          console.error('[MainMenu] Invalid categories result:', categoriesResult);
+          setWizardError('Failed to generate categories. The AI returned an invalid response. Please try again.');
+          setIsWizardGenerating(false);
+          return; // Keep wizard open
+        }
+
+        const allCategories = (categoriesResult as any).categories as Array<{
+          title: string;
+          clues: Array<{ value: number; clue: string; response: string }>;
+        }>;
+
+        // Validate we got 6 categories as requested
+        if (allCategories.length !== 6) {
+          console.warn(`[MainMenu] AI returned ${allCategories.length} categories but requested 6. Adjusting...`);
+        }
+        // Only take the first 6 categories
+        const sliceCategories = allCategories.slice(0, 6);
+
+        // Attach source material to each category for later AI operations (single-source mode)
+        categoriesList = sliceCategories.map(cat => ({
+          ...cat,
+          sourceMaterial: referenceMaterial, // All categories share the same source in single-source mode
+          sourceUrl: referenceUrl,
+        }));
+
+        // Capture metadata from categories generation
+        categoriesMetadata = (categoriesResult as any)._metadata;
       }
 
-      // Generate categories
-      const categoriesResult = await aiGenerate(
-        promptType,
-        context,
+      // Generate titles - use actual categories for better themed titles
+      const titleContext: Record<string, any> = { theme: theme || 'random', hasContent: true };
+
+      // Always include the actual categories and clues that were just generated
+      if (categoriesList && categoriesList.length > 0) {
+        const categorySummaries = categoriesList.map(cat => {
+          const clueText = (cat.clues || [])
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
+      console.log('[MainMenu] Generating titles with context:', {
+        hasContent: titleContext.hasContent,
+        sampleLength: titleContext.sampleContent?.length,
+        categoriesCount: categoriesList?.length
+      });
+      const titlesResult = await aiGenerate(
+        'game-title',
+        titleContext,
         difficulty
       );
 
-      console.log('[MainMenu] AI generation result:', { categoriesResult, promptType, hasCategories: categoriesResult && 'categories' in categoriesResult });
+      const titlesList = (titlesResult && typeof titlesResult === 'object' && 'titles' in titlesResult)
+        ? (titlesResult as any).titles as Array<{ title: string; subtitle: string }>
+        : [{ title: `${theme || 'Trivia'} Night`, subtitle: theme || '' }];
 
-      if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
-        console.error('[MainMenu] Invalid categories result:', categoriesResult);
-        setWizardError('Failed to generate categories. The AI returned an invalid response. Please try again.');
-        setIsWizardGenerating(false);
-        return; // Keep wizard open
+      console.log('[MainMenu] Generated titles:', titlesList);
+
+      // Generate team names - include theme and category context for themed names
+      const teamNamesContext: Record<string, any> = {
+        count: 4,
+        existingNames: [],
+      };
+
+      // Build game topic from theme and category titles for better themed team names
+      let gameTopic = theme || 'general trivia';
+      if (sourceMode === 'custom' && customSources) {
+        // For custom mode, include all source topics for better team name context
+        const sourceTopics = customSources
+          .filter(s => s.type === 'topic')
+          .map(s => s.topic || '')
+          .filter(Boolean);
+        if (sourceTopics.length > 0) {
+          gameTopic = sourceTopics.join(', ');
+        }
+        if (categoriesList.length > 0) {
+          const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
+          gameTopic += ` (categories: ${categoryTitles})`;
+        }
+      } else if (categoriesList.length > 0) {
+        const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
+        gameTopic += ` (categories: ${categoryTitles})`;
+      }
+      teamNamesContext.gameTopic = gameTopic;
+
+      console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
+      const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
+
+      let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
+      if (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult) {
+        const names = (teamNamesResult as any).names as string[];
+        if (Array.isArray(names) && names.length === 4) {
+          suggestedTeamNames = names;
+        }
       }
 
-    const categoriesList = (categoriesResult as any).categories as Array<{
-      title: string;
-      clues: Array<{ value: number; clue: string; response: string }>;
-    }>;
-
-    // Capture metadata from categories generation
-    const categoriesMetadata = (categoriesResult as any)._metadata;
-
-    // Generate titles - use sample content if available for better titles
-    const titleContext: Record<string, any> = { theme: theme || 'random' };
-    if (sourceMode !== 'scratch' && referenceMaterial) {
-      titleContext.hasContent = true;
-      // Use first 1000 chars for title generation - enough to understand the theme
-      titleContext.sampleContent = referenceMaterial.substring(0, 1000);
-    }
-    console.log('[MainMenu] Generating titles with context:', { hasContent: titleContext.hasContent, sampleLength: titleContext.sampleContent?.length });
-    const titlesResult = await aiGenerate(
-      'game-title',
-      titleContext,
-      difficulty
-    );
-
-    const titlesList = (titlesResult && typeof titlesResult === 'object' && 'titles' in titlesResult)
-      ? (titlesResult as any).titles as Array<{ title: string; subtitle: string }>
-      : [{ title: `${theme || 'Trivia'} Night`, subtitle: theme || '' }];
-
-    console.log('[MainMenu] Generated titles:', titlesList);
-
-    // Generate team names - include theme and category context for themed names
-    const teamNamesContext: Record<string, any> = {
-      count: 4,
-      existingNames: [],
-    };
-
-    // Build game topic from theme and category titles for better themed team names
-    let gameTopic = theme || 'general trivia';
-    if (categoriesList.length > 0) {
-      const categoryTitles = categoriesList.map(c => c.title).slice(0, 3).join(', ');
-      gameTopic += ` (categories: ${categoryTitles})`;
-    }
-    teamNamesContext.gameTopic = gameTopic;
-
-    console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
-    const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
-
-    let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
-    if (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult) {
-      const names = (teamNamesResult as any).names as string[];
-      if (Array.isArray(names) && names.length === 4) {
-        suggestedTeamNames = names;
-      }
-    }
-
-    // Build game structure
-    const gameCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> = [];
-    for (const cat of categoriesList) {
-      const categoryClues: Array<{ value: number; clue: string; response: string }> = [];
-      for (const clue of cat.clues) {
-        categoryClues.push({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
+      // Build game structure
+      const gameCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> = [];
+      for (const cat of categoriesList) {
+        const categoryClues: Array<{ value: number; clue: string; response: string }> = [];
+        for (const clue of cat.clues) {
+          categoryClues.push({
+            value: clue.value,
+            clue: clue.clue,
+            response: clue.response,
+          });
+        }
+        gameCategories.push({
+          title: cat.title,
+          clues: categoryClues,
         });
       }
-      gameCategories.push({
-        title: cat.title,
-        clues: categoryClues,
+
+      // Build enhanced metadata with source info
+      const enhancedMetadata = {
+        ...categoriesMetadata,
+        sourceMode,
+        difficulty,
+        ...(sourceMode === 'custom' && customSources ? {
+          customSources: customSources.map(s => ({
+            type: s.type,
+            content: s.type === 'topic' ? s.topic || '' :
+                     s.type === 'url' ? s.url || '' :
+                     (s.content || '').substring(0, 200) + '...',
+          }))
+        } : {}),
+        ...(sourceMode !== 'custom' && sourceMode !== 'scratch' && referenceMaterial && {
+          sourceMaterial: referenceMaterial.substring(0, 200) + '...',
+        }),
+        ...(referenceUrl && { sourceUrl: referenceUrl }),
+      };
+
+      const newGame: Game = {
+        title: titlesList[0].title,
+        subtitle: titlesList[0].subtitle,
+        categories: gameCategories,
+        rows: 5,
+        suggestedTeamNames: suggestedTeamNames,
+        metadata: enhancedMetadata,
+      };
+
+      // Store the generated game data for later use
+      setGeneratedGameData({
+        game: newGame,
+        categories: categoriesList,
+        titles: titlesList,
+        suggestedTeamNames,
+        theme: theme || 'random',
+        difficulty: difficulty || 'normal',
+        sourceMode,
+        referenceUrl,
+        referenceMaterial: sourceMode !== 'custom' ? referenceMaterial : undefined, // Store for single-source mode
+        sourceCharacters: referenceMaterial?.length,
+        metadata: enhancedMetadata,
       });
-    }
 
-    const newGame: Game = {
-      title: titlesList[0].title,
-      subtitle: titlesList[0].subtitle,
-      categories: gameCategories,
-      rows: 5,
-      suggestedTeamNames: suggestedTeamNames,
-      metadata: categoriesMetadata,
-    };
+      // Success! Close wizard and show preview dialog
+      setIsWizardGenerating(false);
+      setShowWizard(false);
 
-    // Store the generated game data for later use
-    setGeneratedGameData({
-      game: newGame,
-      categories: categoriesList,
-      titles: titlesList,
-      suggestedTeamNames,
-      theme: theme || 'random',
-      difficulty: difficulty || 'normal',
-      sourceMode,
-      referenceUrl,
-      sourceCharacters: referenceMaterial?.length,
-      metadata: categoriesMetadata,
-    });
-
-    // Success! Close wizard and show preview dialog
-    setIsWizardGenerating(false);
-    setShowWizard(false);
-
-    setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
-    setAiPreviewType('categories-generate');
-    setAiPreviewOpen(true);
+      setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
+      setAiPreviewType('categories-generate');
+      setAiPreviewOpen(true);
 
     } catch (error) {
       console.error('[MainMenu] AI generation error:', error);
@@ -1014,10 +1158,32 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       clues: Array<{ value: number; clue: string; response: string }>;
     }>;
 
+    // Capture metadata from AI generation
+    const categoriesMetadata = (result as any)._metadata;
+
+    // Build context with actual categories for better titles
+    const titleContext: Record<string, any> = {
+      theme: generatedGameData.theme || 'random',
+      count: 3,
+      hasContent: true,
+    };
+
+    // Include the actual categories and clues in the context
+    if (categoriesList && categoriesList.length > 0) {
+      const categorySummaries = categoriesList.map(cat => {
+        const clueText = (cat.clues || [])
+          .slice(0, 2) // Just first 2 clues per category
+          .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+          .join('\n');
+        return `${cat.title}\n${clueText}`;
+      }).join('\n\n');
+      titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+    }
+
     // Generate titles
     const titlesResult = await aiGenerate(
       'game-title',
-      { theme: generatedGameData.theme || 'random', count: 3 },
+      titleContext,
       generatedGameData.difficulty
     );
 
@@ -1059,6 +1225,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       suggestedTeamNames,
       categories: gameCategories,
       rows: 5,
+      metadata: categoriesMetadata,
     };
 
     setGeneratedGameData({
@@ -1148,11 +1315,22 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const category = generatedGameData.categories[catIndex];
       const clue = category.clues[clueIndex];
 
+      // Collect all existing answers to avoid duplicates
+      const existingAnswers = generatedGameData.categories
+        .flatMap(cat => cat.clues.map(c => c.response))
+        .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
+
+      // Use per-category sourceMaterial if available, otherwise fall back to global
+      const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+
       const result = await aiGenerate('editor-rewrite-clue', {
         categoryTitle: category.title,
         contentTopic: category.contentTopic || category.title,
         currentClue: clue.clue,
+        currentResponse: clue.response,
         value: clue.value,
+        existingAnswers,
+        referenceMaterial: sourceMaterial,
       });
 
       if (result && typeof result === 'object' && 'clue' in result) {
@@ -1209,9 +1387,29 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const theme = generatedGameData.theme || 'general';
       const otherTitles = generatedGameData.titles.filter((_, i) => i !== titleIndex);
 
+      // Build context with game content for better titles
+      const titleContext: Record<string, any> = {
+        theme,
+        count: 1,
+        existingTitles: otherTitles,
+        hasContent: true,
+      };
+
+      // Include the actual categories and clues in the context
+      if (generatedGameData.categories && generatedGameData.categories.length > 0) {
+        const categorySummaries = generatedGameData.categories.map(cat => {
+          const clueText = cat.clues
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
       const result = await aiGenerate(
         'game-title',
-        { theme, count: 1, existingTitles: otherTitles },
+        titleContext,
         generatedGameData.difficulty
       );
 
@@ -1248,9 +1446,26 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     try {
       const theme = generatedGameData.theme || 'general';
 
+      // Build context with actual game content for better titles
+      const titleContext: Record<string, any> = { theme, count: 3 };
+
+      // Include the actual categories and clues in the context
+      if (generatedGameData.categories && generatedGameData.categories.length > 0) {
+        titleContext.hasContent = true;
+        // Build a summary of all categories with sample clues
+        const categorySummaries = generatedGameData.categories.map(cat => {
+          const clueText = cat.clues
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
       const result = await aiGenerate(
         'game-title',
-        { theme, count: 3 },
+        titleContext,
         generatedGameData.difficulty
       );
 
@@ -1356,6 +1571,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const contentTopic = category.contentTopic || category.title;
       const theme = generatedGameData.theme || contentTopic;
 
+      // Collect all existing answers from OTHER categories to avoid duplicates
+      const existingAnswers = generatedGameData.categories
+        .filter((_, i) => i !== catIndex)
+        .flatMap(cat => cat.clues.map(c => c.response));
+
+      // Use per-category sourceMaterial if available, otherwise fall back to global
+      const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+
       const result = await aiGenerate(
         'category-replace-all',
         {
@@ -1363,6 +1586,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           contentTopic,
           theme,
           existingClues: category.clues,
+          existingAnswers,
+          referenceMaterial: sourceMaterial,
         },
         generatedGameData.difficulty
       );
@@ -1372,7 +1597,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const newCat = catData.category || (catData.title && catData.clues ? { title: catData.title, clues: catData.clues } : null);
         if (newCat) {
           const updatedCategories = [...generatedGameData.categories];
-          updatedCategories[catIndex] = newCat;
+          // Preserve sourceMaterial and sourceUrl when updating category
+          updatedCategories[catIndex] = {
+            ...newCat,
+            sourceMaterial: category.sourceMaterial,
+            sourceUrl: category.sourceUrl,
+          };
 
           const updatedGame: Game = {
             ...generatedGameData.game,
@@ -1479,6 +1709,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const category = generatedGameData.categories[catIndex];
       const clue = category.clues[clueIndex];
 
+      // Collect all existing answers to avoid duplicates
+      const existingAnswers = generatedGameData.categories
+        .flatMap(cat => cat.clues.map(c => c.response))
+        .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
+
+      // Use per-category sourceMaterial if available, otherwise fall back to global
+      const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+
       const result = await aiGenerate(
         'question-generate-single',
         {
@@ -1486,6 +1724,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           contentTopic: category.contentTopic || category.title,
           value: clue.value,
           existingClues: category.clues.filter((_, i) => i !== clueIndex),
+          existingAnswers,
+          referenceMaterial: sourceMaterial,
         },
         generatedGameData.difficulty
       );
@@ -1536,11 +1776,30 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     try {
       const theme = generatedGameData.theme || 'general';
 
-      // For title enhancement, we just call game-title with existing titles to avoid
+      // For title enhancement, build context with game content and existing titles to avoid
       const otherTitles = generatedGameData.titles.filter((_, i) => i !== titleIndex);
+      const titleContext: Record<string, any> = {
+        theme,
+        count: 1,
+        existingTitles: otherTitles,
+        hasContent: true,
+      };
+
+      // Include the actual categories and clues in the context
+      if (generatedGameData.categories && generatedGameData.categories.length > 0) {
+        const categorySummaries = generatedGameData.categories.map(cat => {
+          const clueText = cat.clues
+            .slice(0, 2) // Just first 2 clues per category
+            .map(c => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${clueText}`;
+        }).join('\n\n');
+        titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
+      }
+
       const result = await aiGenerate(
         'game-title',
-        { theme, count: 1, existingTitles: otherTitles },
+        titleContext,
         generatedGameData.difficulty
       );
 
@@ -1869,38 +2128,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-slate-400 hover:text-slate-300 hover:bg-slate-700">
-                      <Eye className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
-                      Visibility
-                    </div>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('all')} className={visibilityFilter === 'all' ? 'bg-yellow-500/10' : ''}>
-                      <Eye className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">All Games</span>
-                      {visibilityFilter === 'all' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('public')} className={visibilityFilter === 'public' ? 'bg-yellow-500/10' : ''}>
-                      <Unlock className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">Public Games</span>
-                      {visibilityFilter === 'public' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('private')} className={visibilityFilter === 'private' ? 'bg-yellow-500/10' : ''}>
-                      <Lock className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">My Private Games</span>
-                      {visibilityFilter === 'private' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setVisibilityFilter('mine')} className={visibilityFilter === 'mine' ? 'bg-yellow-500/10' : ''}>
-                      <Gamepad2 className="w-3 h-3 mr-2 opacity-50" />
-                      <span className="flex-1">My Private & Public Games</span>
-                      {visibilityFilter === 'mine' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             </div>
 
@@ -1915,7 +2142,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               {sortedGames.map((game) => {
                 const gameData = loadCustomGames().find(g => g.id === game.id);
                 const savedState = loadGameState(game.id);
-                const inProgress = savedState && savedState.teams && savedState.teams.length > 0;
+                const inProgress = savedState && savedState.used && Object.keys(savedState.used).length > 0;
                 return (
                   <div
                     key={game.id}
@@ -1938,19 +2165,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                             <div className="text-xs text-slate-400 mt-1 truncate">{game.subtitle}</div>
                           )}
                         </div>
-                        <div className="flex flex-col gap-1 items-end">
-                          {game.visibility === 'private' && (
-                            <Badge variant="outline" className="text-xs bg-red-500/20 text-red-400 border-red-500/50 flex-shrink-0">
-                              <Lock className="w-2 h-2 mr-1" />
-                              Private
-                            </Badge>
-                          )}
-                          {inProgress && (
-                            <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/50 flex-shrink-0">
-                              In Progress
-                            </Badge>
-                          )}
-                        </div>
+                        {inProgress && (
+                          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/50 flex-shrink-0 self-start">
+                            In Progress
+                          </Badge>
+                        )}
                       </div>
                     </button>
                     <DropdownMenu>
@@ -1968,6 +2187,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
+                        {/* Play - main action */}
                         <DropdownMenuItem onClick={() => {
                           const fullGame = gameData?.game || {
                             id: game.id,
@@ -1982,58 +2202,66 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                           <Play className="w-4 h-4 mr-2 text-green-400" />
                           <span>Play Game</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          const fullGame = gameData?.game || {
-                            id: game.id,
-                            title: game.title,
-                            subtitle: game.subtitle || '',
-                            categories: [],
-                            rows: 5,
-                          };
-                          onOpenEditor(fullGame);
-                        }}>
-                          <Edit className="w-4 h-4 mr-2 text-blue-400" />
-                          <span>Edit with Board Editor</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          const fullGame = gameData?.game || {
-                            id: game.id,
-                            title: game.title,
-                            subtitle: game.subtitle || '',
-                            categories: [],
-                            rows: 5,
-                          };
-                          handleEditWithAIPreview(fullGame);
-                        }}>
-                          <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                          <span>Edit with AI Preview</span>
-                        </DropdownMenuItem>
+
+                        {/* Edit section */}
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <Edit className="w-4 h-4 mr-2 text-blue-400" />
+                            <span>Edit</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent>
+                            <DropdownMenuItem onClick={() => {
+                              const fullGame = gameData?.game || {
+                                id: game.id,
+                                title: game.title,
+                                subtitle: game.subtitle || '',
+                                categories: [],
+                                rows: 5,
+                              };
+                              handleEditWithAIPreview(fullGame);
+                            }}>
+                              <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
+                              <span>AI Editor</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              const fullGame = gameData?.game || {
+                                id: game.id,
+                                title: game.title,
+                                subtitle: game.subtitle || '',
+                                categories: [],
+                                rows: 5,
+                              };
+                              onOpenEditor(fullGame);
+                            }}>
+                              <Wand2 className="w-4 h-4 mr-2 text-blue-400" />
+                              <span>Board Editor</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSeparator />
+
+                        {/* Info */}
+                        {gameData?.game?.metadata && (
+                          <DropdownMenuItem onClick={() => setGameInfoMetadata(gameData?.game?.metadata)}>
+                            <Info className="w-4 h-4 mr-2 text-blue-400" />
+                            <span>Game Info</span>
+                          </DropdownMenuItem>
+                        )}
+
+                        <DropdownMenuSeparator />
+
+                        {/* Utilities */}
                         <DropdownMenuItem onClick={() => handleExportGame(game)}>
                           <Download className="w-4 h-4 mr-2 text-green-400" />
-                          <span>Export to File</span>
+                          <span>Export</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleResetGame(game.id)}>
                           <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
-                          <span>Reset Game</span>
+                          <span>Reset Progress</span>
                         </DropdownMenuItem>
-                        {game.source === 'custom' && canEditGame(game, user?.emailAddresses?.[0]?.emailAddress || null) && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleToggleVisibility(game.id)}>
-                              {game.visibility === 'public' ? (
-                                <>
-                                  <Lock className="w-4 h-4 mr-2 text-yellow-400" />
-                                  <span>Make Private</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Unlock className="w-4 h-4 mr-2 text-green-400" />
-                                  <span>Make Public</span>
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </>
-                        )}
+
+                        {/* Danger zone */}
                         {game.source === 'custom' && (
                           <>
                             <DropdownMenuSeparator />
@@ -2054,12 +2282,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </div>
 
             <div className="flex flex-col gap-2 mt-4">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-slate-400">AI Game Creation</span>
-                <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-500 border-yellow-500/30">
-                  Approved users only
-                </Badge>
-              </div>
               <Button
                 variant="default"
                 className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
@@ -2090,6 +2312,26 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </Button>
 
             <div className="mt-6 flex gap-2">
+              {/* TTS Settings - only in local development */}
+              {import.meta.env.DEV && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-slate-700"
+                      title="Text-to-Speech Settings"
+                    >
+                      <Gamepad2 className="w-4 h-4 mr-2" />
+                      TTS Settings
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <TTSDirectSettings />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+
               {/* Theme dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -2187,6 +2429,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                         <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
                           {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
                             const stats = getModelStats(model.id);
+                            const costEstimate = getCostEstimate(model.id);
                             return (
                               <DropdownMenuItem
                                 key={model.id}
@@ -2200,11 +2443,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                                       <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
                                     )}
                                   </div>
-                                  {stats && (
-                                    <div className="text-xs text-slate-500 mt-0.5">
-                                      {formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}
-                                    </div>
-                                  )}
+                                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                    {stats && (
+                                      <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                    )}
+                                    <span className="text-green-400">💰 {costEstimate}</span>
+                                  </div>
                                 </div>
                               </DropdownMenuItem>
                             );
@@ -2234,11 +2478,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                                       <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
                                     )}
                                   </div>
-                                  {stats && (
-                                    <div className="text-xs text-slate-500 mt-0.5">
-                                      {formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}
-                                    </div>
-                                  )}
+                                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                    {stats && (
+                                      <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                    )}
+                                    <span className="text-green-400">🆓 Free</span>
+                                  </div>
                                 </div>
                               </DropdownMenuItem>
                             );
@@ -2257,8 +2502,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                           {(() => {
                             const stats = aiModel ? getModelStats(aiModel) : null;
                             const fastestModel = getModelsBySpeed()[0];
+                            const costEstimate = aiModel ? getCostEstimate(aiModel) : null;
+                            const isOllama = availableModels.find(m => m.id === aiModel)?.provider === 'ollama';
                             return (
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 {stats && (
                                   <span className="text-xs text-slate-600">
                                     Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
@@ -2266,6 +2513,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                                 )}
                                 {fastestModel && fastestModel.modelId === aiModel && (
                                   <span className="text-xs text-green-500">⚡ Fastest</span>
+                                )}
+                                {costEstimate && !isOllama && (
+                                  <span className="text-xs text-green-500">💰 {costEstimate}</span>
+                                )}
+                                {isOllama && (
+                                  <span className="text-xs text-green-500">🆓 Free</span>
                                 )}
                               </div>
                             );
@@ -2359,7 +2612,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
         {/* Footer */}
         <footer className="mt-8 text-center text-sm text-slate-500">
-          Jeop3 v3.0 • Built with React + shadcn/ui
+          Jeop3 v3.1 • Built with React + shadcn/ui
         </footer>
       </div>
 
@@ -2422,6 +2675,21 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         enhancingTeamName={enhancingTeamName}
         metadata={generatedGameData?.metadata}
       />
+
+      {/* Game Info Dialog */}
+      <AlertDialog open={!!gameInfoMetadata} onOpenChange={(open) => !open && setGameInfoMetadata(null)}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Game Information</AlertDialogTitle>
+          </AlertDialogHeader>
+          <GameMetadata metadata={gameInfoMetadata} collapsible={false} />
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setGameInfoMetadata(null)}>
+              Close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Game Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -12,9 +12,19 @@ export type Category = {
 };
 
 export type GameMetadata = {
-  modelUsed?: string;  // e.g., "or:google/gemini-2.5-flash-lite" or "ollama:gemma3:12b"
+  // Creation Info
+  modelUsed?: string;  // e.g., "Gemini 3 Flash Preview"
   generatedAt?: string;  // ISO timestamp
   generationTimeMs?: number;  // Time taken to generate in milliseconds
+
+  // Source/Mode Info
+  sourceMode?: 'scratch' | 'topic' | 'content' | 'url' | 'custom';  // How the game was created
+  sourceMaterial?: string;  // For topic/content/url mode: the topic, URL, or content preview
+  customSources?: Array<{  // For custom mode: list of sources used
+    type: 'topic' | 'paste' | 'url';
+    content: string;  // Topic, URL, or content preview
+  }>;
+  difficulty?: 'easy' | 'normal' | 'hard';
 };
 
 export type Game = {
