@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle, Volume2, Loader2 } from 'lucide-react';
+import { X, Eye, Check, X as XIcon, Info, Trophy, XCircle, Volume2, Loader2, Square, AlertCircle } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { getIconSize } from '@/lib/themes';
 import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
-import { useTTSClue } from '@/lib/tts/hooks';
+import { useTTSClue, useTTS } from '@/lib/tts/hooks';
 import { getTTSSettings } from '@/lib/tts';
 
 interface ClueDialogProps {
@@ -42,7 +42,11 @@ export function ClueDialog({
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
   const ttsSettings = getTTSSettings();
-  const { audio, playClue, playAnswer, preloadAnswer } = useTTSClue(clue, response);
+  const { isAvailable } = useTTS();
+  const { audio, playClue, playAnswer, stopPlayback, preloadAnswer } = useTTSClue(clue, response);
+
+  // Only show TTS controls if enabled AND available
+  const ttsEnabled = ttsSettings.enabled && isAvailable;
 
   // Auto-show response and set active team when coming from snake game
   useEffect(() => {
@@ -54,7 +58,7 @@ export function ClueDialog({
 
   // Auto-read clue when dialog opens if enabled
   useEffect(() => {
-    if (isOpen && ttsSettings.enabled && ttsSettings.autoRead && !snakeGameResult) {
+    if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult) {
       // Small delay to ensure the dialog is fully rendered
       const timer = setTimeout(() => {
         playClue();
@@ -63,14 +67,14 @@ export function ClueDialog({
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, ttsSettings.enabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
+  }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
 
   // Preload answer when response is shown (if not already loaded)
   useEffect(() => {
-    if (showResponse && ttsSettings.enabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
+    if (showResponse && ttsEnabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
       preloadAnswer();
     }
-  }, [showResponse, ttsSettings.enabled, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
+  }, [showResponse, ttsEnabled, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
 
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
   const [clueIcons, setClueIcons] = useState<IconMatch[]>([]);
@@ -248,19 +252,36 @@ export function ClueDialog({
         {/* Clue */}
         <div className="flex items-start gap-3">
           <div className="flex-1 clue-text">{clue}</div>
-          {ttsSettings.enabled && (
-            <button
-              onClick={playClue}
-              disabled={audio.isClueLoading}
-              className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors"
-              title="Read clue"
-            >
-              {audio.isClueLoading ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Volume2 className="w-5 h-5" />
+          {ttsEnabled && (
+            <div className="flex items-center gap-1">
+              {audio.isPlaying && (
+                <button
+                  onClick={stopPlayback}
+                  className="flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
+                  title="Stop playback"
+                >
+                  <Square className="w-5 h-5" />
+                </button>
               )}
-            </button>
+              <button
+                onClick={playClue}
+                disabled={audio.isClueLoading}
+                className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50"
+                title="Read clue"
+              >
+                {audio.isClueLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Volume2 className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          )}
+          {audio.clueError && (
+            <div className="flex items-center gap-1 text-xs text-red-400">
+              <AlertCircle className="w-4 h-4" />
+              <span>Audio failed</span>
+            </div>
           )}
         </div>
 
@@ -268,19 +289,36 @@ export function ClueDialog({
         {showResponse && (
           <div className="flex items-start gap-3">
             <div className="flex-1 clue-response">{response}</div>
-            {ttsSettings.enabled && (
-              <button
-                onClick={playAnswer}
-                disabled={audio.isAnswerLoading}
-                className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors"
-                title="Read answer"
-              >
-                {audio.isAnswerLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Volume2 className="w-5 h-5" />
+            {ttsEnabled && (
+              <div className="flex items-center gap-1">
+                {audio.isPlaying && (
+                  <button
+                    onClick={stopPlayback}
+                    className="flex-shrink-0 p-2 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded-lg transition-colors"
+                    title="Stop playback"
+                  >
+                    <Square className="w-5 h-5" />
+                  </button>
                 )}
-              </button>
+                <button
+                  onClick={playAnswer}
+                  disabled={audio.isAnswerLoading}
+                  className="flex-shrink-0 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 rounded-lg transition-colors disabled:opacity-50"
+                  title="Read answer"
+                >
+                  {audio.isAnswerLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Volume2 className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+            )}
+            {audio.answerError && (
+              <div className="flex items-center gap-1 text-xs text-red-400">
+                <AlertCircle className="w-4 h-4" />
+                <span>Audio failed</span>
+              </div>
             )}
           </div>
         )}

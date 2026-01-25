@@ -26,13 +26,6 @@ export interface TTSVoice {
   preview_url?: string;
 }
 
-export interface TTSVoicesResponse {
-  engine: string;
-  available: boolean;
-  voices: TTSVoice[];
-  count: number;
-}
-
 export interface TTSSynthesizeRequest {
   text: string;
   voice?: string;
@@ -52,11 +45,4 @@ export interface TTSSynthesizeResponse {
   clip?: string;
   sample_rate?: number;
   duration?: number;
-}
-
-export interface TTSAudioCache {
-  [key: string]: {
-    audioUrl: string;
-    synthesizedAt: number;
-  };
 }

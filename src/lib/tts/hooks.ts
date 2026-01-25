@@ -21,6 +21,54 @@ export interface TTSClueAudio {
   isAnswerLoading: boolean;
   clueError: string | null;
   answerError: string | null;
+  isPlaying: boolean;
+}
+
+// LRU Cache for audio URLs
+class LRUCache<K, V> {
+  private cache: Map<K, V>;
+  private maxSize: number;
+
+  constructor(maxSize: number = 50) {
+    this.cache = new Map();
+    this.maxSize = maxSize;
+  }
+
+  get(key: K): V | undefined {
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      // Move to end (most recently used)
+      this.cache.delete(key);
+      this.cache.set(key, value);
+    }
+    return value;
+  }
+
+  set(key: K, value: V): void {
+    // Remove existing key if present (will be re-added at end)
+    if (this.cache.has(key)) {
+      this.cache.delete(key);
+    }
+    // Add new key at end
+    this.cache.set(key, value);
+    // Evict oldest entry if over limit
+    if (this.cache.size > this.maxSize) {
+      const firstKey = this.cache.keys().next().value;
+      this.cache.delete(firstKey);
+    }
+  }
+
+  has(key: K): boolean {
+    return this.cache.has(key);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  get size(): number {
+    return this.cache.size;
+  }
 }
 
 /**
@@ -82,9 +130,74 @@ export function useTTSClue(clueText: string, answerText: string) {
     isAnswerLoading: false,
     clueError: null,
     answerError: null,
+    isPlaying: false,
   });
 
-  const audioCacheRef = useRef<Map<string, string>>(new Map());
+  // Use LRU cache instead of unbounded Map
+  const audioCacheRef = useRef<LRUCache<string, string>>(new LRUCache<string, string>(50));
+
+  // Store the current audio element for cleanup and control
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Track pending play type for auto-play after synthesis
+  const pendingPlayTypeRef = useRef<'clue' | 'answer' | null>(null);
+
+  // Reset audio state when clue/answer changes
+  useEffect(() => {
+    // Stop any playing audio
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+      audioElementRef.current = null;
+    }
+    setAudio({
+      clueAudioUrl: null,
+      answerAudioUrl: null,
+      isClueLoading: false,
+      isAnswerLoading: false,
+      clueError: null,
+      answerError: null,
+      isPlaying: false,
+    });
+    pendingPlayTypeRef.current = null;
+  }, [clueText, answerText]);
+
+  // Update isPlaying state when audio element events fire
+  useEffect(() => {
+    const element = audioElementRef.current;
+    if (!element) return;
+
+    const handlePlay = () => setAudio(prev => ({ ...prev, isPlaying: true }));
+    const handleEnded = () => {
+      setAudio(prev => ({ ...prev, isPlaying: false }));
+      audioElementRef.current = null;
+    };
+    const handleError = () => {
+      setAudio(prev => ({ ...prev, isPlaying: false }));
+      audioElementRef.current = null;
+    };
+
+    element.addEventListener('play', handlePlay);
+    element.addEventListener('ended', handleEnded);
+    element.addEventListener('error', handleError);
+
+    return () => {
+      element.removeEventListener('play', handlePlay);
+      element.removeEventListener('ended', handleEnded);
+      element.removeEventListener('error', handleError);
+    };
+  }, [audio.clueAudioUrl, audio.answerAudioUrl]);
+
+  // Auto-play after synthesis completes if a play was requested
+  useEffect(() => {
+    if (pendingPlayTypeRef.current === 'clue' && audio.clueAudioUrl) {
+      pendingPlayTypeRef.current = null;
+      playAudioUrl(audio.clueAudioUrl);
+    } else if (pendingPlayTypeRef.current === 'answer' && audio.answerAudioUrl) {
+      pendingPlayTypeRef.current = null;
+      playAudioUrl(audio.answerAudioUrl);
+    }
+  }, [audio.clueAudioUrl, audio.answerAudioUrl]);
 
   const synthesizeAudio = useCallback(async (text: string, type: 'clue' | 'answer'): Promise<void> => {
     // Check cache first
@@ -118,7 +231,7 @@ export function useTTSClue(clueText: string, answerText: string) {
 
     const audioUrl = getAudioUrl(result);
 
-    // Cache the result
+    // Cache the result (LRU cache handles eviction)
     audioCacheRef.current.set(cacheKey, audioUrl);
 
     setAudio(prev => ({
@@ -126,29 +239,52 @@ export function useTTSClue(clueText: string, answerText: string) {
       [type === 'clue' ? 'clueAudioUrl' : 'answerAudioUrl']: audioUrl,
       [type === 'clue' ? 'isClueLoading' : 'isAnswerLoading']: false,
     }));
-  }, [clueText, answerText]);
+  }, []); // No dependencies needed - uses closure values
+
+  const playAudioUrl = useCallback((url: string) => {
+    // Stop any currently playing audio
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+    }
+
+    const audioElement = new Audio(url);
+    audioElementRef.current = audioElement;
+
+    audioElement.play().catch(err => {
+      console.error('[TTS] Failed to play:', err);
+      setAudio(prev => ({ ...prev, isPlaying: false }));
+      audioElementRef.current = null;
+    });
+  }, []);
 
   const playClue = useCallback(() => {
     if (audio.clueAudioUrl) {
-      const audioElement = new Audio(audio.clueAudioUrl);
-      audioElement.play().catch(err => console.error('[TTS] Failed to play:', err));
+      playAudioUrl(audio.clueAudioUrl);
     } else if (clueText) {
-      synthesizeAudio(clueText, 'clue').then(() => {
-        // Will play when audio URL is set
-      });
+      pendingPlayTypeRef.current = 'clue';
+      synthesizeAudio(clueText, 'clue');
     }
-  }, [audio.clueAudioUrl, clueText, synthesizeAudio]);
+  }, [audio.clueAudioUrl, clueText, synthesizeAudio, playAudioUrl]);
 
   const playAnswer = useCallback(() => {
     if (audio.answerAudioUrl) {
-      const audioElement = new Audio(audio.answerAudioUrl);
-      audioElement.play().catch(err => console.error('[TTS] Failed to play:', err));
+      playAudioUrl(audio.answerAudioUrl);
     } else if (answerText) {
-      synthesizeAudio(answerText, 'answer').then(() => {
-        // Will play when audio URL is set
-      });
+      pendingPlayTypeRef.current = 'answer';
+      synthesizeAudio(answerText, 'answer');
     }
-  }, [audio.answerAudioUrl, answerText, synthesizeAudio]);
+  }, [audio.answerAudioUrl, answerText, synthesizeAudio, playAudioUrl]);
+
+  const stopPlayback = useCallback(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+      audioElementRef.current = null;
+    }
+    setAudio(prev => ({ ...prev, isPlaying: false }));
+    pendingPlayTypeRef.current = null;
+  }, []);
 
   const preloadAnswer = useCallback(() => {
     if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading) {
@@ -160,6 +296,7 @@ export function useTTSClue(clueText: string, answerText: string) {
     audio,
     playClue,
     playAnswer,
+    stopPlayback,
     preloadAnswer,
   };
 }

@@ -3,7 +3,7 @@
  * Allows users to configure text-to-speech settings
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Volume2, VolumeX, Loader2, Check, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,11 +36,33 @@ interface TTSSettingsProps {
 }
 
 export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
-  const settings = getTTSSettings();
+  const [settings, setSettings] = useState(getTTSSettings());
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [voices, setVoices] = useState<TTSVoice[]>([]);
   const [loadingVoices, setLoadingVoices] = useState(false);
+  const [editingApiUrl, setEditingApiUrl] = useState(settings.apiUrl);
+  const [saveApiUrl, setSaveApiUrl] = useState<string | null>(null);
+
+  // Sync settings with localStorage changes (from other components)
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'jeop3:ttsSettings:v1' && e.newValue) {
+        try {
+          setSettings(JSON.parse(e.newValue));
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Update editing API URL when settings change
+  useEffect(() => {
+    setEditingApiUrl(settings.apiUrl);
+  }, [settings.apiUrl]);
 
   // Check availability and load voices when opened
   useEffect(() => {
@@ -62,6 +84,7 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
 
   const handleToggleEnabled = () => {
     const updated = updateTTSSettings({ enabled: !settings.enabled });
+    setSettings(updated);
     if (updated.enabled && !available) {
       // Check availability when enabling
       setChecking(true);
@@ -75,6 +98,16 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
     setAvailable(isAvailable);
     setChecking(false);
   };
+
+  const handleSaveApiUrl = useCallback(() => {
+    if (saveApiUrl && saveApiUrl !== settings.apiUrl) {
+      const updated = updateTTSSettings({ apiUrl: saveApiUrl });
+      setSettings(updated);
+      // Reset availability since API URL changed
+      setAvailable(null);
+    }
+    setSaveApiUrl(null);
+  }, [saveApiUrl, settings.apiUrl]);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -157,8 +190,44 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                     Test Connection
                   </Button>
                 </div>
-                <div className="text-xs text-slate-500">
-                  API URL: {settings.apiUrl}
+
+                {/* API URL Configuration */}
+                <div className="space-y-2">
+                  <Label htmlFor="api-url" className="text-xs">API URL</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="api-url"
+                      value={editingApiUrl}
+                      onChange={(e) => {
+                        setEditingApiUrl(e.target.value);
+                        setSaveApiUrl(e.target.value);
+                      }}
+                      onBlur={handleSaveApiUrl}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          handleSaveApiUrl();
+                        } else if (e.key === 'Escape') {
+                          setEditingApiUrl(settings.apiUrl);
+                          setSaveApiUrl(null);
+                        }
+                      }}
+                      placeholder="http://127.0.0.1:7860/api"
+                      className="flex-1 h-8 text-sm"
+                    />
+                    {saveApiUrl && saveApiUrl !== settings.apiUrl && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleSaveApiUrl}
+                        className="h-8"
+                      >
+                        Save
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    URL of your Kokoro TTS server
+                  </p>
                 </div>
               </div>
 
@@ -178,7 +247,10 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56 max-h-64 overflow-y-auto">
-                    <DropdownMenuItem onClick={() => updateTTSSettings({ defaultVoice: '' })}>
+                    <DropdownMenuItem onClick={() => {
+                      const updated = updateTTSSettings({ defaultVoice: '' });
+                      setSettings(updated);
+                    }}>
                       <em className="text-slate-400">Default Voice</em>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -190,7 +262,10 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                     {voices.slice(0, 20).map(voice => (
                       <DropdownMenuItem
                         key={voice.id}
-                        onClick={() => updateTTSSettings({ defaultVoice: voice.id })}
+                        onClick={() => {
+                          const updated = updateTTSSettings({ defaultVoice: voice.id });
+                          setSettings(updated);
+                        }}
                       >
                         <div className="flex flex-col gap-1">
                           <span className="text-sm truncate">{voice.label}</span>
@@ -223,7 +298,10 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                 <Button
                   variant={settings.autoRead ? 'default' : 'outline'}
                   size="sm"
-                  onClick={() => updateTTSSettings({ autoRead: !settings.autoRead })}
+                  onClick={() => {
+                    const updated = updateTTSSettings({ autoRead: !settings.autoRead });
+                    setSettings(updated);
+                  }}
                 >
                   {settings.autoRead ? 'On' : 'Off'}
                 </Button>
@@ -239,7 +317,11 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                   max="2.0"
                   step="0.1"
                   value={settings.speed}
-                  onChange={(e) => updateTTSSettings({ speed: parseFloat(e.target.value) })}
+                  onChange={(e) => {
+                    const newSpeed = parseFloat(e.target.value);
+                    const updated = updateTTSSettings({ speed: newSpeed });
+                    setSettings(updated);
+                  }}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-slate-500">
@@ -261,8 +343,23 @@ interface TTSMenuButtonProps {
 }
 
 export function TTSMenuButton({ onOpenSettings }: TTSMenuButtonProps) {
-  const settings = getTTSSettings();
+  const [settings, setSettings] = useState(getTTSSettings());
   const [available, setAvailable] = useState<boolean | null>(null);
+
+  // Sync settings with localStorage changes
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'jeop3:ttsSettings:v1' && e.newValue) {
+        try {
+          setSettings(JSON.parse(e.newValue));
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
   useEffect(() => {
     if (settings.enabled) {
@@ -297,12 +394,15 @@ export function TTSMenuButton({ onOpenSettings }: TTSMenuButtonProps) {
         {settings.enabled && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => updateTTSSettings({ autoRead: !settings.autoRead })}>
+            <DropdownMenuItem onClick={() => {
+              const updated = updateTTSSettings({ autoRead: !settings.autoRead });
+              setSettings(updated);
+            }}>
               {settings.autoRead ? (
-                                        <Check className="w-4 h-4 mr-2 text-green-400" />
-                                      ) : (
-                                        <div className="w-4 h-4 mr-2" />
-                                      )}
+                <Check className="w-4 h-4 mr-2 text-green-400" />
+              ) : (
+                <div className="w-4 h-4 mr-2" />
+              )}
               <span>Auto Read Clues</span>
             </DropdownMenuItem>
           </>
