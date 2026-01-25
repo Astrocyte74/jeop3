@@ -50,10 +50,20 @@ export async function getFavoriteVoices(): Promise<TTSVoice[]> {
   const settings = getTTSSettings();
 
   try {
-    const response = await fetch(`${settings.apiUrl}/voices_favorites?engine=kokoro`);
+    const response = await fetch(`${settings.apiUrl}/favorites?engine=kokoro`);
     if (!response.ok) return [];
     const data = await response.json();
-    return data.voices || [];
+    // Favorites have a different structure: { profiles: [{ label, engine, voiceId, ... }] }
+    // We need to map these to TTSVoice format
+    const profiles = data.profiles || [];
+    return profiles.map((p: any) => ({
+      id: p.voiceId,
+      label: p.label,
+      locale: p.language || 'en',
+      gender: p.gender || 'unknown',
+      tags: p.tags || [],
+      engine: p.engine || 'kokoro',
+    }));
   } catch (error) {
     console.error('[TTS] Failed to fetch favorite voices:', error);
     return [];
