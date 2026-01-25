@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Volume2, VolumeX, Loader2, Check, Settings } from 'lucide-react';
+import { Volume2, VolumeX, Loader2, Check, Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -26,7 +26,7 @@ import {
   getTTSSettings,
   updateTTSSettings,
   checkTTSAvailable,
-  getVoices,
+  getFavoriteVoices,
   type TTSVoice,
 } from '@/lib/tts';
 
@@ -73,9 +73,9 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
         setChecking(false);
       });
 
-      // Load voices
+      // Load favorite voices
       setLoadingVoices(true);
-      getVoices().then(fetched => {
+      getFavoriteVoices().then(fetched => {
         setVoices(fetched);
         setLoadingVoices(false);
       }).catch(() => setLoadingVoices(false));
@@ -113,10 +113,20 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
-            <Volume2 className="w-5 h-5" />
-            Text-to-Speech Settings
-          </AlertDialogTitle>
+          <div className="flex items-center justify-between">
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Volume2 className="w-5 h-5" />
+              Text-to-Speech Settings
+            </AlertDialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-slate-400 hover:text-white"
+              onClick={() => onOpenChange(false)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
           <AlertDialogDescription>
             Configure TTS for reading clues and answers (requires local TTS server)
           </AlertDialogDescription>
@@ -233,7 +243,7 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
 
               {/* Voice Selection */}
               <div className="space-y-2">
-                <Label>Voice</Label>
+                <Label>Favorite Voice</Label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="w-full justify-between">
@@ -256,10 +266,10 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                     <DropdownMenuSeparator />
                     {voices.length === 0 && (
                       <div className="px-3 py-2 text-sm text-slate-400">
-                        {loadingVoices ? 'Loading voices...' : 'No voices available'}
+                        {loadingVoices ? 'Loading voices...' : 'No favorites available'}
                       </div>
                     )}
-                    {voices.slice(0, 20).map(voice => (
+                    {voices.map(voice => (
                       <DropdownMenuItem
                         key={voice.id}
                         onClick={() => {
@@ -280,11 +290,6 @@ export function TTSSettingsDialog({ open, onOpenChange }: TTSSettingsProps) {
                     ))}
                   </DropdownMenuContent>
                 </DropdownMenu>
-                {voices.length > 20 && (
-                  <div className="text-xs text-slate-500">
-                    Showing 20 of {voices.length} voices
-                  </div>
-                )}
               </div>
 
               {/* Auto Read Toggle */}

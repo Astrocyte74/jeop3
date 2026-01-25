@@ -44,6 +44,23 @@ export async function getVoices(): Promise<TTSVoice[]> {
 }
 
 /**
+ * Get favorite voices from TTS API
+ */
+export async function getFavoriteVoices(): Promise<TTSVoice[]> {
+  const settings = getTTSSettings();
+
+  try {
+    const response = await fetch(`${settings.apiUrl}/voices_favorites?engine=kokoro`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.voices || [];
+  } catch (error) {
+    console.error('[TTS] Failed to fetch favorite voices:', error);
+    return [];
+  }
+}
+
+/**
  * Synthesize speech from text
  */
 export async function synthesize(request: TTSSynthesizeRequest): Promise<TTSSynthesizeResponse | null> {
