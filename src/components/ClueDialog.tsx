@@ -69,15 +69,10 @@ export function ClueDialog({
     if (isOpen && ttsEnabled && ttsSettings.autoRead && !snakeGameResult && !hasTriggeredAutoReadRef.current) {
       console.log('[ClueDialog] Triggering auto-read');
       hasTriggeredAutoReadRef.current = true;
-      // Small delay to ensure the dialog is fully rendered
-      const timer = setTimeout(() => {
-        playClue();
-        // Preload the answer while reading the clue
-        preloadAnswer();
-      }, 300);
-      return () => clearTimeout(timer);
+      // Immediate playback - no delay needed
+      playClue();
     }
-  }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue, preloadAnswer]);
+  }, [isOpen, ttsEnabled, ttsSettings.autoRead, snakeGameResult, playClue]);
 
   // Preload answer when response is shown (if not already loaded)
   useEffect(() => {
