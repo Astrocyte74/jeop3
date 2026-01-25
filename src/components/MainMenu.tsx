@@ -35,7 +35,7 @@ import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
 import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Info, Wand2 } from 'lucide-react';
-import { TTSSubmenu } from '@/components/tts/TTSSettings';
+import { TTSDirectSettings } from '@/components/tts/TTSSettings';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -2312,23 +2312,25 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             </Button>
 
             <div className="mt-6 flex gap-2">
-              {/* TTS Settings */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-700"
-                    title="Text-to-Speech Settings"
-                  >
-                    <Gamepad2 className="w-4 h-4 mr-2" />
-                    TTS
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <TTSSubmenu />
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {/* TTS Settings - only in local development */}
+              {import.meta.env.DEV && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-slate-700"
+                      title="Text-to-Speech Settings"
+                    >
+                      <Gamepad2 className="w-4 h-4 mr-2" />
+                      TTS Settings
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <TTSDirectSettings />
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               {/* Theme dropdown */}
               <DropdownMenu>

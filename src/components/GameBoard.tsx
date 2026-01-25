@@ -528,8 +528,8 @@ export function GameBoard({
                 </DropdownMenuSub>
                 )}
 
-                {/* Text-to-Speech Submenu */}
-                <TTSSubmenu />
+                {/* Text-to-Speech Submenu - only in local development */}
+                {import.meta.env.DEV && <TTSSubmenu />}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
