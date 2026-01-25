@@ -72,14 +72,11 @@ export async function getFavoriteVoices(): Promise<TTSVoice[]> {
 
 /**
  * Normalize text for TTS synthesis
- * Removes empty lines and trims whitespace to prevent line count errors
+ * Force single-line output to prevent line count errors from Kokoro API
  */
 function normalizeText(text: string): string {
-  return text
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .join('\n');
+  // Replace all line breaks with spaces to force single-line output
+  return text.replace(/[\r\n]+/g, ' ').trim();
 }
 
 /**
@@ -90,6 +87,8 @@ export async function synthesize(request: TTSSynthesizeRequest): Promise<TTSSynt
 
   try {
     const normalizedText = normalizeText(request.text);
+    console.log('[TTS API] Sending text (normalized):', normalizedText);
+    console.log('[TTS API] Original text length:', request.text.length, 'Normalized length:', normalizedText.length);
 
     const response = await fetch(`${settings.apiUrl}/synthesize`, {
       method: 'POST',
