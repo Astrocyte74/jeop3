@@ -147,6 +147,9 @@ export function useTTSClue(clueText: string, answerText: string) {
   // Track pending play type for auto-play after synthesis
   const pendingPlayTypeRef = useRef<'clue' | 'answer' | null>(null);
 
+  // Track when clue synthesis is complete to avoid concurrent requests
+  const clueSynthesisCompleteRef = useRef(true);
+
   // Reset audio state when clue/answer changes
   useEffect(() => {
     console.log('[TTS] Resetting audio state for new clue/answer');
@@ -173,6 +176,7 @@ export function useTTSClue(clueText: string, answerText: string) {
       isPlaying: false,
     });
     pendingPlayTypeRef.current = null;
+    clueSynthesisCompleteRef.current = true;
   }, [clueText, answerText]);
 
   // Update isPlaying state when audio element events fire
@@ -264,7 +268,18 @@ export function useTTSClue(clueText: string, answerText: string) {
       [type === 'clue' ? 'clueError' : 'answerError']: null,
     }));
 
+    // Mark clue synthesis as in progress
+    if (type === 'clue') {
+      clueSynthesisCompleteRef.current = false;
+    }
+
     const result = await synthesize({ text });
+
+    // Mark clue synthesis as complete
+    if (type === 'clue') {
+      clueSynthesisCompleteRef.current = true;
+      console.log('[TTS] Clue synthesis complete, preloading answer now');
+    }
 
     console.log('[TTS] Synthesis result for', type, ':', result);
 
@@ -275,6 +290,10 @@ export function useTTSClue(clueText: string, answerText: string) {
         [type === 'clue' ? 'isClueLoading' : 'isAnswerLoading']: false,
         [type === 'clue' ? 'clueError' : 'answerError']: 'Failed to generate audio',
       }));
+      // Mark as complete even on failure so answer can preload
+      if (type === 'clue') {
+        clueSynthesisCompleteRef.current = true;
+      }
       return;
     }
 
@@ -333,12 +352,20 @@ export function useTTSClue(clueText: string, answerText: string) {
   }, []);
 
   const preloadAnswer = useCallback(() => {
-    // Only preload if clue is done loading (avoid concurrent requests to Kokoro)
-    if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading && !audio.isClueLoading) {
+    // Only preload if clue synthesis is complete and answer not already loaded
+    if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading && clueSynthesisCompleteRef.current) {
       console.log('[TTS] Preloading answer (clue synthesis complete)');
       synthesizeAudio(answerText, 'answer');
     }
-  }, [answerText, audio.answerAudioUrl, audio.isAnswerLoading, audio.isClueLoading, synthesizeAudio]);
+  }, [answerText, audio.answerAudioUrl, audio.isAnswerLoading, synthesizeAudio]);
+
+  // Auto-preload answer when clue synthesis completes
+  useEffect(() => {
+    if (clueSynthesisCompleteRef.current && answerText && !audio.answerAudioUrl && !audio.isAnswerLoading) {
+      console.log('[TTS] Clue synthesis detected complete, triggering preload');
+      preloadAnswer();
+    }
+  }, [audio.isClueLoading, answerText, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
 
   return {
     audio,
