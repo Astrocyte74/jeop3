@@ -206,6 +206,7 @@ export function App() {
     });
 
     setClueDialog({ isOpen: false, clueId: '' });
+    setSnakeGameResult(null); // Reset after marking
   }, [gameState, currentGame, clueDialog]);
 
   const handleMarkIncorrect = useCallback((teamId: string) => {
@@ -227,6 +228,7 @@ export function App() {
     });
 
     setClueDialog({ isOpen: false, clueId: '' });
+    setSnakeGameResult(null); // Reset after marking
   }, [gameState, currentGame, clueDialog]);
 
   const handleSetActiveTeam = useCallback((teamId: string) => {
@@ -464,7 +466,7 @@ export function App() {
               globalGameMode={getGlobalGameMode()}
               onClose={() => {
                 setClueDialog({ isOpen: false, clueId: '' });
-                setSnakeGameResult({ wasCorrect: null, teamId: null });
+                setSnakeGameResult(null);
               }}
               onMarkCorrect={handleMarkCorrect}
               onMarkIncorrect={handleMarkIncorrect}
