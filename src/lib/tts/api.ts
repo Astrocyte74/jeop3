@@ -72,11 +72,14 @@ export async function getFavoriteVoices(): Promise<TTSVoice[]> {
 
 /**
  * Normalize text for TTS synthesis
- * Force single-line output to prevent line count errors from Kokoro API
+ * Force single-line output and add cache-busting to prevent Kokoro server issues
  */
 function normalizeText(text: string): string {
-  // Replace all line breaks with spaces to force single-line output
-  return text.replace(/[\r\n]+/g, ' ').trim();
+  // Replace all line breaks with spaces
+  let normalized = text.replace(/[\r\n]+/g, ' ').trim();
+  // Collapse multiple spaces
+  normalized = normalized.replace(/\s+/g, ' ');
+  return normalized;
 }
 
 /**
@@ -87,13 +90,15 @@ export async function synthesize(request: TTSSynthesizeRequest): Promise<TTSSynt
 
   try {
     const normalizedText = normalizeText(request.text);
-    console.log('[TTS API] Sending text (normalized):', normalizedText);
-    console.log('[TTS API] Original text length:', request.text.length, 'Normalized length:', normalizedText.length);
 
-    const response = await fetch(`${settings.apiUrl}/synthesize`, {
+    // Add timestamp to prevent browser/caching issues
+    const cacheBuster = Date.now();
+
+    const response = await fetch(`${settings.apiUrl}/synthesize?_t=${cacheBuster}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
       },
       body: JSON.stringify({
         text: normalizedText,
@@ -108,10 +113,13 @@ export async function synthesize(request: TTSSynthesizeRequest): Promise<TTSSynt
     if (!response.ok) {
       const error = await response.json();
       console.error('[TTS] Synthesis failed:', error);
+      console.error('[TTS] Request text was:', normalizedText.substring(0, 100));
       return null;
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('[TTS] Synthesis success:', result.id, 'duration:', result.duration);
+    return result;
   } catch (error) {
     console.error('[TTS] Synthesis error:', error);
     return null;

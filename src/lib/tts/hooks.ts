@@ -269,6 +269,7 @@ export function useTTSClue(clueText: string, answerText: string) {
     console.log('[TTS] Synthesis result for', type, ':', result);
 
     if (!result) {
+      console.error('[TTS] Failed to synthesize', type, '- text was:', text.substring(0, 100));
       setAudio(prev => ({
         ...prev,
         [type === 'clue' ? 'isClueLoading' : 'isAnswerLoading']: false,
@@ -332,10 +333,12 @@ export function useTTSClue(clueText: string, answerText: string) {
   }, []);
 
   const preloadAnswer = useCallback(() => {
-    if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading) {
+    // Only preload if clue is done loading (avoid concurrent requests to Kokoro)
+    if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading && !audio.isClueLoading) {
+      console.log('[TTS] Preloading answer (clue synthesis complete)');
       synthesizeAudio(answerText, 'answer');
     }
-  }, [answerText, audio.answerAudioUrl, audio.isAnswerLoading, synthesizeAudio]);
+  }, [answerText, audio.answerAudioUrl, audio.isAnswerLoading, audio.isClueLoading, synthesizeAudio]);
 
   return {
     audio,
