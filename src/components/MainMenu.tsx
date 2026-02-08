@@ -834,6 +834,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             })));
             console.warn('Continuing with ' + categoriesList.length + ' categories. User will see results in preview.');
             console.groupEnd();
+
+            // Add a warning message to the wizard to inform user
+            setWizardError(`⚠️ Some sources failed to generate categories. Generated ${categoriesList.length} categories from successful sources. You can proceed or adjust your sources and try again.`);
           }
         }
       } else {
@@ -882,6 +885,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         }
         // Only take the first 6 categories
         const sliceCategories = allCategories.slice(0, 6);
+
+        // Validate we have at least some categories
+        if (sliceCategories.length === 0) {
+          console.error('[MainMenu] No categories generated from AI');
+          setWizardError('Failed to generate any categories. Please try again with a different topic or content.');
+          setIsWizardGenerating(false);
+          return; // Keep wizard open
+        }
 
         // Attach source material to each category for later AI operations (single-source mode)
         categoriesList = sliceCategories.map(cat => ({
@@ -1041,6 +1052,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     }
   };
 
+  // Retry handler for wizard errors
+  const handleWizardRetry = useCallback(() => {
+    setWizardError(null);
+    // The user can retry by clicking Generate Game again
+  }, []);
+
   // ==================== AI PREVIEW HANDLERS ====================
 
   const handleAIPreviewConfirm = useCallback((selected: { title?: number; items: Set<string> }) => {
@@ -1142,6 +1159,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const handleAIPreviewBack = () => {
     setAiPreviewOpen(false);
     setWizardHidden(false);
+    setWizardError(null); // Clear any stale errors when going back
   };
 
   const handleRegenerateAll = useCallback(async () => {
@@ -2640,6 +2658,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         onImportJSON={handleCreateGameImport}
         isLoading={isWizardGenerating}
         error={wizardError}
+        onRetry={handleWizardRetry}
       />
 
       {/* Hidden file input for import */}

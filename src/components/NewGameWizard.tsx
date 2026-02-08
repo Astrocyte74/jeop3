@@ -73,6 +73,7 @@ interface NewGameWizardProps {
   onImportJSON?: () => void;
   isLoading?: boolean;
   error?: string | null;
+  onRetry?: () => void;
 }
 
 const difficultyOptions = [
@@ -253,7 +254,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, error, onRetry }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
@@ -560,8 +561,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   };
 
   const handleClose = () => {
+    // Don't call resetWizard() here - it can cause race conditions
+    // The useEffect will reset when open changes to false
     onClose();
-    resetWizard();
   };
 
   const handleManualConfirm = () => {
@@ -774,14 +776,37 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
             <p className="text-lg font-medium text-slate-200 mb-2">Generating your game...</p>
             <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
+            {error && (
+              <div className="mt-6 flex flex-col items-center gap-3 max-w-sm">
+                <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-3 rounded-lg w-full">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+                {onRetry && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onRetry}
+                    className="border-purple-500 text-purple-400 hover:bg-purple-500/10"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="overflow-y-auto flex-1 -mx-6 px-6 py-4">
             {/* ==================== STEP 1: CHOOSE MODE ==================== */}
             {currentStep === 'choose-mode' && (
-              <div className="space-y-3">
+              <div className="space-y-3" role="radiogroup" aria-label="Choose game creation mode">
                 <button
                   onClick={() => setCreationMode('ai')}
+                  role="radio"
+                  aria-checked={creationMode === 'ai'}
+                  aria-label="Generate with AI mode"
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     creationMode === 'ai'
                       ? 'border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/10'
@@ -808,6 +833,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
                 <button
                   onClick={() => setCreationMode('manual')}
+                  role="radio"
+                  aria-checked={creationMode === 'manual'}
+                  aria-label="Manual editor mode"
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     creationMode === 'manual'
                       ? 'border-orange-500 bg-orange-500/10 shadow-lg shadow-orange-500/10'
@@ -834,6 +862,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
                 <button
                   onClick={() => setCreationMode('import-json')}
+                  role="radio"
+                  aria-checked={creationMode === 'import-json'}
+                  aria-label="Import JSON mode"
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     creationMode === 'import-json'
                       ? 'border-cyan-500 bg-cyan-500/10 shadow-lg shadow-cyan-500/10'
@@ -862,7 +893,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
             {/* ==================== STEP 2: CHOOSE SOURCE TYPE ==================== */}
             {currentStep === 'choose-source' && (
-              <div className="space-y-3">
+              <div className="space-y-3" role="radiogroup" aria-label="Choose source type">
                 <button
                   onClick={() => {
                     setCurrentSourceType('topic');
@@ -870,6 +901,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     setSourceInputError('');
                     setFetchError('');
                   }}
+                  role="radio"
+                  aria-checked={currentSourceType === 'topic'}
+                  aria-label="Topic source type"
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     currentSourceType === 'topic'
                       ? 'border-purple-500 bg-purple-500/10'
@@ -901,6 +935,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     setSourceInputError('');
                     setFetchError('');
                   }}
+                  role="radio"
+                  aria-checked={currentSourceType === 'paste'}
+                  aria-label="Paste content source type"
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     currentSourceType === 'paste'
                       ? 'border-blue-500 bg-blue-500/10'
@@ -932,6 +969,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     setSourceInputError('');
                     setFetchError('');
                   }}
+                  role="radio"
+                  aria-checked={currentSourceType === 'url'}
+                  aria-label="URL source type"
                   className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                     currentSourceType === 'url'
                       ? 'border-green-500 bg-green-500/10'
@@ -1006,6 +1046,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         setCurrentSourceContent(e.target.value);
                         setSourceInputError('');
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey && currentSourceContent.trim()) {
+                          e.preventDefault();
+                          handleNext();
+                        }
+                      }}
                       placeholder={`Paste your notes, articles, or other content here...`}
                       className="min-h-[200px] bg-slate-800/50 border-slate-700 text-sm"
                     />
@@ -1026,6 +1072,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         setCurrentSourceContent(e.target.value);
                         setSourceInputError('');
                         setFetchError('');
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && currentSourceContent.trim()) {
+                          e.preventDefault();
+                          handleNext();
+                        }
                       }}
                       placeholder="https://en.wikipedia.org/wiki/Ancient_Egypt"
                       className="bg-slate-800/50 border-slate-700"
@@ -1295,7 +1347,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             <Button
               type="button"
               onClick={handleNext}
-              disabled={isLoading}
+              disabled={isLoading || (currentStep === 'add-content' && currentSourceType === 'url' && isFetching)}
               className="flex-1 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white"
             >
               {getNextLabel()}
