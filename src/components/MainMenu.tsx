@@ -1045,6 +1045,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   const handleAIPreviewConfirm = useCallback((selected: { title?: number; items: Set<string> }) => {
     setAiPreviewOpen(false);
+    setShowWizard(false);
+    setWizardHidden(false);
 
     if (!generatedGameData) return;
 
@@ -1132,6 +1134,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   const handleAIPreviewCancel = () => {
     setAiPreviewOpen(false);
+    setShowWizard(false);
+    setWizardHidden(false);
     setGeneratedGameData(null);
   };
 
