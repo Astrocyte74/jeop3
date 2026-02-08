@@ -94,6 +94,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [showWizard, setShowWizard] = useState(false);
+  const [wizardHidden, setWizardHidden] = useState(false);
   const [gameStateRefreshKey, setGameStateRefreshKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1023,9 +1024,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         metadata: enhancedMetadata,
       });
 
-      // Success! Close wizard and show preview dialog
+      // Success! Hide wizard and show preview dialog
       setIsWizardGenerating(false);
-      setShowWizard(false);
+      setWizardHidden(true);
 
       setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
       setAiPreviewType('categories-generate');
@@ -1132,6 +1133,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const handleAIPreviewCancel = () => {
     setAiPreviewOpen(false);
     setGeneratedGameData(null);
+  };
+
+  const handleAIPreviewBack = () => {
+    setAiPreviewOpen(false);
+    setWizardHidden(false);
   };
 
   const handleRegenerateAll = useCallback(async () => {
@@ -2620,8 +2626,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
       {/* New Game Wizard */}
       <NewGameWizard
-        open={showWizard}
-        onClose={() => setShowWizard(false)}
+        open={showWizard && !wizardHidden}
+        onClose={() => {
+          setShowWizard(false);
+          setWizardHidden(false);
+        }}
         onComplete={handleWizardComplete}
         onOpenEditor={onOpenEditor}
         onImportJSON={handleCreateGameImport}
@@ -2676,6 +2685,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         rewritingTeamName={rewritingTeamName}
         enhancingTeamName={enhancingTeamName}
         metadata={generatedGameData?.metadata}
+        onBack={handleAIPreviewBack}
       />
 
       {/* Game Info Dialog */}

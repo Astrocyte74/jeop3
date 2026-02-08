@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, Sparkles, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { Wand2, Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import type { AIPromptType } from '@/lib/ai/types';
 import { GameMetadata as GameMetadataComponent } from '@/components/GameMetadata';
 import type { GameMetadata } from '@/lib/storage';
@@ -57,6 +57,7 @@ export interface AIPreviewDialogProps {
   data: PreviewData;
   onConfirm: (selected: { title?: number; items: Set<string> }) => void;
   onCancel: () => void;
+  onBack?: () => void;
   onRegenerateAll?: () => void;
   onRewriteCategoryTitle?: (catIndex: number) => Promise<string | null>;
   onRewriteClue?: (catIndex: number, clueIndex: number) => Promise<string | null>;
@@ -683,6 +684,7 @@ export function AIPreviewDialog({
   data,
   onConfirm,
   onCancel,
+  onBack,
   onRegenerateAll,
   onRewriteCategoryTitle,
   onRewriteClue,
@@ -920,6 +922,17 @@ export function AIPreviewDialog({
 
         <AlertDialogFooter>
           <div className="flex gap-2 w-full">
+            {onBack && (
+              <Button
+                variant="ghost"
+                onClick={onBack}
+                disabled={isLoading}
+                className="text-gray-600 hover:text-gray-800"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back
+              </Button>
+            )}
             <AlertDialogCancel onClick={onCancel} disabled={isLoading}>Cancel</AlertDialogCancel>
             {onRegenerateAll && type !== 'game-title' && isSignedIn && (
               <Button
