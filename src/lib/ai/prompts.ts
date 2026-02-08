@@ -186,7 +186,7 @@ Return JSON format:
       system: SYSTEM_INSTRUCTION,
       user: (() => {
         const referenceMaterial = context.referenceMaterial || '';
-        const MAX_SOURCE_LENGTH = 12000;
+        const MAX_SOURCE_LENGTH = 200000;
         const truncatedReferenceMaterial = referenceMaterial.length > MAX_SOURCE_LENGTH
           ? referenceMaterial.substring(0, MAX_SOURCE_LENGTH) + '\n\n[Source truncated due to length...]'
           : referenceMaterial;
@@ -302,7 +302,7 @@ Count: ${context.count || 5}
 ${difficultyText}
 ${valueGuidanceText}
 ${context.referenceMaterial ? `Source material to use for questions:
-${context.referenceMaterial.substring(0, 3000)}
+${context.referenceMaterial.length > 200000 ? context.referenceMaterial.substring(0, 200000) + '\n\n[Source truncated due to length...]' : context.referenceMaterial}
 
 All clues must be answerable from the source material above.
 ` : ''}
@@ -342,7 +342,7 @@ Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
 ${valueGuidanceText}
 ${context.referenceMaterial ? `Source material to use for questions:
-${context.referenceMaterial.substring(0, 3000)}
+${context.referenceMaterial.length > 200000 ? context.referenceMaterial.substring(0, 200000) + '\n\n[Source truncated due to length...]' : context.referenceMaterial}
 
 All clues must be answerable from the source material above.
 ` : ''}
@@ -391,7 +391,7 @@ Generate a DIFFERENT question that:
 - Is thematically consistent with the category
 ${context.referenceMaterial ? `- Is answerable from the source material provided below` : ''}
 ${context.referenceMaterial ? `Source material to use for question:
-${context.referenceMaterial.substring(0, 3000)}
+${context.referenceMaterial.length > 200000 ? context.referenceMaterial.substring(0, 200000) + '\n\n[Source truncated due to length...]' : context.referenceMaterial}
 
 The clue must be answerable from the source material above.
 ` : ''}
@@ -424,8 +424,9 @@ Return JSON format:
       system: SYSTEM_INSTRUCTION,
       user: (() => {
         const referenceMaterial = context.referenceMaterial || '';
-        const truncatedReferenceMaterial = referenceMaterial.length > 3000
-          ? referenceMaterial.substring(0, 3000)
+        const MAX_SOURCE_LENGTH = 200000;
+        const truncatedReferenceMaterial = referenceMaterial.length > MAX_SOURCE_LENGTH
+          ? referenceMaterial.substring(0, MAX_SOURCE_LENGTH) + '\n\n[Source truncated due to length...]'
           : referenceMaterial;
 
         const existingAnswersText = context.existingAnswers && context.existingAnswers.length > 0
@@ -473,7 +474,7 @@ Correct answer: "${context.currentResponse || '(answer will be provided separate
 Category: "${context.categoryTitle}"
 Value: $${context.value}
 ${context.referenceMaterial ? `Source material context:
-${context.referenceMaterial.substring(0, 2000)}
+${context.referenceMaterial.length > 200000 ? context.referenceMaterial.substring(0, 200000) + '\n\n[Source truncated due to length...]' : context.referenceMaterial}
 
 Use the source material above to ensure accuracy and proper context.
 ` : ''}
