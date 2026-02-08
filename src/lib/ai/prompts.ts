@@ -354,27 +354,40 @@ Return JSON format:
 
     'question-generate-single': {
       system: SYSTEM_INSTRUCTION,
-      user: `Generate 1 clue for value $${context.value}.
+      user: `Generate a NEW clue to replace the current question for value $${context.value}.
 
 Category: "${context.categoryTitle}"
 ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Content Topic: "${context.contentTopic}"` : ''}
 Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
 ${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
+
+Current question being replaced:
+Question: "${context.currentClue}"
+Answer: "${context.currentResponse || '(answer)'}"
+
+Generate a DIFFERENT question that:
+- Fits the same category and content topic
+- Matches the difficulty level appropriate for $${context.value}
+- Covers a different aspect or fact than the current question
+- Is thematically consistent with the category
+${context.referenceMaterial ? `- Is answerable from the source material provided below` : ''}
 ${context.referenceMaterial ? `Source material to use for question:
 ${context.referenceMaterial.substring(0, 3000)}
 
 The clue must be answerable from the source material above.
 ` : ''}
-${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
+${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions in this category:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
-${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers && context.existingAnswers.length > 0 ? `IMPORTANT: These answers are already used in other questions - do NOT reuse them:
 ${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
 ` : ''}
 
 REQUIREMENTS:
 - The clue must NOT contain or reveal the answer
+- The answer must be different from "${context.currentResponse || 'the current answer'}"
+- The question must be different from "${context.currentClue || 'the current question'}"
 ${context.referenceMaterial ? '- The clue must be answerable from the source material' : ''}
 
 Return JSON format:

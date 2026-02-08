@@ -1723,6 +1723,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           categoryTitle: category.title,
           contentTopic: category.contentTopic || category.title,
           value: clue.value,
+          currentClue: clue.clue,
+          currentResponse: clue.response,
           existingClues: category.clues.filter((_, i) => i !== clueIndex),
           existingAnswers,
           referenceMaterial: sourceMaterial,
