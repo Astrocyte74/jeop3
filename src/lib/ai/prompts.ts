@@ -145,11 +145,18 @@ Return JSON format:
 
     'categories-generate': {
       system: SYSTEM_INSTRUCTION,
-      user: `Generate ${context.count || 6} Jeopardy categories for theme: "${context.theme || 'general'}".
+      user: (() => {
+        const existingAnswersText = context.existingAnswers && context.existingAnswers.length > 0
+          ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+`
+          : '';
+
+        return `Generate ${context.count || 6} Jeopardy categories for theme: "${context.theme || 'general'}".
 
 ${difficultyText}
 ${valueGuidanceText}
-
+${existingAnswersText}
 REQUIREMENTS:
 - Each category has 5 clues [200, 400, 600, 800, 1000]
 - The clue must NOT contain or reveal the answer
@@ -171,22 +178,33 @@ Return JSON format:
       ]
     }
   ]
-}`
+}`;
+      })()
     },
 
     'categories-generate-from-content': {
       system: SYSTEM_INSTRUCTION,
       user: (() => {
         const referenceMaterial = context.referenceMaterial || '';
+        const MAX_SOURCE_LENGTH = 12000;
+        const truncatedReferenceMaterial = referenceMaterial.length > MAX_SOURCE_LENGTH
+          ? referenceMaterial.substring(0, MAX_SOURCE_LENGTH) + '\n\n[Source truncated due to length...]'
+          : referenceMaterial;
+
+        const existingAnswersText = context.existingAnswers && context.existingAnswers.length > 0
+          ? `IMPORTANT: These answers are already used - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+`
+          : '';
 
         return `Generate ${context.count || 6} Jeopardy categories from the source material below.
 
 Source (${referenceMaterial.length.toLocaleString()} chars):
-"""${referenceMaterial}"""
+"""${truncatedReferenceMaterial}"""
 ${context.theme ? `Theme: ${context.theme}` : ''}
 ${difficultyText}
 ${valueGuidanceText}
-
+${existingAnswersText}
 REQUIREMENTS:
 - Create categories covering key topics, people, events, places, concepts from the source
 - All clues must be answerable using ONLY the source material
@@ -404,7 +422,19 @@ Return JSON format:
 
     'editor-generate-clue': {
       system: SYSTEM_INSTRUCTION,
-      user: `Generate a NEW question and answer for this slot.
+      user: (() => {
+        const referenceMaterial = context.referenceMaterial || '';
+        const truncatedReferenceMaterial = referenceMaterial.length > 3000
+          ? referenceMaterial.substring(0, 3000)
+          : referenceMaterial;
+
+        const existingAnswersText = context.existingAnswers && context.existingAnswers.length > 0
+          ? `IMPORTANT: These answers are already used in other questions - do NOT reuse them:
+${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
+`
+          : '';
+
+        return `Generate a NEW question and answer for this slot.
 
 Category: "${context.categoryTitle}"
 ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Content Topic: "${context.contentTopic}"` : ''}
@@ -415,15 +445,23 @@ ${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[co
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
+${existingAnswersText}
+${truncatedReferenceMaterial ? `Source material to use for question:
+${truncatedReferenceMaterial}
 
+The clue must be answerable from the source material above.
+` : ''}
 REQUIREMENTS:
 - The clue must NOT contain or reveal the answer
+- The answer must be different from answers already used in other questions
+${truncatedReferenceMaterial ? '- The clue must be answerable from the source material' : ''}
 
 Return JSON format:
 {
   "clue": "...",
   "response": "..."
-}`
+}`;
+      })()
     },
 
     'editor-rewrite-clue': {

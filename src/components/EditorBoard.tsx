@@ -268,11 +268,18 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     const category = categories[categoryId];
     const clue = category?.clues[clueIndex];
 
+    // Collect all existing answers from all categories to prevent duplicates
+    const allExistingAnswers = editingGame.categories.flatMap(cat =>
+      cat.clues.filter(c => c.response).map(c => c.response)
+    );
+
     const result = await generate('editor-generate-clue', {
       categoryTitle: category.title,
       contentTopic: (category as any).contentTopic || category.title,
       value: clue?.value || (clueIndex + 1) * 200,
       existingClues: category.clues,
+      existingAnswers: allExistingAnswers,
+      referenceMaterial: editingGame.metadata?.sourceMaterial,
     });
 
     if (result && typeof result === 'object' && 'clue' in result && 'response' in result) {
@@ -281,7 +288,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         response: result.response as string,
       });
     }
-  }, [editingCell, categories, generate]);
+  }, [editingCell, categories, generate, editingGame]);
 
   const handleAIRewriteClue = useCallback(async () => {
     if (!editingCell) return;
@@ -290,16 +297,23 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     const clue = category?.clues[clueIndex];
     if (!clue?.clue) return;
 
+    // Collect all existing answers except the current one
+    const allExistingAnswers = editingGame.categories.flatMap(cat =>
+      cat.clues.filter(c => c.response && c !== clue).map(c => c.response)
+    );
+
     const result = await generate('editor-rewrite-clue', {
       currentClue: clue.clue,
       categoryTitle: category.title,
       value: clue.value,
+      existingAnswers: allExistingAnswers,
+      referenceMaterial: editingGame.metadata?.sourceMaterial,
     });
 
     if (result && typeof result === 'object' && 'clue' in result) {
       updateClue(categoryId, clueIndex, { clue: result.clue as string });
     }
-  }, [editingCell, categories, generate]);
+  }, [editingCell, categories, generate, editingGame]);
 
   const handleAIGenerateAnswer = useCallback(async () => {
     if (!editingCell) return;
