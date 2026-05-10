@@ -2,20 +2,30 @@
  * Jeop3 AI Server - OpenRouter Proxy
  *
  * Proxies AI requests to OpenRouter, keeping API keys server-side.
+ * Serves static frontend files in production (Docker mode).
  * Main game board works standalone - only Editor needs this server.
  */
 
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 7476;
 
-// CORS configuration
-const corsOrigin = process.env.AI_CORS_ORIGIN || '*';
+// CORS configuration - parse comma-separated origins or use wildcard
+const corsOriginConfig = process.env.AI_CORS_ORIGIN || '*';
+const corsOrigin = corsOriginConfig === '*'
+  ? '*'
+  : corsOriginConfig.split(',').map(origin => origin.trim()).filter(Boolean);
+
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '1mb' }));
+
+// Source parser configuration (YTV2 integration)
+const SOURCE_PARSER_BASE_URL = process.env.SOURCE_PARSER_BASE_URL;
+const SOURCE_PARSER_TOKEN = process.env.SOURCE_PARSER_TOKEN;
 
 // Rate limiting (in-memory)
 const rateLimiter = new Map();
@@ -125,11 +135,21 @@ app.get('/api/health', (req, res) => {
 // Config endpoint for frontend (loaded as JavaScript)
 app.get('/ai-config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
+  // In production (Docker), use /api for same-origin calls
+  // In development, use localhost:PORT
+  const baseUrl = process.env.NODE_ENV === 'production' ? '/api' : `http://localhost:${PORT}/api`;
   res.send(`window.AI_CONFIG = ${JSON.stringify({
     port: PORT,
-    baseUrl: `http://localhost:${PORT}/api`
+    baseUrl
   })};`);
 });
+
+// Static file serving (production/Docker mode)
+// Serve built React app from dist/ and games from public/games/
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+  app.use('/games', express.static(path.join(__dirname, '../public/games')));
+}
 
 // Main AI generation endpoint
 app.post('/api/ai/generate', async (req, res) => {
@@ -180,6 +200,82 @@ app.post('/api/ai/generate', async (req, res) => {
     console.error(`[${timestamp}] Model: ${model || 'default'}, Type: ${promptType}, Difficulty: ${difficulty}`);
     res.status(500).json({
       error: 'AI generation failed',
+      message: error.message,
+    });
+  }
+});
+
+// Source parser integration - proxy to YTV2's /api/source/parse endpoint
+// Allows Jeop3 to import content from YouTube, Reddit, Wikipedia, PubMed, and web articles
+app.post('/api/fetch-article', async (req, res) => {
+  // If no parser configured, return clear error
+  if (!SOURCE_PARSER_BASE_URL) {
+    return res.status(501).json({
+      success: false,
+      error: 'Source parser not configured',
+      message: 'URL import requires SOURCE_PARSER_BASE_URL to be set in server/.env',
+    });
+  }
+
+  try {
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request',
+        message: 'URL is required',
+      });
+    }
+
+    // Proxy to YTV2's /api/source/parse endpoint
+    const parserUrl = new URL('/api/source/parse', SOURCE_PARSER_BASE_URL);
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (SOURCE_PARSER_TOKEN) {
+      headers['Authorization'] = `Bearer ${SOURCE_PARSER_TOKEN}`;
+    }
+
+    const response = await fetch(parserUrl.toString(), {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        url,
+        maxChars: 200000,  // YTV2 max
+        timeoutSeconds: 45
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: response.statusText }));
+      return res.status(response.status).json(error);
+    }
+
+    const data = await response.json();
+
+    // Transform YTV2 response to match Jeop3's expected format
+    if (data.success && data.text) {
+      res.json({
+        success: true,
+        text: data.text,
+        truncated: data.truncated,
+        // Optional metadata
+        title: data.title,
+        source: data.source,
+        sourceType: data.sourceType,
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        error: data.error || data.code || 'PARSE_FAILED',
+        message: data.error || 'Failed to parse source',
+      });
+    }
+  } catch (error) {
+    console.error('[Source Parser Error]', error.message);
+    res.status(502).json({
+      success: false,
+      error: 'Source parser unavailable',
       message: error.message,
     });
   }
@@ -631,13 +727,29 @@ async function callOllama(model, prompt, promptType) {
   }
 }
 
+// SPA fallback - for production mode, serve index.html for all non-API routes
+// This allows React Router to handle client-side routing
+if (process.env.NODE_ENV === 'production') {
+  app.get(/^\/(?!api\/|ai-config\.js).*/, (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
+
 // Start server
 app.listen(PORT, () => {
   const models = getAvailableModels();
+  const isProduction = process.env.NODE_ENV === 'production';
+
   console.log(`\n🪄 Jeop3 AI Server running on http://localhost:${PORT}`);
+  if (isProduction) {
+    console.log(`📦 Production mode: serving static files from dist/`);
+  }
   console.log(`🤖 OpenRouter: ${models.openrouter.length > 0 ? models.openrouter.join(', ') : 'none'}`);
   console.log(`🦙 Ollama: ${models.ollama.length > 0 ? models.ollama.join(', ') : 'none'}`);
   console.log(`⚡ Rate limit: ${RPM_LIMIT} requests/minute`);
   console.log(`🌐 CORS: ${corsOrigin === '*' ? 'All origins' : corsOrigin}`);
+  if (SOURCE_PARSER_BASE_URL) {
+    console.log(`📄 Source parser: ${SOURCE_PARSER_BASE_URL}`);
+  }
   console.log(`\nPress Ctrl+C to stop\n`);
 });
