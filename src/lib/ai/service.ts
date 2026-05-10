@@ -30,14 +30,21 @@ export function getAIApiBase(config?: AIServerConfig): string {
     return externalApiUrl;
   }
 
+  // Check for window.AI_CONFIG (loaded from /ai-config.js)
+  // In Docker production, this provides { baseUrl: '/api' }
+  // In development, this provides { port: 7476, baseUrl: 'http://localhost:7476/api' }
+  const aiConfig = (window as any).AI_CONFIG;
+  if (aiConfig?.baseUrl) {
+    return aiConfig.baseUrl;
+  }
+
   const isLocal = typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   if (isLocal) {
     const port = config?.port ?? DEFAULT_PORT;
-    // Check for window.AI_CONFIG (from jeop2 compatibility)
-    const globalPort = (window as any).AI_CONFIG?.port;
-    return `http://localhost:${globalPort ?? port}/api`;
+    const globalPort = aiConfig?.port ?? port;
+    return `http://localhost:${globalPort}/api`;
   }
 
   // Production: use relative path

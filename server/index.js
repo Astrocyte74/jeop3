@@ -120,15 +120,21 @@ const ALLOWED_PROMPT_TYPES = new Set([
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const models = getAvailableModels();
   res.json({
     status: 'ok',
+    mode: process.env.NODE_ENV || 'development',
     models: getAllModels(),
     providers: {
-      openrouter: getAvailableModels().openrouter,
-      ollama: getAvailableModels().ollama
+      openrouter: models.openrouter,
+      ollama: models.ollama
     },
     rpm_limit: RPM_LIMIT,
     port: PORT,
+    sourceParser: {
+      configured: !!SOURCE_PARSER_BASE_URL,
+      baseUrl: SOURCE_PARSER_BASE_URL || null,
+    },
   });
 });
 
@@ -236,40 +242,55 @@ app.post('/api/fetch-article', async (req, res) => {
       headers['Authorization'] = `Bearer ${SOURCE_PARSER_TOKEN}`;
     }
 
-    const response = await fetch(parserUrl.toString(), {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        url,
-        maxChars: 200000,  // YTV2 max
-        timeoutSeconds: 45
-      }),
-    });
+    // Add AbortController for timeout (50 seconds to allow YTV2 to process)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 50000);
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: response.statusText }));
-      return res.status(response.status).json(error);
-    }
-
-    const data = await response.json();
-
-    // Transform YTV2 response to match Jeop3's expected format
-    if (data.success && data.text) {
-      res.json({
-        success: true,
-        text: data.text,
-        truncated: data.truncated,
-        // Optional metadata
-        title: data.title,
-        source: data.source,
-        sourceType: data.sourceType,
+    try {
+      const response = await fetch(parserUrl.toString(), {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          url,
+          maxChars: 200000,  // YTV2 max
+          timeoutSeconds: 45
+        }),
+        signal: controller.signal,
       });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: data.error || data.code || 'PARSE_FAILED',
-        message: data.error || 'Failed to parse source',
-      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        return res.status(response.status).json(error);
+      }
+
+      const data = await response.json();
+
+      // Transform YTV2 response to match Jeop3's expected format
+      if (data.success && data.text) {
+        res.json({
+          success: true,
+          text: data.text,
+          truncated: data.truncated,
+          // Optional metadata
+          title: data.title,
+          source: data.source,
+          sourceType: data.sourceType,
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: data.error || data.code || 'PARSE_FAILED',
+          message: data.error || 'Failed to parse source',
+        });
+      }
+    } catch (fetchError) {
+      clearTimeout(timeout);
+      if (fetchError.name === 'AbortError') {
+        throw new Error('Source parser request timed out');
+      }
+      throw fetchError;
     }
   } catch (error) {
     console.error('[Source Parser Error]', error.message);
