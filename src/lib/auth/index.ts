@@ -25,13 +25,13 @@ function isClerkConfigured(): boolean {
 // Safe wrapper for useAuth - returns defaults when Clerk not configured
 export function useAuth() {
   if (!isClerkConfigured()) {
-    // Clerk not configured - return safe defaults for local development
+    // Clerk not configured - local trusted mode (for Docker/Tailscale/development)
     return {
-      isSignedIn: false,
+      isSignedIn: true, // Local trusted mode - treat as authenticated
       isLoaded: true,
-      userId: null,
-      sessionId: null,
-      getToken: async () => null,
+      userId: 'local-user',
+      sessionId: 'local-session',
+      getToken: async () => null, // No token needed for local mode
       signOut: async () => {}, // no-op for local dev
     }
   }
@@ -82,12 +82,18 @@ export function useIsAuthenticated(): { isAuthenticated: boolean } {
   };
 }
 
-// Create wrapper components that only render Clerk components when configured
-function createClerkWrapper(Component: React.ComponentType<any>) {
+// Create wrapper components that handle both Clerk and non-Clerk environments
+function createClerkWrapper(Component: React.ComponentType<any>, options: { renderWhenUnconfigured: 'children' | 'null' }) {
   return function ClerkWrapper(props: any) {
     if (!isClerkConfigured()) {
-      // Clerk not configured - render nothing (content hidden)
-      return null
+      // Clerk not configured - local trusted mode behavior
+      if (options.renderWhenUnconfigured === 'children') {
+        // Render children directly (for SignedIn - authenticated content should show)
+        return React.createElement(React.Fragment, {}, props.children)
+      } else {
+        // Render nothing (for SignedOut - don't show sign-in prompts in local mode)
+        return null
+      }
     }
     // Clerk configured - render the actual component
     return React.createElement(Component, props)
@@ -95,8 +101,10 @@ function createClerkWrapper(Component: React.ComponentType<any>) {
 }
 
 // Export wrapped Clerk components
-export const SignedIn = createClerkWrapper(ClerkSignedIn)
-export const SignedOut = createClerkWrapper(ClerkSignedOut)
-export const SignInButton = createClerkWrapper(ClerkSignInButton)
-export const SignOutButton = createClerkWrapper(ClerkSignOutButton)
-export const UserButton = createClerkWrapper(ClerkUserButton)
+// SignedIn: render children in local mode (authenticated content should be accessible)
+export const SignedIn = createClerkWrapper(ClerkSignedIn, { renderWhenUnconfigured: 'children' })
+// SignedOut: render nothing in local mode (don't show sign-in prompts)
+export const SignedOut = createClerkWrapper(ClerkSignedOut, { renderWhenUnconfigured: 'null' })
+export const SignInButton = createClerkWrapper(ClerkSignInButton, { renderWhenUnconfigured: 'null' })
+export const SignOutButton = createClerkWrapper(ClerkSignOutButton, { renderWhenUnconfigured: 'children' })
+export const UserButton = createClerkWrapper(ClerkUserButton, { renderWhenUnconfigured: 'children' })
