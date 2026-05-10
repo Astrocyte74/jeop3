@@ -143,7 +143,8 @@ app.get('/ai-config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   // In production (Docker), use /api for same-origin calls
   // In development, use localhost:PORT
-  const baseUrl = process.env.NODE_ENV === 'production' ? '/api' : `http://localhost:${PORT}/api`;
+  const baseUrl = process.env.AI_PUBLIC_API_BASE_URL
+    || (process.env.NODE_ENV === 'production' ? '/api' : `http://localhost:${PORT}/api`);
   res.send(`window.AI_CONFIG = ${JSON.stringify({
     port: PORT,
     baseUrl
@@ -219,7 +220,7 @@ app.post('/api/fetch-article', async (req, res) => {
     return res.status(501).json({
       success: false,
       error: 'Source parser not configured',
-      message: 'URL import requires SOURCE_PARSER_BASE_URL to be set in server/.env',
+      message: 'URL import requires SOURCE_PARSER_BASE_URL to be set in .env',
     });
   }
 

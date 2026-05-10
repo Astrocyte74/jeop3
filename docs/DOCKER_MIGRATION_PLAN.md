@@ -46,7 +46,7 @@ Problems:
 │  │  POST /api/ai/generate → AI generation               │   │
 │  │                                                       │   │
 │  │  Environment:                                         │   │
-│  │  - OPENROUTER_API_KEY (from server/.env)             │   │
+│  │  - OPENROUTER_API_KEY (from .env)                    │   │
 │  │  - OR_MODELS, OLLAMA_MODELS                          │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
@@ -155,16 +155,16 @@ services:
     ports:
       - "10005:10005"
     env_file:
-      - server/.env
+      - .env
     environment:
-      - PORT=10005
-      - NODE_ENV=production
-      - AI_CORS_ORIGIN=http://localhost:10005,http://127.0.0.1:10005,http://marks-macbook-pro-2.tail9e123c.ts.net:10005
-      - AI_PUBLIC_API_BASE_URL=/api
-      # OpenRouter is the default AI path for this MacBook.
-      # Enable Ollama later by setting OLLAMA_MODELS and OLLAMA_BASE_URL.
-      # On Docker Desktop for macOS:
-      # - OLLAMA_BASE_URL=http://host.docker.internal:11434/api/chat
+      PORT: "10005"
+      NODE_ENV: production
+      AI_CORS_ORIGIN: "http://localhost:10005,http://127.0.0.1:10005,http://marks-macbook-pro-2.tail9e123c.ts.net:10005"
+      AI_PUBLIC_API_BASE_URL: "/api"
+      OLLAMA_MODELS: ""
+      OLLAMA_BASE_URL: ""
+      SOURCE_PARSER_BASE_URL: "http://host.docker.internal:6453"
+      SOURCE_PARSER_TOKEN: "${YTV2_API_SECRET:-}"
     volumes:
       - ./public/games:/app/public/games:ro
     healthcheck:
@@ -192,17 +192,21 @@ scripts
 
 ### Phase 3: Environment Configuration
 
-**File:** `server/.env` (verify only; do not change shared dev port)
+**File:** `.env` (root project env; gitignored)
 
 | Variable | Value | Purpose |
 |----------|-------|---------|
 | OPENROUTER_API_KEY | (existing secret) | Default AI provider |
 | OR_MODELS | (existing) | No change needed |
-| PORT | Leave unset or 7476 | Preserve existing dev launcher |
+| PORT | 7476 for dev | Docker Compose overrides to 10005 |
 | OLLAMA_MODELS | Prefer unset on i9 MacBook | Optional future local model support |
 | OLLAMA_BASE_URL | Optional | Use `http://host.docker.internal:11434/api/chat` in Docker |
+| SOURCE_PARSER_BASE_URL | `http://localhost:6453` for dev | Docker overrides to `host.docker.internal` |
+| YTV2_API_SECRET | Existing local token | Docker maps this to `SOURCE_PARSER_TOKEN` |
 
-**Note:** Keep `OPENROUTER_API_KEY` and other secrets in `server/.env` - already gitignored.
+**Note:** Keep `OPENROUTER_API_KEY` and other secrets in `.env` - already gitignored.
+`server/.env` may exist for older workflows, but the launcher and Docker path now
+use root `.env`.
 
 **Ollama position:** Do not optimize the initial Docker migration around Ollama
 on the i9 MacBook Pro. Treat OpenRouter as the production/default provider.
@@ -358,12 +362,9 @@ services:
   jeop3:
     # ... existing config ...
     environment:
-      # ... existing vars ...
-      # Source Parser Integration (optional)
-      # Point to YTV2's source parse API
-      - SOURCE_PARSER_BASE_URL=http://marks-macbook-pro-2.tail9e123c.ts.net:10000
-      # Auth token if YTV2 requires it (YTV2_API_SECRET)
-      # - SOURCE_PARSER_TOKEN=your-ytv2-api-secret
+      # Docker container reaches host services through host.docker.internal
+      SOURCE_PARSER_BASE_URL: "http://host.docker.internal:6453"
+      SOURCE_PARSER_TOKEN: "${YTV2_API_SECRET:-}"
 ```
 
 **Benefits of this approach:**
@@ -447,7 +448,8 @@ echo "Jeop3 stopped"
 docker compose logs -f jeop3
 ```
 
-**Update:** Keep `launch-jeop3.command` for development, add note about Docker.
+**Update:** Keep `launch-jeop3.command` for development. Start the AI server as
+`node server/index.js` from the repo root so dotenv loads root `.env`.
 
 ### Phase 5: Project Hub Integration
 
@@ -512,7 +514,7 @@ the hub entry at the served HTTPS URL.
 - [ ] **Phase 2:** Update frontend AI base URL logic for same-origin Docker
 - [ ] **Phase 3:** Create `Dockerfile`, `docker-compose.yml`, `.dockerignore`
 - [ ] **Phase 3.5:** Implement `/api/fetch-article` proxy to YTV2 (optional)
-- [ ] **Phase 4:** Verify `server/.env` configuration without changing dev port
+- [ ] **Phase 4:** Verify root `.env` configuration without changing dev port
 - [ ] **Phase 5:** Create Docker helper scripts in `scripts/`
 - [ ] **Phase 6:** Test Docker build locally
 - [ ] **Phase 7:** Test Tailscale HTTP access from another device

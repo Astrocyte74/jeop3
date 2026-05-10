@@ -1,0 +1,29 @@
+services:
+  jeop3:
+    build:
+      context: .
+      target: production
+    image: jeop3:local
+    container_name: jeop3
+    restart: unless-stopped
+    ports:
+      - "10005:10005"
+    env_file:
+      - .env
+    environment:
+      PORT: "10005"
+      NODE_ENV: production
+      AI_CORS_ORIGIN: "http://localhost:10005,http://127.0.0.1:10005,http://marks-macbook-pro-2.tail9e123c.ts.net:10005"
+      AI_PUBLIC_API_BASE_URL: "/api"
+      OLLAMA_MODELS: ""
+      OLLAMA_BASE_URL: ""
+      SOURCE_PARSER_BASE_URL: "http://host.docker.internal:6453"
+      SOURCE_PARSER_TOKEN: "${YTV2_API_SECRET:-}"
+    volumes:
+      - ./public/games:/app/public/games:ro
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:10005/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
