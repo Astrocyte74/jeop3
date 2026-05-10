@@ -37,3 +37,4 @@ server/node_modules
 *.sln
 *.sw?
 public/icons
+scripts/__pycache__/
