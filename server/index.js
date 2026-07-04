@@ -173,19 +173,19 @@ app.post('/api/ai/generate', async (req, res) => {
     const selectedModel = selectModel({ model });
 
     // Call appropriate provider
-    let result;
+    let result, usage;
     const startTime = Date.now();
     if (selectedModel.provider === 'ollama') {
-      result = await callOllama(selectedModel.model, prompt, promptType);
+      ({ content: result, usage } = await callOllama(selectedModel.model, prompt, promptType));
     } else {
-      result = await callOpenRouter(selectedModel.model, prompt, promptType);
+      ({ content: result, usage } = await callOpenRouter(selectedModel.model, prompt, promptType));
     }
     const duration = Date.now() - startTime;
 
-    // Log successful generation
-    console.log(`[${new Date().toISOString()}] AI Success: ${selectedModel.provider}:${selectedModel.model} | Type: ${promptType} | Time: ${duration}ms | Length: ${result.length} chars`);
+    // Log successful generation (with token usage for cost tracking)
+    console.log(`[${new Date().toISOString()}] AI Success: ${selectedModel.provider}:${selectedModel.model} | Type: ${promptType} | Time: ${duration}ms | In: ${usage?.prompt_tokens ?? '?'} tok | Out: ${usage?.completion_tokens ?? '?'} tok`);
 
-    res.json({ result, model: `${selectedModel.provider}:${selectedModel.model}` });
+    res.json({ result, model: `${selectedModel.provider}:${selectedModel.model}`, usage });
   } catch (error) {
     const timestamp = new Date().toISOString();
     console.error(`[${timestamp}] AI generation error:`, error.message);
@@ -256,7 +256,7 @@ async function callOpenRouter(model, prompt, promptType) {
     throw new Error('No content in AI response');
   }
 
-  return content;
+  return { content, usage: data.usage || null };
 }
 
 // Call Ollama API
@@ -295,7 +295,7 @@ async function callOllama(model, prompt, promptType) {
       throw new Error('No content in Ollama response');
     }
 
-    return content;
+    return { content, usage: data.prompt_eval_count != null ? { prompt_tokens: data.prompt_eval_count, completion_tokens: data.eval_count } : null };
   } catch (error) {
     if (error.message.includes('ECONNREFUSED')) {
       throw new Error('Ollama server not available. Make sure Ollama is running with: ollama serve');
