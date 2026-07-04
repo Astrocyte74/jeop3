@@ -110,6 +110,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [regeneratedItems, setRegeneratedItems] = useState<Set<string>>(new Set());
   const [isWizardGenerating, setIsWizardGenerating] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
+  const [wizardStage, setWizardStage] = useState<string>('');
   const [regeneratingCounts] = useState<{ categories: number; clues: number } | undefined>(undefined);
   const [rewritingCategory, setRewritingCategory] = useState<number | null>(null);
   const [rewritingClue, setRewritingClue] = useState<{ catIndex: number; clueIndex: number } | null>(null);
@@ -764,6 +765,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 existingAnswers,
                 sourceMaterial,
                 sourceUrl,
+                onStage: (stage: string) => setWizardStage(stage),
               });
               spanCategories = span.categories;
             } else {
@@ -913,6 +915,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         sampleLength: titleContext.sampleContent?.length,
         categoriesCount: categoriesList?.length
       });
+      setWizardStage('Generating title options…');
       const titlesResult = await aiGenerate(
         'game-title',
         titleContext,
@@ -953,6 +956,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       teamNamesContext.gameTopic = gameTopic;
 
       console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
+      setWizardStage('Generating team names…');
       const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
 
       let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
@@ -2645,6 +2649,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         onOpenEditor={onOpenEditor}
         onImportJSON={handleCreateGameImport}
         isLoading={isWizardGenerating}
+        loadingStage={wizardStage}
         error={wizardError}
         onRetry={handleWizardRetry}
       />

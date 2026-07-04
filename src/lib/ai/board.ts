@@ -28,6 +28,8 @@ export interface ContentSpanInput {
   existingAnswers?: string[];
   sourceMaterial?: string;
   sourceUrl?: string;
+  /** Called before each pipeline step so the UI can show staged progress. */
+  onStage?: (stage: string) => void;
 }
 
 export interface ContentSpanResult {
@@ -98,7 +100,7 @@ function fillCategory(title: string, pipelineClues: Clue[], fallbackClues: Clue[
 }
 
 export async function generateContentSpan(generate: Generate, opts: ContentSpanInput): Promise<ContentSpanResult> {
-  const { referenceMaterial, theme, titles, count, difficulty, existingAnswers = [], sourceMaterial, sourceUrl } = opts;
+  const { referenceMaterial, theme, titles, count, difficulty, existingAnswers = [], sourceMaterial, sourceUrl, onStage } = opts;
   const spanNear = new Set<string>(existingAnswers.map(norm));
   const catTitles = titles && titles.length
     ? titles.slice(0, count)
@@ -107,6 +109,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   // 1-4. extract (overgenerate) -> filter -> clues (value-less) -> judge
   let judged: JudgedCat[] = [];
   try {
+    onStage?.('Finding specific answers…');
     const extracted = await generate(
       'extract-board-answers',
       { referenceMaterial, count, topicList: titles, theme } as AIContext, difficulty
@@ -117,9 +120,11 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     }));
     const { board } = filterAnswerBoard(raw, 5, existingAnswers);
     if (board.length && board.some(c => c.answers.length > 0)) {
+      onStage?.('Writing clues for locked answers…');
       const clueRes = await generate('clues-from-answers', { answerBoard: board, theme } as AIContext, difficulty);
       const clueCats = (clueRes?.categories || []) as Array<{ title: string; clues: ValuedClue[] }>;
       if (clueCats.length) {
+        onStage?.('Judging clue quality…');
         const judgeRes = await generate(
           'judge-clues',
           { answerBoard: clueCats, referenceMaterial, theme } as AIContext, difficulty
@@ -154,6 +159,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     patched = true;
     let singleCats: AICategory[] = [];
     try {
+      onStage?.('Filling gaps from fallback…');
       const single = await generate(
         'categories-generate-from-content',
         { theme: theme || 'random', count, referenceMaterial, suggestedCategoryTitles: titles, existingAnswers } as AIContext,

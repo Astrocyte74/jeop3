@@ -77,6 +77,7 @@ interface NewGameWizardProps {
   onOpenEditor?: () => void;
   onImportJSON?: () => void;
   isLoading?: boolean;
+  loadingStage?: string;
   error?: string | null;
   onRetry?: () => void;
 }
@@ -259,7 +260,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, error, onRetry }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, error, onRetry }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
@@ -1090,7 +1091,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
         {isLoading ? (
           <div className="py-12 flex flex-col items-center justify-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
-            <p className="text-lg font-medium text-slate-200 mb-2">Generating your game...</p>
+            <p className="text-lg font-medium text-slate-200 mb-2">{loadingStage || 'Generating your game...'}</p>
             <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
             {error && (
               <div className="mt-6 flex flex-col items-center gap-3 max-w-sm">
