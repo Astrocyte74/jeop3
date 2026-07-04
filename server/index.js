@@ -198,6 +198,102 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 });
 
+// =============================================================================
+// Wikipedia retrieval — used by topic-mode parity (per-category grounding).
+// Real sources break the self-referential loop where the model invents a
+// fact-sheet and then grades clues against its own invention. Falls back to
+// the AI fact-sheet client-side when retrieval fails or is thin.
+// =============================================================================
+
+const WIKI_API = 'https://en.wikipedia.org/w/api.php';
+const MAX_ARTICLE_CHARS = 8000; // matches the judge's source window (prompts.ts)
+
+/**
+ * Search Wikipedia via OpenSearch. Returns ranked titles + URLs.
+ * No API key required; the public API allows ~200 req/s per IP.
+ */
+app.post('/api/search-wikipedia', async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({ error: 'Rate limit exceeded', message: `Maximum ${RPM_LIMIT} requests per minute` });
+  }
+  const { query } = req.body;
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Missing query', message: 'Expected { query: string }' });
+  }
+  try {
+    const url = `${WIKI_API}?action=opensearch&search=${encodeURIComponent(query)}&limit=5&namespace=0&format=json&origin=*`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`Wikipedia OpenSearch HTTP ${r.status}`);
+    const data = await r.json();
+    // OpenSearch shape: [query, [titles], [snippets], [urls]]
+    const titles = data[1] || [];
+    const snippets = data[2] || [];
+    const urls = data[3] || [];
+    const results = titles.map((title, i) => ({ title, snippet: snippets[i] || '', url: urls[i] || '' }));
+    res.json({ results });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] search-wiki error:`, error.message);
+    res.status(500).json({ error: 'Wikipedia search failed', message: error.message, results: [] });
+  }
+});
+
+/**
+ * Fetch article content for a URL. Currently only supports Wikipedia article
+ * URLs (the common case for topic-mode grounding). Returns clean plain text
+ * via the MediaWiki extracts API (explaintext=1), capped at MAX_ARTICLE_CHARS.
+ *
+ * Honors the client contract at src/lib/ai/service.ts (fetchArticleContent):
+ *   POST { url } → 200 { text, truncated } | 500/4xx { error, message }
+ *
+ * This also retroactively fixes the previously-unimplemented endpoint that
+ * URL-mode in the wizard calls (was returning 404).
+ */
+app.post('/api/fetch-article', async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkRateLimit(clientIp)) {
+    return res.status(429).json({ error: 'Rate limit exceeded', message: `Maximum ${RPM_LIMIT} requests per minute` });
+  }
+  const { url } = req.body;
+  if (!url || typeof url !== 'string') {
+    return res.status(400).json({ error: 'Missing url', message: 'Expected { url: string }' });
+  }
+
+  // Parse the Wikipedia article title out of a /wiki/<Title> URL.
+  let parsed;
+  try { parsed = new URL(url); } catch { parsed = null; }
+  const isWiki = parsed && /(^|\.)wikipedia\.org$/.test(parsed.hostname) && parsed.pathname.startsWith('/wiki/');
+  if (!isWiki) {
+    return res.status(400).json({
+      error: 'Unsupported URL',
+      message: 'fetch-article currently supports Wikipedia article URLs only (e.g. https://en.wikipedia.org/wiki/...). General web fetching is not supported.',
+    });
+  }
+  // /wiki/<Title> → decode + replace _ with space. Strip any sub-fragment.
+  const title = decodeURIComponent(parsed.pathname.replace(/^\/wiki\//, '').split('#')[0].split('?')[0]).replace(/_/g, ' ');
+  const lang = (parsed.hostname.split('.')[0] === 'en' || parsed.hostname.startsWith('en.')) ? 'en' : parsed.hostname.split('.')[0];
+  const apiBase = `https://${lang || 'en'}.wikipedia.org/w/api.php`;
+
+  try {
+    const apiUrl = `${apiBase}?action=query&prop=extracts&explaintext=true&exsectionformat=plain&titles=${encodeURIComponent(title)}&format=json&origin=*`;
+    const r = await fetch(apiUrl);
+    if (!r.ok) throw new Error(`Wikipedia extracts HTTP ${r.status}`);
+    const data = await r.json();
+    const pages = data?.query?.pages || {};
+    const page = Object.values(pages)[0];
+    const extract = page?.extract || '';
+    if (!extract) {
+      return res.status(404).json({ error: 'Article not found', message: `No extract for "${title}".` });
+    }
+    const truncated = extract.length > MAX_ARTICLE_CHARS;
+    const text = truncated ? extract.slice(0, MAX_ARTICLE_CHARS) : extract;
+    res.json({ text, truncated });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] fetch-article error:`, error.message);
+    res.status(500).json({ error: 'Article fetch failed', message: error.message });
+  }
+});
+
 // Get max tokens based on prompt type
 function getMaxTokens(promptType) {
   const tokenLimits = {
