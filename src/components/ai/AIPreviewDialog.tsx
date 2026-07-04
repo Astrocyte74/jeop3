@@ -428,6 +428,24 @@ function CategoriesPreview({
         </div>
       )}
 
+      {/* Board-quality / thin-source signal (derived from clue provenance) */}
+      {(() => {
+        const all = categories.flatMap(c => c.clues);
+        const patched = all.filter(c => (c as any).provenance === 'fallback').length;
+        if (patched === 0) return null;
+        const strong = all.length - patched;
+        return (
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200/90">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-medium">{strong} strong source-backed clue{strong === 1 ? '' : 's'}</span>
+              <span className="text-amber-200/70"> + {patched} filled in because the source was thin.</span>
+              <span className="block text-xs text-amber-200/60 mt-0.5">Add richer content for more specific clues — or use ✨ on any clue to regenerate it.</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Instructions with Show Answers toggle */}
       <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 text-sm">
         <div className="flex items-center justify-between mb-2">
