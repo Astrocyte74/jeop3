@@ -14,9 +14,20 @@ import type {
 } from './types';
 
 // Consistent system instruction for all AI calls
-const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.
+const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only — no prose, no markdown code fences, no explanations.
 
-CRITICAL: Always use Western/Arabic numerals (0-9) for ALL numbers. Never use Bengali, Arabic-Indic, or any other numeral systems.`;
+QUALITY RULES:
+- UNIQUENESS: every clue's answer must be distinct across the entire game. Never output two clues that resolve to the same answer (e.g., "Declaration of Independence" and "The Declaration of Independence" collide — they are the same answer). Pick genuinely different facts so answers never collide.
+- A clue must never contain or reveal its own answer.
+- Answers must be specific, factual, and unambiguous.
+- Clues are statements in Jeopardy style ("This president...", "It's the largest..."); the response is the single noun/name being sought.
+- Always use Western/Arabic numerals (0-9) for all numbers. Never use Bengali, Arabic-Indic, or other numeral systems.`;
+
+// Injected into every prompt that produces multiple clues, to enforce answer
+// uniqueness (the model otherwise repeats answers across clues).
+const UNIQUENESS_SELF_CHECK = `
+UNIQUENESS (critical): every clue across ALL categories must have a DISTINCT answer — no two clues may share the same response, even if worded differently (e.g., "Mona Lisa" and "The Mona Lisa" are the SAME answer — use it once). Diversify the SUBJECTS: if one clue is about a person, make others about different people, places, works, events, dates, or concepts. Do NOT write multiple clues about the same entity.
+SELF-CHECK: before returning, mentally list all of the answers. If any two repeat (or are the same entity phrased differently), rewrite the duplicate to target a genuinely different fact.`;
 
 /**
  * Build prompt for a specific AI operation
@@ -41,14 +52,16 @@ export function buildPrompt(
     1000: "Deep cuts / less obvious information"
   };
 
-  const valueGuidanceText = difficulty === 'normal' ? `
-Value guidelines:
+  // Value guidelines describe the escalation within a column ($200 easiest →
+  // $1000 hardest). They apply to ALL difficulty levels — difficultyText above
+  // shifts the overall level (easy/hard), the ramp stays the same.
+  const valueGuidanceText = `
+Value guidelines (escalate $200 → $1000 within each category):
 - 200: ${valueGuidance[200]}
 - 400: ${valueGuidance[400]}
 - 600: ${valueGuidance[600]}
 - 800: ${valueGuidance[800]}
-- 1000: ${valueGuidance[1000]}
-` : '';
+- 1000: ${valueGuidance[1000]}`;
 
   const prompts: Record<AIPromptType, { system: string; user: string }> = {
     // ==================== GAME LEVEL ====================
@@ -153,14 +166,18 @@ ${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
           : '';
 
         return `Generate ${context.count || 6} Jeopardy categories for theme: "${context.theme || 'general'}".
+${context.suggestedCategoryTitles && context.suggestedCategoryTitles.length > 0 ? `
+Use these category titles IN THIS ORDER — write 5 clues for each. You may lightly polish a title for clarity or Jeopardy style, but keep its meaning and position:
+${context.suggestedCategoryTitles.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n')}
+` : ''}
 
 ${difficultyText}
 ${valueGuidanceText}
 ${existingAnswersText}
+${UNIQUENESS_SELF_CHECK}
 REQUIREMENTS:
 - Each category has 5 clues [200, 400, 600, 800, 1000]
 - The clue must NOT contain or reveal the answer
-- Each clue must have a DIFFERENT unique answer
 - Responses must be specific and factual
 
 Return JSON format:
@@ -202,14 +219,18 @@ ${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
 Source (${referenceMaterial.length.toLocaleString()} chars):
 """${truncatedReferenceMaterial}"""
 ${context.theme ? `Theme: ${context.theme}` : ''}
+${context.suggestedCategoryTitles && context.suggestedCategoryTitles.length > 0 ? `
+Use these category titles IN THIS ORDER — write 5 clues for each, all answerable from the source material. You may lightly polish a title for clarity or Jeopardy style, but keep its meaning and position:
+${context.suggestedCategoryTitles.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n')}
+` : ''}
 ${difficultyText}
 ${valueGuidanceText}
 ${existingAnswersText}
+${UNIQUENESS_SELF_CHECK}
 REQUIREMENTS:
 - Create categories covering key topics, people, events, places, concepts from the source
 - All clues must be answerable using ONLY the source material
 - The clue must NOT contain or reveal the answer
-- Each clue must have a DIFFERENT unique answer
 - Each category needs: "title" (creative name) and "contentTopic" (descriptive topic)
 
 Return JSON format:
@@ -241,6 +262,25 @@ ${difficultyText}
 Return JSON format:
 {
   "names": ["Option 1", "Option 2", "Option 3"]
+}`
+    },
+
+    // Lightweight draft pass for the wizard's live board preview: category titles
+    // only, no clues. Sources are truncated client-side before reaching here.
+    'category-names-draft': {
+      system: `You are a Jeopardy category title writer. You write short, punchy category titles (1-5 words) in classic Jeopardy style — playful, sometimes punny, board-header ready. Always respond with valid JSON only, no prose.`,
+      user: `Write exactly ${context.count || 6} distinct Jeopardy category title${(context.count || 6) > 1 ? 's' : ''} for a game based on this source.
+
+${context.gameTopic ? `Topic: "${context.gameTopic}"` : ''}${context.referenceMaterial ? `Source material (excerpt):\n"""\n${context.referenceMaterial}\n"""` : ''}
+${context.theme ? `Game theme to tie into: "${context.theme}"` : ''}
+${context.existingNames && context.existingNames.length > 0 ? `Do NOT reuse these titles: ${context.existingNames.map(n => `"${n}"`).join(', ')}` : ''}
+${difficultyText}
+
+Titles only — no clues, no explanations. Each must be answerable territory within the source.
+
+Return JSON format:
+{
+  "names": ["Title 1", "Title 2"]
 }`
     },
 
@@ -314,7 +354,7 @@ ${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
 ` : ''}
 
 REQUIREMENTS:
-- Each clue must have a DIFFERENT unique answer
+- Each of the 5 clues must have a DISTINCT answer — no two clues share the same response, and none may repeat an answer already used in another category
 ${context.referenceMaterial ? '- All clues must be answerable from the source material' : ''}
 
 Return JSON format:
@@ -355,7 +395,7 @@ ${context.existingAnswers.map((a: string) => `- ${a}`).join('\n')}
 
 REQUIREMENTS:
 - The clue must NOT contain or reveal the answer
-- Each clue must have a DIFFERENT unique answer
+- Each of the 5 clues must have a DISTINCT answer — no two clues share the same response, and none may repeat an answer already used in another category
 ${context.referenceMaterial ? '- All clues must be answerable from the source material' : ''}
 
 Return JSON format:
@@ -378,7 +418,7 @@ Category: "${context.categoryTitle}"
 ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Content Topic: "${context.contentTopic}"` : ''}
 Theme: ${context.theme || context.categoryTitle}
 ${difficultyText}
-${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
+${context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
 
 Current question being replaced:
 Question: "${context.currentClue}"
@@ -442,7 +482,7 @@ ${context.contentTopic && context.contentTopic !== context.categoryTitle ? `Cont
 Value: $${context.value}
 Theme: ${context.theme || 'general'}
 ${difficultyText}
-${difficulty === 'normal' && context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
+${context.value ? `Value guidance: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
 ${context.existingClues && context.existingClues.length > 0 ? `IMPORTANT: Avoid duplicating these existing questions:
 ${context.existingClues.filter(c => c.clue).map(c => `- ${c.clue}`).join('\n')}
 ` : ''}
@@ -518,7 +558,7 @@ Question: "${context.clue}"
 Answer: "${context.response}"
 Category: "${context.categoryTitle}"
 Value: $${context.value}
-${difficulty === 'normal' && context.value ? `Expected difficulty: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
+${context.value ? `Expected difficulty: ${valueGuidance[context.value as keyof typeof valueGuidance]}` : ''}
 
 Check for:
 1. Answer matches question
@@ -630,6 +670,14 @@ export const validators: Record<AIPromptType, AIValidator<unknown>> = {
     return typeof d === 'object' && d !== null &&
            Array.isArray(d.names) &&
            d.names.length === 3 &&
+           d.names.every(n => typeof n === 'string');
+  },
+
+  'category-names-draft': (data): data is AIResponses['category-names-draft'] => {
+    const d = data as AIResponses['category-names-draft'];
+    return typeof d === 'object' && d !== null &&
+           Array.isArray(d.names) &&
+           d.names.length > 0 &&
            d.names.every(n => typeof n === 'string');
   },
 

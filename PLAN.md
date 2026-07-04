@@ -4,6 +4,13 @@
 
 Jeop3 is a web-based Jeopardy game generator and player with AI-powered content creation. Built with React + TypeScript + Vite, featuring Clerk authentication and modern LLM integration.
 
+## 🔧 Architecture Notes (2026-07)
+
+- **Prompt unification.** The frontend `src/lib/ai/prompts.ts` (`buildPrompt`) is now the **single source of truth** for all AI prompts. The Express server (`server/index.js`) no longer builds prompts — it validates the prompt type, then forwards the client-built `{ system, user }` to OpenRouter/Ollama as-is. This fixed regeneration silently dropping source material (the server templates used to ignore `referenceMaterial`) and removed ~400 lines of duplicated prompt code.
+- **Auth dev-bypass.** Set `localStorage['jeop3:devAuthBypass'] = 'true'` on localhost (or click "Skip sign-in" in the gate dialog) to exercise the full AI flow without a Clerk account. The sign-in gate itself remains for multi-user ownership/visibility in real deployments. Bypass is localhost-gated and never active in production.
+- **Wizard: the Live Board.** `NewGameWizard` opens directly onto the Live Board — the single AI creation flow (the old composer/stepper step code remains in the file but has no entry point; Manual editor and Import JSON are demoted to the footer "More options" menu). The mental model is **columns and spans**: the board always shows 6 columns; the user authors a *span* at a time (default 1 column, widened via stepper or "All N"), choosing per span whether it's filled by an AI topic, pasted content, or a URL. Under the hood a span is still a `CustomSource` with `categoryCount` = span width; each span is generated in **one AI call** (N distinct categories, uniqueness enforced in-prompt), spans generate **sequentially** with `existingAnswers` chained across calls (MainMenu) so similar sources can't duplicate questions. The next-to-fill span is highlighted on the board (gold dashed "↓ next"), spans get ribbons grouping their columns, the game title composes live from column topics, and the draft-title pass (`category-names-draft`, debounced/cached, per-column hover-reroll) writes real AI titles onto columns as you type. Curated draft titles flow to generation via `suggestedTitles` → `suggestedCategoryTitles`, so the generated board matches the preview.
+- **Known minor issues.** Paste counter reads "100,000 characters" but the prompt truncates at 200k; `_metadata` is referenced in `MainMenu` but never returned by the server (always `undefined`); `serverAvailable` is cached at module load and not re-checked if the AI server restarts mid-session (reload the page to recover).
+
 ## ✅ Completed Features
 
 ### Core Gameplay
@@ -32,14 +39,12 @@ Jeop3 is a web-based Jeopardy game generator and player with AI-powered content 
   - From scratch (any theme)
   - Paste content (notes, transcripts, articles)
   - From URL (fetch webpages)
-- ✅ **Model Selection** - OpenRouter and Ollama models
-  - Gemini 2.5 Flash/Lite
-  - GLM-4.7
-  - Kimi K2
-  - Grok 4.1
-  - Gemma3 12b (Ollama)
+- ✅ **Model Selection** - OpenRouter and Ollama models (configured in `server/.env`)
+  - google/gemini-2.5-flash-lite, google/gemini-2.5-flash, google/gemini-3-pro-preview
+  - moonshotai/kimi-k2-thinking, x-ai/grok-4.1-fast
+  - Ollama models (optional, e.g. gemma3:12b)
 - ✅ **Content Processing**:
-  - Full content support (up to 100k characters)
+  - Full content support (up to 200k characters)
   - No chunking needed (models have 1M+ token context)
   - Character count displayed in prompts
 - ✅ **Fact-Checked Clues** - AI verifies against source material
@@ -76,9 +81,9 @@ Jeop3 is a web-based Jeopardy game generator and player with AI-powered content 
 ## 🚧 Current Limitations
 
 ### Content Limits
-- Max 100,000 characters for pasted content
-- ~25,000 tokens (well within model limits)
-- No chunking needed (modern LLMs have 1M+ token context)
+- Max 200,000 characters for pasted/URL content
+- ~50,000 tokens (within long-context model limits)
+- No chunking — full source sent in a single prompt
 
 ### Team Limits
 - Minimum 2 teams
@@ -130,12 +135,12 @@ Jeop3 is a web-based Jeopardy game generator and player with AI-powered content 
 ## 🛠 Technical Stack
 
 ### Frontend
-- React 18+ with TypeScript
-- Vite build system
-- TailwindCSS + shadcn/ui components
-- Radix UI primitives
+- React 19 with TypeScript
+- Vite 7 build system
+- TailwindCSS v4 + shadcn/ui components
+- Radix UI + Base UI primitives
 - Lucide React icons
-- Framer Motion (animations)
+- CSS animations (tw-animate-css)
 
 ### Backend/Services
 - Node.js/Express (AI proxy server)
@@ -145,7 +150,7 @@ Jeop3 is a web-based Jeopardy game generator and player with AI-powered content 
 
 ### Deployment
 - Render (production)
-- Local development (port 8735)
+- Local development: web on `:8345`, AI server on `:7476`
 
 ### Development
 - Git version control
@@ -166,8 +171,8 @@ OR_MODELS="google/gemini-2.5-flash-lite,google/gemini-2.5-flash,..."
 OLLAMA_MODELS="gemma3:12b,..."
 
 # Ports
-PORT=8735
-GAME_PORT=8735
+PORT=7476                      # AI server (server/.env)
+# Web dev server runs on 8345 (vite.config.ts)
 ```
 
 ## 🎯 Development Priorities

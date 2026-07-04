@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft } from 'lucide-react';
+import { Wand2, Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import type { AIPromptType } from '@/lib/ai/types';
 import { GameMetadata as GameMetadataComponent } from '@/components/GameMetadata';
 import type { GameMetadata } from '@/lib/storage';
@@ -170,7 +170,7 @@ function EditableText({
   return (
     <span
       onClick={onStartEdit}
-      className={`cursor-pointer hover:bg-slate-700/50 rounded px-1 -mx-1 transition-colors ${className}`}
+      className={`cursor-pointer hover:bg-slate-700/60 hover:underline decoration-dotted decoration-slate-500 underline-offset-2 rounded px-1 -mx-1 transition-colors ${className}`}
       title="Click to edit"
     >
       {value || <span className="text-slate-500 italic">{placeholder}</span>}
@@ -325,6 +325,24 @@ function CategoriesPreview({
   const [editingCategory, setEditingCategory] = useState<{ catIndex: number; field: 'title' | 'contentTopic' } | null>(null);
   const [editingClue, setEditingClue] = useState<{ catIndex: number; clueIndex: number; field: 'clue' | 'response' } | null>(null);
   const [editingTeamName, setEditingTeamName] = useState<number | null>(null);
+
+  // Detect duplicate answers across all categories (normalized) so we can flag
+  // collisions for the user — defense-in-depth on top of the prompt uniqueness rules.
+  const normalizedAnswer = (a: string) =>
+    (a || '').toLowerCase().trim()
+      .replace(/^(the|a|an)\s+/, '')
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, ' ');
+  const answerCounts = new Map<string, number>();
+  categories.forEach(cat => cat.clues.forEach(clue => {
+    const n = normalizedAnswer(clue.response);
+    if (n) answerCounts.set(n, (answerCounts.get(n) || 0) + 1);
+  }));
+  const isDuplicateAnswer = (response: string) => {
+    const n = normalizedAnswer(response);
+    return !!n && (answerCounts.get(n) || 0) > 1;
+  };
+
   return (
     <div className="space-y-4">
       {/* Title Selection */}
@@ -365,7 +383,8 @@ function CategoriesPreview({
                     onClick={() => onSelectTitle?.(i)}
                     className="w-full text-left"
                   >
-                    <div className="font-semibold text-sm text-slate-200 pr-6">
+                    <div className="font-semibold text-sm text-slate-200 pr-6 flex items-center gap-1.5">
+                      {selectedTitle === i && <Check className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />}
                       {option.title}
                     </div>
                     <div className="text-xs text-slate-400 mt-1">
@@ -494,7 +513,7 @@ function CategoriesPreview({
                   {onRegenerateCategory && (
                     <DropdownMenuItem onClick={() => onRegenerateCategory(i)} disabled={isRegeneratingCat}>
                       <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                      <span>Regenerate All Questions</span>
+                      <span>Regenerate this category</span>
                       {isRegeneratingCat && <span className="ml-auto text-xs">...</span>}
                     </DropdownMenuItem>
                   )}
@@ -587,6 +606,11 @@ function CategoriesPreview({
                           className="text-green-300 flex-1"
                           placeholder="Answer"
                         />
+                        {isDuplicateAnswer(clue.response) && (
+                          <Badge variant="outline" className="text-amber-400 border-amber-500/50 bg-amber-500/10 shrink-0 gap-1" title="This answer appears more than once — try regenerating this clue">
+                            <AlertCircle className="w-3 h-3" /> Duplicate
+                          </Badge>
+                        )}
                       </div>
                     )}
                   </li>
@@ -611,7 +635,7 @@ function CategoriesPreview({
                 className="h-7 px-2 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
               >
                 <Sparkles className="w-3 h-3 mr-1" />
-                Regenerate All
+                Regenerate teams
               </Button>
             )}
           </div>
@@ -772,6 +796,7 @@ export function AIPreviewDialog({
       'game-title': 'Generate Title & Subtitle',
       'categories-generate': 'Generate All Categories',
       'categories-generate-from-content': 'Generate from Content',
+      'category-names-draft': 'Draft Category Names',
       'category-rename': 'Rename Category',
       'category-title-generate': 'Generate Category Title',
       'category-generate-clues': 'Generate Missing Clues',
@@ -944,13 +969,13 @@ export function AIPreviewDialog({
                 disabled={isLoading}
               >
                 <Sparkles className="w-4 h-4 mr-2" />
-                Regenerate All
+                Regenerate all categories
               </Button>
             )}
             <AlertDialogAction
               onClick={handleConfirm}
               disabled={(type === 'game-title' && selectedTitle === null) || isLoading}
-              className="bg-yellow-500 hover:bg-yellow-400 text-black"
+              className="ml-auto bg-yellow-500 hover:bg-yellow-400 text-black"
             >
               Done
             </AlertDialogAction>

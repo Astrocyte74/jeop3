@@ -37,3 +37,6 @@ server/node_modules
 *.sln
 *.sw?
 public/icons
+
+# Playwright CLI test artifacts (browser screenshots/snapshots)
+.playwright-cli/

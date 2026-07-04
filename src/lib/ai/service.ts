@@ -14,6 +14,7 @@ import type {
   AIGenerateResponse,
   AIValidator
 } from './types';
+import { buildPrompt } from './prompts';
 
 // AI Server configuration
 const DEFAULT_PORT = 7476;
@@ -170,6 +171,12 @@ export function safeJsonParse<T>(
   cleaned = cleaned.replace(/^```json\s*/i, '');
   cleaned = cleaned.replace(/^```\s*/i, '');
   cleaned = cleaned.replace(/\s*```$/g, '');
+  // Normalize smart quotes / typographic delimiters that some models emit (e.g.
+  // local gemma3 uses curly quotes as JSON string delimiters) — would break JSON.parse.
+  cleaned = cleaned
+    .replace(/[“”«»]/g, '"')
+    .replace(/[‘’ʻ]/g, "'")
+    .replace(/…/g, '...');
   cleaned = cleaned.trim();
 
   console.log('[safeJsonParse] Cleaned for parsing:', { cleanedLength: cleaned.length, cleanedPreview: cleaned.substring(0, 200), cleanedEnd: cleaned.substring(cleaned.length - 200) });
@@ -264,10 +271,13 @@ export async function generateAI<T = unknown>(
     ? localStorage.getItem('jeop3:aiModel')
     : null;
 
+  // Build the prompt client-side (single source of truth: lib/ai/prompts.ts).
+  // The server forwards { system, user } to the provider unchanged.
+  const prompt = buildPrompt(promptType, context, difficulty);
+
   const requestBody: AIGenerateRequest = {
     promptType,
-    context,
-    difficulty,
+    prompt,
     model: selectedModel || undefined
   };
 

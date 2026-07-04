@@ -7,7 +7,7 @@
 
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({ override: true });
 
 const app = express();
 const PORT = process.env.PORT || 7476;
@@ -94,7 +94,9 @@ function selectModel(options = {}) {
 const ALLOWED_PROMPT_TYPES = new Set([
   'game-title',
   'categories-generate',
+  'categories-generate-from-content',
   'category-rename',
+  'category-names-draft',
   'category-title-generate',
   'category-generate-clues',
   'category-replace-all',
@@ -143,9 +145,11 @@ app.post('/api/ai/generate', async (req, res) => {
     });
   }
 
-  try {
-    const { promptType, context, difficulty, model } = req.body;
+  // Destructure in the handler scope (not inside try) so the catch block can
+  // reference these for logging — otherwise an AI error crashes the server.
+  const { promptType, prompt, model } = req.body;
 
+  try {
     // Validate prompt type
     if (!promptType || !ALLOWED_PROMPT_TYPES.has(promptType)) {
       return res.status(400).json({
@@ -154,8 +158,13 @@ app.post('/api/ai/generate', async (req, res) => {
       });
     }
 
-    // Build prompt
-    const prompt = buildPrompt(promptType, context, difficulty);
+    // Prompt is built client-side (src/lib/ai/prompts.ts) and forwarded as-is.
+    if (!prompt || typeof prompt.system !== 'string' || typeof prompt.user !== 'string') {
+      return res.status(400).json({
+        error: 'Missing prompt',
+        message: 'Expected { system, user } in request body',
+      });
+    }
 
     // Select provider and model
     const selectedModel = selectModel({ model });
@@ -177,7 +186,7 @@ app.post('/api/ai/generate', async (req, res) => {
   } catch (error) {
     const timestamp = new Date().toISOString();
     console.error(`[${timestamp}] AI generation error:`, error.message);
-    console.error(`[${timestamp}] Model: ${model || 'default'}, Type: ${promptType}, Difficulty: ${difficulty}`);
+    console.error(`[${timestamp}] Model: ${model || 'default'}, Type: ${promptType}`);
     res.status(500).json({
       error: 'AI generation failed',
       message: error.message,
@@ -185,359 +194,17 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 });
 
-// Build prompt from template (inline for now - will be shared with frontend)
-function buildPrompt(type, context, difficulty) {
-  const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only, no prose. No markdown, no explanations, just raw JSON.`;
-
-  const VALUE_GUIDANCE = {
-    200: "Obvious / very well-known facts",
-    400: "Common knowledge within topic",
-    600: "Requires familiarity with the topic",
-    800: "Niche or specific details",
-    1000: "Deep cuts / less obvious information"
-  };
-
-  const difficultyText = difficulty === 'easy'
-    ? 'Make questions accessible and straightforward.'
-    : difficulty === 'hard'
-    ? 'Make questions challenging and specific.'
-    : 'Balanced difficulty level.';
-
-  const prompts = {
-    'game-title': {
-      system: SYSTEM_INSTRUCTION,
-      user: (() => {
-        const existingTitlesText = context.existingTitles && context.existingTitles.length > 0
-          ? `IMPORTANT: Do NOT repeat these existing titles:
-${context.existingTitles.map(t => `- "${t.title}"`).join('\n')}
-
-Generate something completely different and fresh.
-`
-          : '';
-
-        if (context.hasContent) {
-          return `Generate 3 engaging Jeopardy game title options based on this sample content:
-
-${context.sampleContent}
-
-Analyze the categories and questions above, then create titles that capture the theme and tone.
-
-${difficultyText}
-
-${existingTitlesText}
-
-Return JSON format:
-{
-  "titles": [
-    { "title": "...", "subtitle": "..." },
-    { "title": "...", "subtitle": "..." },
-    { "title": "...", "subtitle": "..." }
-  ]
-}`;
-        } else {
-          const theme = context.theme || 'general trivia';
-          const randomHint = context.theme === 'random' ? 'Choose any interesting trivia theme at random.' : '';
-          return `Generate 3 engaging Jeopardy game title options for theme: "${theme}"
-
-${randomHint}
-
-${difficultyText}
-
-${existingTitlesText}
-
-Return JSON format:
-{
-  "titles": [
-    { "title": "...", "subtitle": "..." },
-    { "title": "...", "subtitle": "..." },
-    { "title": "...", "subtitle": "..." }
-  ]
-}`;
-        }
-      })()
-    },
-
-    'categories-generate': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate ${context.count || 6} Jeopardy categories for theme: "${context.theme}".
-
-Difficulty: ${difficultyText}
-${difficulty === 'normal' ? `
-Value guidelines:
-- 200: ${VALUE_GUIDANCE[200]}
-- 400: ${VALUE_GUIDANCE[400]}
-- 600: ${VALUE_GUIDANCE[600]}
-- 800: ${VALUE_GUIDANCE[800]}
-- 1000: ${VALUE_GUIDANCE[1000]}
-` : ''}
-
-IMPORTANT: Each category needs TWO names:
-1. "title" - A creative, catchy display name for players (e.g., "Geography Genius", "Word Wizards")
-2. "contentTopic" - The descriptive topic name for AI context (e.g., "World Capitals", "Literary Terms")
-
-The title should be fun and creative while the contentTopic should be clear and descriptive.
-
-Return JSON format:
-{
-  "categories": [
-    {
-      "title": "Creative Display Name",
-      "contentTopic": "Descriptive Topic Name",
-      "clues": [
-        { "value": 200, "clue": "...", "response": "..." },
-        { "value": 400, "clue": "...", "response": "..." },
-        { "value": 600, "clue": "...", "response": "..." },
-        { "value": 800, "clue": "...", "response": "..." },
-        { "value": 1000, "clue": "...", "response": "..." }
-      ]
-    }
-  ]
-}`
-    },
-
-    'category-rename': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Suggest 3 alternative names for this Jeopardy category: "${context.currentTitle}"
-
-Theme: ${context.theme || 'general'}
-
-Return JSON format:
-{
-  "names": ["Option 1", "Option 2", "Option 3"]
-}`
-    },
-
-    'category-title-generate': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate a BRAND NEW, completely original Jeopardy category title for this content topic: "${context.contentTopic}"
-
-IMPORTANT: Create something FRESH and DIFFERENT - not just a variation or rewording of existing titles.
-
-The category title should:
-- Be completely original and unique
-- Use clever wordplay, puns, or pop culture references related to "${context.contentTopic}"
-- Fit the classic Jeopardy style (playful, sometimes cryptic, often using before/after, puns, or rhymes)
-- Capture the essence of "${context.contentTopic}" in a creative way
-${context.theme ? `- Optionally connect to the overall game theme: "${context.theme}"` : ''}
-- Be short (typically 1-6 words)
-
-Examples of good Jeopardy category styles:
-- "Before & After" (combining two phrases)
-- Puns or wordplay on the topic
-- Rhymes or alliteration
-- Pop culture references
-- Play on words or idioms
-
-Difficulty: ${difficultyText}
-
-Return JSON format:
-{
-  "title": "Brand New Clever Title"
-}`
-    },
-
-    'category-generate-clues': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate missing clues for category: "${context.categoryTitle}"
-
-Theme: ${context.theme || context.categoryTitle}
-Existing clues: ${JSON.stringify(context.existingClues || [])}
-
-Fill missing values to complete [200, 400, 600, 800, 1000] set.
-${difficulty === 'normal' ? `
-Value guidelines:
-- 200: ${VALUE_GUIDANCE[200]}
-- 400: ${VALUE_GUIDANCE[400]}
-- 600: ${VALUE_GUIDANCE[600]}
-- 800: ${VALUE_GUIDANCE[800]}
-- 1000: ${VALUE_GUIDANCE[1000]}
-` : ''}
-
-Return JSON format:
-{
-  "clues": [
-    { "value": 200, "clue": "...", "response": "..." }
-  ]
-}`
-    },
-
-    'category-replace-all': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Replace all clues in category: "${context.categoryTitle}"
-
-Theme: ${context.theme || context.categoryTitle}
-Count: ${context.count || 5}
-${difficulty === 'normal' ? `
-Value guidelines:
-- 200: ${VALUE_GUIDANCE[200]}
-- 400: ${VALUE_GUIDANCE[400]}
-- 600: ${VALUE_GUIDANCE[600]}
-- 800: ${VALUE_GUIDANCE[800]}
-- 1000: ${VALUE_GUIDANCE[1000]}
-` : ''}
-
-Return JSON format:
-{
-  "category": {
-    "title": "${context.categoryTitle}",
-    "clues": [
-      { "value": 200, "clue": "...", "response": "..." }
-    ]
-  }
-}`
-    },
-
-    'questions-generate-five': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate 5 clues for category: "${context.categoryTitle}"
-
-Theme: ${context.theme || context.categoryTitle}
-${difficulty === 'normal' ? `
-Value guidelines:
-- 200: ${VALUE_GUIDANCE[200]}
-- 400: ${VALUE_GUIDANCE[400]}
-- 600: ${VALUE_GUIDANCE[600]}
-- 800: ${VALUE_GUIDANCE[800]}
-- 1000: ${VALUE_GUIDANCE[1000]}
-` : ''}
-
-Return JSON format:
-{
-  "clues": [
-    { "value": 200, "clue": "...", "response": "..." },
-    { "value": 400, "clue": "...", "response": "..." },
-    { "value": 600, "clue": "...", "response": "..." },
-    { "value": 800, "clue": "...", "response": "..." },
-    { "value": 1000, "clue": "...", "response": "..." }
-  ]
-}`
-    },
-
-    'question-generate-single': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate 1 clue for value $${context.value}.
-
-Category: "${context.categoryTitle}"
-Theme: ${context.theme || context.categoryTitle}
-${difficulty === 'normal' ? `Value guidance: ${VALUE_GUIDANCE[context.value]}` : ''}
-
-Return JSON format:
-{
-  "clue": {
-    "value": ${context.value},
-    "clue": "...",
-    "response": "..."
-  }
-}`
-    },
-
-    'editor-generate-clue': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate a question and answer for this slot.
-
-Category: "${context.categoryTitle}"
-Value: $${context.value}
-Theme: ${context.theme || 'general'}
-${difficulty === 'normal' ? `Value guidance: ${VALUE_GUIDANCE[context.value]}` : ''}
-
-Return JSON format:
-{
-  "clue": "...",
-  "response": "..."
-}`
-    },
-
-    'editor-rewrite-clue': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Rewrite this question to be more engaging.
-
-Original: "${context.currentClue}"
-Category: "${context.categoryTitle}"
-Value: $${context.value}
-
-Return JSON format:
-{
-  "clue": "..."
-}`
-    },
-
-    'editor-generate-answer': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Generate the correct answer for this question.
-
-Question: "${context.clue}"
-Category: "${context.categoryTitle}"
-Value: $${context.value}
-
-Return JSON format:
-{
-  "response": "..."
-}`
-    },
-
-    'editor-validate': {
-      system: SYSTEM_INSTRUCTION,
-      user: `Validate this Jeopardy clue pair.
-
-Question: "${context.clue}"
-Answer: "${context.response}"
-Category: "${context.categoryTitle}"
-Value: $${context.value}
-
-Check for:
-1. Answer matches question
-2. Difficulty appropriate for value
-3. Clear and unambiguous
-
-Return JSON format:
-{
-  "valid": true/false,
-  "issues": ["..."],
-  "suggestions": ["..."]
-}`
-    },
-
-    'team-name-random': {
-      system: `You are a creative team name generator. Always respond with valid JSON only, no prose.`,
-      user: `Generate ${context.count || 1} creative and fun team name(s) for a trivia game.
-
-Make them memorable, clever, and fun. Use wordplay, puns, or creative concepts related to knowledge, trivia, or competition.
-${context.gameTopic ? `\n\nGame theme/topic: "${context.gameTopic}"\nConsider making the team names thematically related to this game topic.` : ''}
-${context.existingNames && context.existingNames.length > 0 ? `\n\nIMPORTANT: Do NOT use these existing team names: ${context.existingNames.map(n => `"${n}"`).join(', ')}` : ''}
-
-Return JSON format:
-{
-  "names": ["Team Name 1"${context.count && context.count > 1 ? ', "Team Name 2", "Team Name 3"' : ''}]
-}`
-    },
-
-    'team-name-enhance': {
-      system: `You are a creative team name enhancer. Always respond with valid JSON only, no prose.`,
-      user: `Make this team name more creative and fun for a trivia game: "${context.currentName}"
-
-Transform it into something more memorable, clever, or humorous. Keep the spirit of the original but make it better.
-${context.gameTopic ? `\n\nGame theme/topic: "${context.gameTopic}"\nConsider enhancing the name to be thematically related to this game topic.` : ''}
-${context.existingNames && context.existingNames.length > 0 ? `\n\nIMPORTANT: The enhanced name should not conflict with these existing team names: ${context.existingNames.map(n => `"${n}"`).join(', ')}` : ''}
-
-Return JSON format:
-{
-  "name": "Enhanced Team Name"
-}`
-    },
-  };
-
-  return prompts[type] || { system: SYSTEM_INSTRUCTION, user: 'Generate Jeopardy content.' };
-}
-
 // Get max tokens based on prompt type
 function getMaxTokens(promptType) {
   const tokenLimits = {
     'categories-generate': 8000,  // Full game with 6 categories × 5 clues
+    'categories-generate-from-content': 8000, // Full game generated from source material
     'category-replace-all': 4000, // Single category with 5 clues
     'questions-generate-five': 3000, // 5 clues
     'category-generate-clues': 3000, // Fill missing clues
     'game-title': 500, // Title options
     'category-title-generate': 300, // Single category title
+    'category-names-draft': 300, // Draft category titles for the wizard live preview
     'team-name-random': 200, // Short team names
     'team-name-enhance': 200, // Enhanced team name
     'default': 2000, // Single clue operations

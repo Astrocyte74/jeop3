@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jeop3 — Wizard Redesign Mockup B (Dual-pane · live board preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Spline+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --stage: #05070f;
+    --board-blue: #0b1d8f;
+    --board-blue-2: #0a1668;
+    --board-edge: #1f34c9;
+    --rail: #0d1220;
+    --rail-2: #141b30;
+    --border: #232d48;
+    --text: #eef1fb;
+    --muted: #8d99bd;
+    --gold: #ffcc33;
+    --gold-d: #e0a90f;
+    --green: #34d399;
+    --red: #f87171;
+    --display: 'Anton', 'Arial Narrow', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Spline Sans', 'Avenir Next', sans-serif;
+    background: var(--stage);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .frame { display: grid; grid-template-columns: 400px 1fr; min-height: 100vh; }
+
+  /* ============ LEFT RAIL — the composer ============ */
+  .rail {
+    background: linear-gradient(180deg, var(--rail) 0%, #0a0e1a 100%);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    max-height: 100vh;
+  }
+  .rail-head {
+    padding: 20px 22px 16px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .rail-head h1 { margin: 0; font-family: var(--display); font-size: 22px; font-weight: 400; letter-spacing: 1px; text-transform: uppercase; }
+  .rail-head h1 span { color: var(--gold); }
+  .model-chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    background: var(--rail-2); border: 1px solid var(--border);
+    padding: 6px 11px; border-radius: 999px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap;
+  }
+  .model-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  .rail-body { padding: 18px 22px; overflow-y: auto; flex: 1; }
+  .field { margin-bottom: 20px; }
+  .label { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 9px; }
+  .label .hint { text-transform: none; letter-spacing: 0; font-weight: 500; color: #5c6a8e; margin-left: 5px; }
+
+  .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .seg {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    padding: 11px 6px; border-radius: 11px;
+    background: var(--rail-2); border: 1px solid var(--border);
+    color: var(--muted); cursor: pointer; transition: .15s; font-size: 12.5px; font-weight: 600;
+  }
+  .seg .ico { font-size: 17px; }
+  .seg:hover { border-color: #38466e; color: var(--text); }
+  .seg.active {
+    background: linear-gradient(180deg, rgba(255,204,51,.16), rgba(255,204,51,.05));
+    border-color: var(--gold); color: var(--gold);
+  }
+
+  .input, .textarea {
+    width: 100%; background: #090d18; border: 1px solid var(--border);
+    border-radius: 10px; padding: 11px 13px; color: var(--text); font-size: 13.5px;
+    outline: none; transition: .15s; font-family: inherit;
+  }
+  .input:focus, .textarea:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,204,51,.14); }
+  .textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+  .counter { text-align: right; font-size: 11.5px; color: #5c6a8e; margin-top: 5px; }
+  .input-row { display: flex; gap: 8px; }
+  .icon-btn {
+    flex: 0 0 auto; width: 42px; border-radius: 10px;
+    background: var(--rail-2); border: 1px solid var(--border); color: var(--text);
+    cursor: pointer; font-size: 16px; display: grid; place-items: center; transition: .15s;
+  }
+  .icon-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+  .src {
+    display: flex; align-items: center; gap: 10px; padding: 9px 11px;
+    background: var(--rail-2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 7px;
+  }
+  .src .kind { width: 28px; height: 28px; border-radius: 7px; background: #090d18; display: grid; place-items: center; font-size: 14px; flex: 0 0 auto; }
+  .src .meta { flex: 1; min-width: 0; }
+  .src .meta .t { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .src .meta .s { font-size: 11px; color: var(--muted); }
+  .src .x { background: none; border: none; color: #5c6a8e; cursor: pointer; font-size: 14px; padding: 3px 6px; border-radius: 6px; }
+  .src .x:hover { color: var(--red); }
+  .add-link { color: var(--gold); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+  .chip {
+    font-size: 12.5px; font-weight: 600; padding: 8px 14px; border-radius: 999px;
+    background: var(--rail-2); border: 1px solid var(--border); color: var(--muted); cursor: pointer; transition: .15s;
+  }
+  .chip:hover { border-color: #38466e; color: var(--text); }
+  .chip.active { background: rgba(255,204,51,.15); border-color: var(--gold); color: var(--gold); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stepper { display: flex; align-items: center; justify-content: space-between; background: #090d18; border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; }
+  .stepper button { width: 28px; height: 28px; border-radius: 7px; background: var(--rail-2); border: 1px solid var(--border); color: var(--text); cursor: pointer; font-size: 15px; }
+  .stepper .n { font-size: 16px; font-weight: 700; }
+
+  .rail-foot {
+    padding: 14px 22px 18px; border-top: 1px solid var(--border); background: rgba(0,0,0,.25);
+  }
+  .cost { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .cost b { color: var(--text); }
+  .gen {
+    width: 100%;
+    background: linear-gradient(135deg, var(--gold), var(--gold-d)); color: #221900;
+    border: none; padding: 14px; border-radius: 12px;
+    font-family: var(--display); font-size: 17px; letter-spacing: 1.5px; text-transform: uppercase;
+    cursor: pointer; box-shadow: 0 10px 30px rgba(255,204,51,.25);
+  }
+  .gen:hover { filter: brightness(1.06); }
+
+  /* ============ RIGHT — the live stage ============ */
+  .stage {
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 40px 44px;
+    background:
+      radial-gradient(900px 500px at 30% -10%, rgba(31,52,201,.28), transparent 65%),
+      radial-gradient(700px 500px at 85% 110%, rgba(255,204,51,.07), transparent 60%),
+      var(--stage);
+  }
+  /* spotlight beams */
+  .stage::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(115deg, transparent 42%, rgba(120,140,255,.05) 46%, transparent 52%),
+      linear-gradient(65deg, transparent 55%, rgba(120,140,255,.04) 60%, transparent 66%);
+  }
+  .stage-tag {
+    position: absolute; top: 22px; left: 44px;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--muted); text-transform: uppercase;
+  }
+  .stage-tag .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: pulse 1.6s infinite; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(248,113,113,.5);} 50% { box-shadow: 0 0 0 6px rgba(248,113,113,0);} }
+
+  .marquee { text-align: center; margin-bottom: 8px; }
+  .marquee h2 {
+    margin: 0; font-family: var(--display); font-weight: 400;
+    font-size: clamp(28px, 3.6vw, 44px); letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold);
+    text-shadow: 0 0 40px rgba(255,204,51,.35), 0 3px 0 rgba(0,0,0,.6);
+  }
+  .marquee .sub { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .marquee .redo { color: var(--gold); cursor: pointer; margin-left: 6px; }
+
+  .board {
+    width: min(880px, 100%);
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+    margin-top: 22px;
+    perspective: 900px;
+  }
+  .cat, .cell {
+    background: linear-gradient(180deg, var(--board-blue) 0%, var(--board-blue-2) 100%);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 6px;
+    display: grid; place-items: center; text-align: center;
+    box-shadow: inset 0 0 0 1px rgba(0,0,20,.4), 0 2px 6px rgba(0,0,0,.5);
+  }
+  .cat {
+    min-height: 74px; padding: 8px 6px; position: relative;
+    font-family: var(--display); font-weight: 400; font-size: 13.5px; letter-spacing: .8px;
+    line-height: 1.25; text-transform: uppercase; color: #fff;
+    text-shadow: 0 2px 0 rgba(0,0,0,.55);
+  }
+  .cat .redo-cat {
+    position: absolute; top: 5px; right: 6px; font-size: 11px; color: rgba(255,255,255,.35);
+    cursor: pointer; font-family: 'Spline Sans', sans-serif;
+  }
+  .cat .redo-cat:hover { color: var(--gold); }
+  .cell {
+    min-height: 56px;
+    font-family: var(--display); font-size: 21px; letter-spacing: 1px; color: var(--gold);
+    text-shadow: 0 2px 0 rgba(0,0,0,.6);
+    cursor: pointer; transition: .15s;
+  }
+  .cell:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 1px rgba(255,204,51,.4), 0 6px 16px rgba(0,0,0,.6); }
+
+  /* pending (still-generating) columns */
+  .pend { position: relative; overflow: hidden; color: transparent; text-shadow: none; }
+  .pend::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.06) 50%, transparent 70%);
+    animation: shimmer 1.8s infinite;
+  }
+  @keyframes shimmer { from { transform: translateX(-100%);} to { transform: translateX(100%);} }
+  .cat.pend .lbl { color: #4c5a92; font-family: 'Spline Sans', sans-serif; font-size: 11px; text-transform: none; letter-spacing: .3px; font-weight: 600; }
+
+  /* floating clue card */
+  .clue-pop {
+    position: absolute; width: 300px; padding: 16px 18px;
+    left: calc(50% + 120px); top: 292px; z-index: 3;
+    background: linear-gradient(180deg, #101a4d, #0b123a);
+    border: 1px solid var(--board-edge); border-radius: 12px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 4px rgba(31,52,201,.15);
+    transform: rotate(1.5deg);
+  }
+  .clue-pop .cp-head { font-size: 10.5px; font-weight: 700; letter-spacing: 1.5px; color: var(--gold); text-transform: uppercase; margin-bottom: 8px; }
+  .clue-pop .cp-clue { font-size: 14px; line-height: 1.5; }
+  .clue-pop .cp-ans { font-size: 12.5px; color: var(--green); margin-top: 9px; font-weight: 600; }
+  .clue-pop .cp-arrow {
+    position: absolute; top: -7px; left: 40px; width: 14px; height: 14px;
+    background: #101a4d; border-left: 1px solid var(--board-edge); border-top: 1px solid var(--board-edge);
+    transform: rotate(45deg);
+  }
+
+  .teams { display: flex; gap: 10px; margin-top: 26px; flex-wrap: wrap; justify-content: center; }
+  .team {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+    background: rgba(11,29,143,.35); border: 1px solid var(--board-edge); color: #cdd6ff;
+  }
+  .team .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .teams .redo { align-self: center; color: var(--muted); font-size: 12.5px; cursor: pointer; }
+  .teams .redo:hover { color: var(--gold); }
+
+  .note { position: absolute; bottom: 14px; left: 0; right: 0; text-align: center; color: #45507a; font-size: 11.5px; }
+
+  @media (max-width: 980px) {
+    .frame { grid-template-columns: 1fr; }
+    .rail { max-height: none; }
+    .clue-pop { display: none; }
+    .stage { padding: 60px 18px; }
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+
+    <!-- LEFT: composer rail -->
+    <aside class="rail">
+      <div class="rail-head">
+        <h1>New <span>Game</span></h1>
+        <div class="model-chip"><span class="dot"></span> gemini-2.5-flash-lite ▾</div>
+      </div>
+
+      <div class="rail-body">
+        <div class="field">
+          <div class="label">Source</div>
+          <div class="segmented">
+            <div class="seg"><span class="ico">💡</span> Topic</div>
+            <div class="seg active"><span class="ico">📋</span> Paste</div>
+            <div class="seg"><span class="ico">🌐</span> URL</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label">Content <span class="hint">— clues stay answerable from this</span></div>
+          <textarea class="textarea">Mars is the fourth planet from the Sun, called the Red Planet due to iron oxide on its surface. It has two small moons, Phobos and Deimos. A Martian day is called a sol and lasts about 24 hours 37 minutes. Mars is home to Olympus Mons, the tallest volcano in the Solar System.</textarea>
+          <div class="counter"><b>345</b> / 200,000</div>
+        </div>
+
+        <div class="field">
+          <div class="label" style="display:flex;justify-content:space-between;align-items:baseline;">
+            <span>Sources (2)</span><span class="add-link">＋ Add source</span>
+          </div>
+          <div class="src">
+            <div class="kind">📋</div>
+            <div class="meta"><div class="t">Pasted content</div><div class="s">345 chars · 4 categories</div></div>
+            <button class="x">✕</button>
+          </div>
+          <div class="src">
+            <div class="kind">💡</div>
+            <div class="meta"><div class="t">Ancient Egyptian Pharaohs</div><div class="s">topic · 2 categories</div></div>
+            <button class="x">✕</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label">Theme <span class="hint">(optional)</span></div>
+          <div class="input-row">
+            <input class="input" value="Mars" />
+            <button class="icon-btn" title="Surprise me">🎲</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label">Difficulty</div>
+          <div class="chips">
+            <span class="chip">Easy</span>
+            <span class="chip active">Normal</span>
+            <span class="chip">Hard</span>
+          </div>
+        </div>
+
+        <div class="field row2" style="margin-bottom:6px;">
+          <div>
+            <div class="label">Categories</div>
+            <div class="stepper"><button>−</button><span class="n">6</span><button>+</button></div>
+          </div>
+          <div>
+            <div class="label">Model</div>
+            <div class="chips">
+              <span class="chip active" style="font-size:11.5px;padding:7px 11px;">flash-lite</span>
+              <span class="chip" style="font-size:11.5px;padding:7px 11px;">kimi-k2</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rail-foot">
+        <div class="cost"><span>2 sources · 6 categories · 30 clues</span><b>~$0.004</b></div>
+        <button class="gen">Generate Game ▸</button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: live stage preview -->
+    <main class="stage">
+      <div class="stage-tag"><span class="pulse"></span> Live preview — updates as you type</div>
+
+      <div class="marquee">
+        <h2>Mars: The Red Frontier</h2>
+        <div class="sub">Draft title from your sources <span class="redo">↻ reroll</span></div>
+      </div>
+
+      <div class="board">
+        <!-- categories -->
+        <div class="cat">Red Planet Geology<span class="redo-cat">↻</span></div>
+        <div class="cat">Moons of Mars<span class="redo-cat">↻</span></div>
+        <div class="cat">A Day on Mars<span class="redo-cat">↻</span></div>
+        <div class="cat">Peak Performance<span class="redo-cat">↻</span></div>
+        <div class="cat pend"><span class="lbl">✨ generating…</span></div>
+        <div class="cat pend"><span class="lbl">✨ generating…</span></div>
+        <!-- rows -->
+        <div class="cell">$200</div><div class="cell">$200</div><div class="cell">$200</div><div class="cell">$200</div><div class="cell pend">$200</div><div class="cell pend">$200</div>
+        <div class="cell">$400</div><div class="cell">$400</div><div class="cell">$400</div><div class="cell">$400</div><div class="cell pend">$400</div><div class="cell pend">$400</div>
+        <div class="cell">$600</div><div class="cell">$600</div><div class="cell">$600</div><div class="cell">$600</div><div class="cell pend">$600</div><div class="cell pend">$600</div>
+        <div class="cell">$800</div><div class="cell">$800</div><div class="cell">$800</div><div class="cell">$800</div><div class="cell pend">$800</div><div class="cell pend">$800</div>
+        <div class="cell">$1000</div><div class="cell">$1000</div><div class="cell">$1000</div><div class="cell">$1000</div><div class="cell pend">$1000</div><div class="cell pend">$1000</div>
+      </div>
+
+      <!-- floating sample clue -->
+      <div class="clue-pop">
+        <div class="cp-arrow"></div>
+        <div class="cp-head">Sample · Red Planet Geology · $400</div>
+        <div class="cp-clue">Mars appears red due to the presence of this compound on its surface.</div>
+        <div class="cp-ans">✓ What is iron oxide?</div>
+      </div>
+
+      <div class="teams">
+        <span class="team"><span class="sw" style="background:#f87171"></span> Red Planet Rulers</span>
+        <span class="team"><span class="sw" style="background:#60a5fa"></span> Time Warp on Olympus Mons</span>
+        <span class="redo">↻ reroll teams</span>
+      </div>
+
+      <div class="note">Mockup B — dual-pane composer with live board preview · not wired to the app · for design approval</div>
+    </main>
+  </div>
+</body>
+</html>

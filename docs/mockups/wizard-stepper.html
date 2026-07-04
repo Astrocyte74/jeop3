@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jeop3 — Wizard Redesign Mockup C (Game Night stepper · light retro)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Karla:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f7efdc;
+    --paper-2: #fffaf0;
+    --ink: #1e2749;
+    --ink-soft: #5b6183;
+    --line: #d9cdb0;
+    --gold: #e0a90f;
+    --gold-deep: #b8860b;
+    --red: #cf4527;
+    --teal: #1d7a74;
+    --display: 'Fraunces', Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Karla', 'Avenir Next', sans-serif;
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 44px 20px 60px;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(224,169,15,.10), transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(29,122,116,.08), transparent 45%),
+      var(--paper);
+    position: relative;
+  }
+  /* halftone paper texture */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5;
+    background-image: radial-gradient(rgba(30,39,73,.05) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+
+  .card {
+    position: relative; width: 100%; max-width: 700px;
+    background: var(--paper-2);
+    border: 2px solid var(--ink);
+    border-radius: 18px;
+    box-shadow: 8px 8px 0 rgba(30,39,73,.16);
+    overflow: hidden;
+  }
+
+  /* ===== marquee header ===== */
+  .marquee {
+    background: var(--ink); color: var(--paper-2);
+    padding: 26px 28px 22px; text-align: center; position: relative;
+  }
+  /* bulb rows */
+  .bulbs {
+    position: absolute; left: 0; right: 0; height: 10px;
+    background-image: radial-gradient(circle at 6px 5px, var(--gold) 2.6px, rgba(224,169,15,.18) 3.6px, transparent 4.6px);
+    background-size: 26px 10px; background-position: 7px 0;
+  }
+  .bulbs.top { top: 7px; } .bulbs.bottom { bottom: 7px; }
+  .marquee .kicker { font-size: 11px; font-weight: 800; letter-spacing: 3.5px; text-transform: uppercase; color: var(--gold); }
+  .marquee h1 {
+    margin: 6px 0 2px; font-family: var(--display); font-weight: 900; font-size: 34px;
+    letter-spacing: .5px;
+  }
+  .marquee h1 em { font-style: italic; color: var(--gold); }
+  .marquee .sub { font-size: 13.5px; color: #aeb4d4; }
+
+  /* ===== act stepper ===== */
+  .acts {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    border-bottom: 2px solid var(--ink); background: #f3ead2;
+  }
+  .act {
+    padding: 14px 12px 12px; text-align: center; position: relative; cursor: pointer;
+  }
+  .act + .act { border-left: 2px dashed var(--line); }
+  .act .no {
+    display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    border: 2px solid var(--ink); font-weight: 800; font-size: 13px; margin-bottom: 4px;
+    background: var(--paper-2);
+  }
+  .act .nm { font-family: var(--display); font-weight: 700; font-size: 15px; }
+  .act .st { font-size: 11px; color: var(--ink-soft); margin-top: 1px; }
+  .act.done .no { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .act.done .st { color: var(--teal); font-weight: 700; }
+  .act.now { background: var(--paper-2); }
+  .act.now::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 4px; background: var(--red);
+  }
+  .act.now .no { background: var(--red); border-color: var(--red); color: #fff; }
+  .act.next { opacity: .55; }
+
+  /* ===== body ===== */
+  .body { padding: 24px 30px 8px; }
+
+  /* collapsed recap of Act 1 */
+  .recap {
+    display: flex; align-items: center; gap: 12px;
+    background: #f3ead2; border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 24px; font-size: 13.5px;
+  }
+  .recap .tick { color: var(--teal); font-weight: 800; }
+  .recap .txt { flex: 1; color: var(--ink-soft); }
+  .recap .txt b { color: var(--ink); }
+  .recap a { color: var(--red); font-weight: 700; text-decoration: none; font-size: 13px; }
+  .recap a:hover { text-decoration: underline; }
+
+  .field { margin-bottom: 24px; }
+  .label {
+    font-family: var(--display); font-weight: 700; font-size: 16.5px; margin-bottom: 3px;
+  }
+  .help { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 10px; }
+
+  .input {
+    width: 100%; background: #fff; border: 2px solid var(--ink);
+    border-radius: 10px; padding: 12px 14px; color: var(--ink); font-size: 15px;
+    outline: none; font-family: inherit; font-weight: 500;
+    box-shadow: 3px 3px 0 rgba(30,39,73,.12); transition: .12s;
+  }
+  .input:focus { box-shadow: 3px 3px 0 var(--gold); }
+  .input-row { display: flex; gap: 10px; }
+  .dice {
+    flex: 0 0 auto; width: 48px; border-radius: 10px; font-size: 19px;
+    background: var(--gold); border: 2px solid var(--ink); cursor: pointer;
+    box-shadow: 3px 3px 0 rgba(30,39,73,.12); transition: .12s;
+  }
+  .dice:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 rgba(30,39,73,.16); }
+
+  /* ticket-style difficulty cards */
+  .tickets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .ticket {
+    position: relative; padding: 14px 12px 12px; text-align: center; cursor: pointer;
+    background: #fff; border: 2px solid var(--ink); border-radius: 12px;
+    box-shadow: 3px 3px 0 rgba(30,39,73,.12); transition: .12s;
+  }
+  /* ticket notches */
+  .ticket::before, .ticket::after {
+    content: ""; position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+    background: var(--paper-2); border: 2px solid var(--ink); transform: translateY(-50%);
+  }
+  .ticket::before { left: -9px; border-left-color: transparent; border-bottom-color: transparent; transform: translateY(-50%) rotate(45deg); }
+  .ticket::after { right: -9px; border-right-color: transparent; border-top-color: transparent; transform: translateY(-50%) rotate(45deg); }
+  .ticket .big { font-family: var(--display); font-weight: 900; font-size: 17px; }
+  .ticket .small { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.35; }
+  .ticket:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 rgba(30,39,73,.16); }
+  .ticket.active { background: var(--ink); color: var(--paper-2); box-shadow: 3px 3px 0 var(--gold); }
+  .ticket.active .small { color: #aeb4d4; }
+  .ticket.active .big { color: var(--gold); }
+
+  .row2 { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
+  .stepper {
+    display: inline-flex; align-items: center; gap: 14px;
+    background: #fff; border: 2px solid var(--ink); border-radius: 10px; padding: 8px 12px;
+    box-shadow: 3px 3px 0 rgba(30,39,73,.12);
+  }
+  .stepper button {
+    width: 30px; height: 30px; border-radius: 8px; border: 2px solid var(--ink);
+    background: var(--paper); font-size: 16px; font-weight: 800; cursor: pointer; color: var(--ink);
+  }
+  .stepper button:hover { background: var(--gold); }
+  .stepper .n { font-family: var(--display); font-weight: 900; font-size: 20px; min-width: 20px; text-align: center; }
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    font-size: 12.5px; font-weight: 700; padding: 8px 13px; border-radius: 999px;
+    background: #fff; border: 2px solid var(--line); color: var(--ink-soft); cursor: pointer;
+  }
+  .pill.active { border-color: var(--ink); background: var(--ink); color: var(--gold); }
+
+  /* ===== footer ===== */
+  .footer {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 18px 30px 22px; border-top: 2px dashed var(--line); margin-top: 6px;
+  }
+  .back { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 700; color: var(--ink-soft); cursor: pointer; }
+  .back:hover { color: var(--ink); }
+  .progress { font-size: 12px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--ink-soft); }
+  .cta {
+    background: var(--red); color: #fff; border: 2px solid var(--ink);
+    font-family: var(--display); font-weight: 900; font-size: 16px; letter-spacing: .3px;
+    padding: 12px 26px; border-radius: 12px; cursor: pointer;
+    box-shadow: 4px 4px 0 rgba(30,39,73,.25); transition: .12s;
+  }
+  .cta:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 rgba(30,39,73,.3); }
+
+  .note { position: absolute; left: 0; right: 0; bottom: -34px; text-align: center; color: #a4977a; font-size: 12px; }
+
+  @media (max-width: 600px) {
+    .tickets, .row2 { grid-template-columns: 1fr; }
+    .acts { grid-template-columns: 1fr; }
+    .act + .act { border-left: none; border-top: 2px dashed var(--line); }
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <!-- marquee header -->
+    <div class="marquee">
+      <div class="bulbs top"></div>
+      <div class="kicker">Jeop3 Presents</div>
+      <h1>Tonight's <em>Big Game</em></h1>
+      <div class="sub">Three quick acts and you're on the air</div>
+      <div class="bulbs bottom"></div>
+    </div>
+
+    <!-- act stepper -->
+    <div class="acts">
+      <div class="act done">
+        <div class="no">✓</div>
+        <div class="nm">The Material</div>
+        <div class="st">2 sources added</div>
+      </div>
+      <div class="act now">
+        <div class="no">2</div>
+        <div class="nm">The Style</div>
+        <div class="st">theme &amp; difficulty</div>
+      </div>
+      <div class="act next">
+        <div class="no">3</div>
+        <div class="nm">Showtime</div>
+        <div class="st">review &amp; generate</div>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- collapsed recap of act 1 -->
+      <div class="recap">
+        <span class="tick">✓</span>
+        <span class="txt"><b>Pasted content</b> (345 chars) + <b>Ancient Egyptian Pharaohs</b> (topic) → 6 categories</span>
+        <a href="#">Edit</a>
+      </div>
+
+      <div class="field">
+        <div class="label">Give it a theme</div>
+        <div class="help">Optional — ties your categories together with a running motif. Or roll the dice.</div>
+        <div class="input-row">
+          <input class="input" value="Mars" />
+          <button class="dice" title="Surprise me">🎲</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="label">Pick your difficulty</div>
+        <div class="help">How deep should the cuts go?</div>
+        <div class="tickets">
+          <div class="ticket">
+            <div class="big">Easy</div>
+            <div class="small">Well-known facts, great for beginners</div>
+          </div>
+          <div class="ticket active">
+            <div class="big">Normal</div>
+            <div class="small">A balanced mix for everyone</div>
+          </div>
+          <div class="ticket">
+            <div class="big">Hard</div>
+            <div class="small">Niche details &amp; deep cuts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field row2" style="margin-bottom:10px;">
+        <div>
+          <div class="label" style="font-size:15px;">Categories</div>
+          <div class="help" style="margin-bottom:8px;">across all sources</div>
+          <div class="stepper"><button>−</button><span class="n">6</span><button>+</button></div>
+        </div>
+        <div>
+          <div class="label" style="font-size:15px;">Writer's room</div>
+          <div class="help" style="margin-bottom:8px;">which model drafts the clues</div>
+          <div class="pills">
+            <span class="pill active">flash-lite</span>
+            <span class="pill">flash</span>
+            <span class="pill">kimi-k2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <button class="back">← The Material</button>
+      <div class="progress">Act 2 of 3</div>
+      <button class="cta">On to Showtime →</button>
+    </div>
+
+    <div class="note">Mockup C — “Game Night” polished stepper (light retro) · not wired to the app · for design approval</div>
+  </div>
+</body>
+</html>

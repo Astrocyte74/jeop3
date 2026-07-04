@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jeop3 — Wizard Redesign Mockups</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; padding: 48px 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b0f1a; color: #e8edf7;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  h1 { margin: 0; font-size: 26px; }
+  p.sub { margin: 4px 0 28px; color: #8a98b8; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 340px)); gap: 18px; justify-content: center; width: 100%; max-width: 1100px; }
+  a.card {
+    display: block; text-decoration: none; color: inherit;
+    background: #131a2b; border: 1px solid #283449; border-radius: 16px;
+    padding: 22px; transition: .15s;
+  }
+  a.card:hover { border-color: #f5c518; transform: translateY(-3px); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; margin-bottom: 12px; }
+  .a .tag { background: rgba(139,92,246,.18); color: #b79dfb; }
+  .b .tag { background: rgba(255,204,51,.15); color: #f5c518; }
+  .c .tag { background: rgba(207,69,39,.18); color: #ff8a70; }
+  h2 { margin: 0 0 8px; font-size: 17px; }
+  .card p { margin: 0; font-size: 13px; color: #8a98b8; line-height: 1.55; }
+</style>
+</head>
+<body>
+  <h1>NewGameWizard — redesign directions</h1>
+  <p class="sub">Three clickable mockups · same Mars example content in each · pick one (or mix)</p>
+  <div class="grid">
+    <a class="card a" href="wizard-single-page.html">
+      <span class="tag">Mockup A</span>
+      <h2>Single-page composer</h2>
+      <p>All four wizard steps collapsed into one scrolling dialog: source picker → content → sources list → theme → difficulty → generate. Fastest path, least ceremony. Dark blue + purple/yellow.</p>
+    </a>
+    <a class="card b" href="wizard-dual-pane.html">
+      <span class="tag">Mockup B</span>
+      <h2>Dual-pane · live board preview</h2>
+      <p>Composer rail on the left, a live Jeopardy board on the right that fills in as you type — draft title, categories, sample clue, team names, with per-category reroll. Full game-show stage aesthetic.</p>
+    </a>
+    <a class="card c" href="wizard-stepper.html">
+      <span class="tag">Mockup C</span>
+      <h2>“Game Night” polished stepper</h2>
+      <p>Keeps guided steps but reframes them as three theatrical acts (Material → Style → Showtime) with completed steps collapsing to editable recaps. Light retro game-show-poster look — marquee bulbs, ticket cards.</p>
+    </a>
+  </div>
+</body>
+</html>

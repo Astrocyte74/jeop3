@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth, useUser, SignInButton, SignedIn, SignedOut } from '@/lib/auth';
+import { useAuth, useUser, SignInButton, SignedIn, SignedOut, enableDevAuthBypass } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +72,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // Clerk auth
   const { isSignedIn, signOut } = useAuth();
   const { user } = useUser();
+  const isLocalDev = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
   // Simple slugify function for safe filenames
   const slugify = (str: string) => {
@@ -756,6 +758,18 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             context.referenceMaterial = source.fetchedContent;
             context.referenceUrl = source.url;
             context.sourceCharacters = source.fetchedContent.length;
+          }
+
+          // Honor the Live Board's curated draft titles so the final board matches the preview.
+          if (source.suggestedTitles && source.suggestedTitles.length > 0) {
+            context.suggestedCategoryTitles = source.suggestedTitles;
+          }
+
+          // Chain answers across sequential span calls: later spans are told
+          // which answers earlier spans already used, so similar sources can't
+          // produce duplicate questions across the board.
+          if (categoriesList.length > 0) {
+            context.existingAnswers = categoriesList.flatMap(c => c.clues.map(cl => cl.response));
           }
 
           console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, promptType });
@@ -2769,6 +2783,15 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 </AlertDialogAction>
               </SignInButton>
             </AlertDialogFooter>
+            {isLocalDev && (
+              <button
+                type="button"
+                onClick={() => { enableDevAuthBypass(); window.location.reload(); }}
+                className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2"
+              >
+                Skip sign-in (local dev / testing)
+              </button>
+            )}
           </AlertDialogContent>
         </AlertDialog>
       </SignedOut>

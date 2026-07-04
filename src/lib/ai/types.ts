@@ -14,6 +14,7 @@ export type AIPromptType =
   | 'categories-generate-from-content'
   // Category level
   | 'category-rename'
+  | 'category-names-draft'
   | 'category-title-generate'
   | 'category-generate-clues'
   | 'category-replace-all'
@@ -78,6 +79,10 @@ export interface AIContext {
   referenceUrl?: string;
   sourceCharacters?: number;
 
+  // Curated draft category titles to honor (from the Live Board) so generation
+  // matches the preview the user curated.
+  suggestedCategoryTitles?: string[];
+
   // Category level
   categoryTitle?: string;
   contentTopic?: string;
@@ -105,6 +110,7 @@ export interface AIResponses {
   'categories-generate': { categories: AICategory[] };
   'categories-generate-from-content': { categories: AICategory[] };
   'category-rename': { names: string[] };
+  'category-names-draft': { names: string[] };
   'category-title-generate': { title: string };
   'category-generate-clues': { clues: Clue[] };
   'category-replace-all': { category: AICategory };
@@ -121,8 +127,8 @@ export interface AIResponses {
 // API request/response types
 export interface AIGenerateRequest {
   promptType: AIPromptType;
-  context: AIContext;
-  difficulty: AIDifficulty;
+  /** Client-built prompt; the server forwards it to the provider unchanged. */
+  prompt: { system: string; user: string };
   model?: string;  // Optional: specific model to use (e.g., "or:google/gemini-2.5-flash" or "ollama:gemma3:12b")
 }
 

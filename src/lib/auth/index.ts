@@ -22,8 +22,60 @@ function isClerkConfigured(): boolean {
     !key.includes('YOUR_KEY')
 }
 
+/**
+ * Dev/testing bypass for the Clerk sign-in gate.
+ *
+ * The sign-in requirement exists so multiple users can each keep their own
+ * games (ownership / visibility). For local single-user play and automated
+ * testing it's just friction. Set `localStorage['jeop3:devAuthBypass'] = 'true'`
+ * on localhost to skip it — useAuth()/useUser() then report a signed-in "Dev"
+ * user, opening every AI gate. Never active outside localhost.
+ */
+const DEV_BYPASS_KEY = 'jeop3:devAuthBypass'
+
+function isLocalDev(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+}
+
+export function isDevAuthBypass(): boolean {
+  if (!isLocalDev()) return false
+  try {
+    return window.localStorage.getItem(DEV_BYPASS_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function enableDevAuthBypass(): void {
+  if (!isLocalDev()) return
+  try {
+    window.localStorage.setItem(DEV_BYPASS_KEY, 'true')
+  } catch {}
+}
+
+export function disableDevAuthBypass(): void {
+  try {
+    window.localStorage.removeItem(DEV_BYPASS_KEY)
+  } catch {}
+}
+
 // Safe wrapper for useAuth - returns defaults when Clerk not configured
 export function useAuth() {
+  if (isDevAuthBypass()) {
+    return {
+      isSignedIn: true,
+      isLoaded: true,
+      userId: 'dev-bypass',
+      sessionId: 'dev',
+      getToken: async () => 'dev-bypass-token',
+      signOut: async () => {
+        disableDevAuthBypass()
+        if (typeof window !== 'undefined') window.location.reload()
+      },
+    }
+  }
+
   if (!isClerkConfigured()) {
     // Clerk not configured - return safe defaults for local development
     return {
@@ -42,6 +94,20 @@ export function useAuth() {
 
 // Safe wrapper for useUser - returns defaults when Clerk not configured
 export function useUser() {
+  if (isDevAuthBypass()) {
+    const devEmail = 'dev@localhost'
+    return {
+      isLoaded: true,
+      user: {
+        id: 'dev-bypass',
+        firstName: 'Dev',
+        fullName: 'Dev Tester',
+        emailAddresses: [{ emailAddress: devEmail }],
+        primaryEmailAddress: { emailAddress: devEmail },
+      } as any,
+    }
+  }
+
   if (!isClerkConfigured()) {
     return {
       isLoaded: true,
