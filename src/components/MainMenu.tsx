@@ -738,6 +738,17 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         // Collect all successful results and track failures
         const failedSources: Array<{ source: CustomSource; error: string }> = [];
 
+        // Spans run SEQUENTIALLY so each span's `existingAnswers` (below) sees
+        // the prior span's clues — this is what guarantees no answer repeats
+        // across a multi-span game.
+        // TODO(future): span-level parallelism. The true version would be:
+        //   - generate all spans concurrently (existingAnswers = [] each)
+        //   - post-pass cross-span dedup over the merged board
+        //   - regenerate ONLY colliding clues
+        //   - re-judge replacements before the final merge
+        // Skipped for now: most games are single-span (no gain), and this
+        // sequential loop's strong dedup guarantee isn't worth trading away
+        // for a power-user-only speedup (~60s → ~35s for multi-span only).
         for (const source of customSources) {
           const hasContent = (source.type === 'paste' && source.content) ||
                             (source.type === 'url' && source.fetchedContent);
