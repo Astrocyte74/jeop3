@@ -57,6 +57,17 @@ export interface AICategory {
   title: string;
   contentTopic?: string;
   clues: Clue[];
+  /** Source-material text for the category (paste/URL/retrieved content). */
+  sourceMaterial?: string;
+  /** Original URL the sourceMaterial came from (URL mode, Wikipedia retrieval). */
+  sourceUrl?: string;
+  /**
+   * Topic-mode parity provenance: did this category's source come from real
+   * Wikipedia retrieval ('retrieved') or AI fact-sheet synthesis
+   * ('ai_synthesized')? Absent for content-mode categories (which have a real
+   * paste/URL already and don't need this distinction).
+   */
+  sourceType?: 'retrieved' | 'ai_synthesized';
 }
 
 // Game data structure

@@ -798,7 +798,16 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                   authToken: null,
                   onStage: (stage: string) => setWizardStage(stage),
                 });
-                spanCategories = span.categories;
+                // Stamp per-category source-type provenance (retrieved vs
+                // ai_synthesized) onto the category objects so the preview UI
+                // can label grounding honestly.
+                const sourcesByTitle = new Map(
+                  (span.categorySources || []).map(cs => [cs.title.toLowerCase(), cs])
+                );
+                spanCategories = span.categories.map((cat: any) => {
+                  const cs = sourcesByTitle.get((cat.title || '').toLowerCase());
+                  return cs ? { ...cat, sourceType: cs.sourceType, sourceUrl: cs.url } : cat;
+                });
               } catch (topicErr) {
                 console.warn('[MainMenu] Topic pipeline failed, falling back to single-pass:', topicErr);
                 const sourceResult = await aiGenerate('categories-generate', {
