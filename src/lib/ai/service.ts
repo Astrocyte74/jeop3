@@ -333,28 +333,31 @@ export interface CategorySource {
  * Returns null when there's no good match or the fetch fails/thins out — the
  * caller falls back to the AI fact-sheet in that case (see generateTopicSpan).
  *
- * @param query      Category title to ground (e.g. "Julio-Claudians")
- * @param authToken  Optional Clerk auth token
- * @param contextTopic Optional game topic (e.g. "Ancient Rome") used to bias the
- *                     search query so ambiguous titles disambiguate correctly
- *                     ("Roman Gods" the pantheon vs. "Roman Gods" the album).
+ * Relevance is checked at two layers:
+ *   1. Title-level: reject parenthetical disambiguators ("Roman Gods (album)")
+ *      and disambiguation pages — catches cases where the title itself signals
+ *      "not the primary topic".
+ *   2. Content-level: when a game topic is provided, require the article's
+ *      opening summary to share at least one significant word with the topic.
+ *      This catches confident-but-wrong non-disambiguated matches — e.g.
+ *      "Apple" in a "Fruit" game resolving to Apple Inc. (whose lead mentions
+ *      "multinational technology company", not fruit). Without this, a
+ *      primary-topic mismatch has no signal to reject it.
+ *
+ * @param query        Category title to ground (e.g. "Julio-Claudians")
+ * @param authToken    Optional Clerk auth token
+ * @param contextTopic Optional game topic (e.g. "Ancient Rome") used for the
+ *                     content-level relevance check.
  */
 export async function searchAndFetchCategorySource(
   query: string,
   authToken?: string | null,
-  /** Reserved: game topic for future relevance boosting. Currently unused. */
-  _contextTopic?: string
+  contextTopic?: string
 ): Promise<CategorySource | null> {
   const apiBase = getAIApiBase();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
 
-  // Search the title alone first — OpenSearch ranks the primary topic highest
-  // when one exists (e.g. "Julio-Claudian dynasty" for "Julio-Claudians"). We
-  // deliberately do NOT prefix with the game topic: that over-restricts the
-  // query and causes good matches to miss. Instead, ambiguous titles that
-  // resolve to the wrong article (e.g. "Roman Gods" → an album) are caught by
-  // the relevance check below, and the caller falls back to the fact-sheet.
   try {
     // 1. OpenSearch for the best article title.
     const sr = await fetch(`${apiBase}/search-wikipedia`, {
@@ -366,11 +369,10 @@ export async function searchAndFetchCategorySource(
     if (!results.length || !results[0]?.url) return null;
     const top = results[0];
 
-    // 2. Relevance guard using Wikipedia's own disambiguation conventions.
-    //    A parenthetical in the article title ("Roman Gods (album)",
-    //    "Mercury (planet)") means this is NOT the primary topic — the query
-    //    likely intended something else, so reject and let the fact-sheet
-    //    handle it. Disambiguation pages are rejected outright.
+    // 2. Title-level relevance guard. A parenthetical in the article title
+    //    ("Roman Gods (album)", "Mercury (planet)") means this is NOT the
+    //    primary topic — the query likely intended something else, so reject
+    //    and let the fact-sheet handle it. Disambiguation pages rejected too.
     const topTitle = top.title || '';
     const queryHasParen = /[()]/.test(query);
     const hasParenDisambig = !queryHasParen && /\(/.test(topTitle);
@@ -385,6 +387,35 @@ export async function searchAndFetchCategorySource(
     const fdata = await fr.json();
     // Reject thin extracts — too short to mine for 5 specific answers.
     if (typeof fdata?.text !== 'string' || fdata.text.length < 400) return null;
+
+    // 4. Content-level relevance guard, scoped to SHORT/AMBIGUOUS queries only.
+    //    For specific multi-word queries ("Julio-Claudians") the title-level
+    //    guards above are sufficient — the article is almost certainly about
+    //    that exact thing. The content guard only kicks in when the query is a
+    //    short, common-word title ("Apple", "Mercury", "Jupiter") that has
+    //    many senses and whose primary Wikipedia topic may be the wrong one.
+    //    In that case, require the game topic's significant words to appear in
+    //    the article's lead — so "Apple" + "Fruit" rejects Apple Inc. (whose
+    //    lead mentions "technology company", not fruit), while "Apple" +
+    //    "Tech Companies" accepts it.
+    const queryWords = query.toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
+    // Only single-common-word queries ("Apple", "Jupiter", "Mercury") get the
+    // content check — these are the ones with wrong-sense primary-topic risk.
+    // Multi-word queries ("Julio-Claudians", "Roman Gods") are specific enough
+    // that the title-level guard suffices, and content overlap is fragile
+    // (stemming/plurals) — false rejections here would send good categories to
+    // the weaker fact-sheet, which is worse than accepting the right article.
+    const isAmbiguous = queryWords.length === 1;
+    if (isAmbiguous && contextTopic && contextTopic.trim() && contextTopic.toLowerCase() !== 'random') {
+      const lead = fdata.text.slice(0, 600).toLowerCase();
+      const topicWords = contextTopic.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
+        .filter(w => w.length > 3);
+      const overlaps = topicWords.some(w => lead.includes(w));
+      if (!overlaps) return null;
+    }
+
     return { text: fdata.text, title: top.title || query, url: top.url! };
   } catch {
     return null; // caller falls back to fact-sheet

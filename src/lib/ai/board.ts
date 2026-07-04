@@ -240,7 +240,7 @@ export async function generateTopicSpan(
   //    categories within one span don't.)
   onStage?.('Researching categories…');
   const retrieved = await Promise.all(
-    catTitles.map(title => searchAndFetchCategorySource(title, authToken))
+    catTitles.map(title => searchAndFetchCategorySource(title, authToken, topic))
   );
   const sections: Array<{ title: string; body: string }> = [];
   // categorySources is finalized after synthesis — a category's sourceType is
