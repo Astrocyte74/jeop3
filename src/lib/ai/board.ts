@@ -232,22 +232,29 @@ export async function generateTopicSpan(
     ? titles.slice(0, count)
     : Array.from({ length: count }, (_, i) => `${topic} ${i + 1}`);
 
-  // 1. Per-category retrieval (Wikipedia). Fall back to fact-sheet per-title.
+  // 1. Per-category retrieval (Wikipedia). The fetches are independent HTTP
+  //    calls with no cross-category dependency, so run them in parallel — this
+  //    cuts ~2-3s off a 6-category game vs sequential awaits. Map back to
+  //    category order afterwards. (Distinct from cross-span parallelism, which
+  //    we correctly defer: spans share an existingAnswers dedup chain;
+  //    categories within one span don't.)
+  onStage?.('Researching categories…');
+  const retrieved = await Promise.all(
+    catTitles.map(title => searchAndFetchCategorySource(title, authToken))
+  );
   const sections: Array<{ title: string; body: string }> = [];
   const categorySources: ContentSpanResult['categorySources'] = [];
   const needFactSheet: string[] = [];
-
-  for (const title of catTitles) {
-    onStage?.(`Researching ${title}…`);
-    const retrieved = await searchAndFetchCategorySource(title, authToken);
-    if (retrieved) {
-      sections.push({ title, body: retrieved.text });
-      categorySources.push({ title, sourceType: 'retrieved', url: retrieved.url });
+  catTitles.forEach((title, i) => {
+    const r = retrieved[i];
+    if (r) {
+      sections.push({ title, body: r.text });
+      categorySources.push({ title, sourceType: 'retrieved', url: r.url });
     } else {
       needFactSheet.push(title);
       categorySources.push({ title, sourceType: 'ai_synthesized' });
     }
-  }
+  });
 
   // 2. AI fact-sheet fallback for any categories retrieval couldn't ground.
   if (needFactSheet.length) {
