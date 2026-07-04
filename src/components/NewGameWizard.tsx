@@ -281,6 +281,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [currentSourceType, setCurrentSourceType] = useState<'topic' | 'paste' | 'url'>('topic');
   const [currentSourceContent, setCurrentSourceContent] = useState('');
   const [currentSourceCategoryCount, setCurrentSourceCategoryCount] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+  // Edit-in-place: when set, the rail edits this existing span (Save in place)
+  // instead of authoring a new one. Width + type are locked while editing.
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
+  // Stash in-progress input on edit-enter so it's restored on Save/Cancel —
+  // never silently discard a typed topic or a pasted article.
+  const pendingInputRef = useRef<{ type: 'topic' | 'paste' | 'url'; content: string; count: 1 | 2 | 3 | 4 | 5 | 6 } | null>(null);
   const [fetchError, setFetchError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
@@ -492,6 +498,74 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     return true;
   };
 
+  // ==================== Edit-in-place (board ↔ rail two-way) ====================
+  const enterEditMode = (sourceId: string) => {
+    const source = customSources.find(s => s.id === sourceId);
+    if (!source) return;
+    pendingInputRef.current = {
+      type: currentSourceType,
+      content: currentSourceContent,
+      count: currentSourceCategoryCount,
+    };
+    setCurrentSourceType(source.type);
+    setCurrentSourceContent(
+      source.type === 'topic' ? (source.topic ?? '')
+        : source.type === 'url' ? (source.url ?? '')
+        : (source.content ?? '')
+    );
+    setCurrentSourceCategoryCount(source.categoryCount as 1 | 2 | 3 | 4 | 5 | 6);
+    setSourceInputError('');
+    setFetchError('');
+    setSuccessMessage('');
+    setEditingSourceId(sourceId);
+    setTimeout(() => (source.type === 'paste' ? textareaRef : inputRef).current?.focus(), 0);
+  };
+
+  const exitEditMode = (restore: boolean) => {
+    const stash = pendingInputRef.current;
+    setEditingSourceId(null);
+    pendingInputRef.current = null;
+    if (restore && stash) {
+      setCurrentSourceType(stash.type);
+      setCurrentSourceContent(stash.content);
+      setCurrentSourceCategoryCount(stash.count);
+    } else {
+      resetCurrentSource();
+    }
+  };
+
+  // Save content edits back to the span in place. Type + width are locked during
+  // edit, so only the content field changes (URL re-fetches only if it changed).
+  const saveSourceEdit = async () => {
+    const id = editingSourceId;
+    if (!id || !validateCurrentSource()) return;
+    const source = customSources.find(s => s.id === id);
+    if (currentSourceType === 'url') {
+      const newUrl = currentSourceContent.trim();
+      if (source && newUrl === source.url) { exitEditMode(true); return; } // unchanged
+      setIsFetching(true); setFetchError('');
+      try {
+        const authToken = await getToken().catch(() => null);
+        const result = await fetchArticleContent(newUrl, authToken);
+        if (!result.success || !result.text) {
+          setFetchError(result.error || 'Failed to fetch content from URL');
+          return;
+        }
+        setCustomSources(prev => prev.map(s => s.id === id ? { ...s, url: newUrl, fetchedContent: result.text } : s));
+      } catch (err) {
+        setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
+        return;
+      } finally {
+        setIsFetching(false);
+      }
+    } else if (currentSourceType === 'topic') {
+      setCustomSources(prev => prev.map(s => s.id === id ? { ...s, topic: currentSourceContent.trim() } : s));
+    } else {
+      setCustomSources(prev => prev.map(s => s.id === id ? { ...s, content: currentSourceContent.trim() } : s));
+    }
+    exitEditMode(true);
+  };
+
   // ==================== Navigation ====================
   const handleBack = () => {
     switch (currentStep) {
@@ -666,7 +740,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // shimmer until added.
   const draftInput = currentSourceContent.trim();
   const typedDraftUnit: DraftUnit | null =
-    currentStep === 'liveboard' && currentSourceType === 'topic' && draftInput.length >= 3 && getRemainingCategories() > 0
+    !editingSourceId && currentStep === 'liveboard' && currentSourceType === 'topic' && draftInput.length >= 3 && getRemainingCategories() > 0
       ? buildDraftUnit(draftInput, undefined, Math.min(currentSourceCategoryCount, getRemainingCategories()))
       : null;
 
@@ -832,6 +906,18 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const nextColStart = getTotalCategoryCount() + 1;
   const nextColEnd = nextColStart + Math.min(currentSourceCategoryCount, Math.max(1, getRemainingCategories())) - 1;
   const spanRangeLabel = nextColStart === nextColEnd ? `Column ${nextColStart}` : `Columns ${nextColStart}–${nextColEnd}`;
+
+  // Column range of the span currently being edited (for the "Editing Cols X–Y" header).
+  const editingRangeLabel = (() => {
+    if (!editingSourceId) return '';
+    let cursor = 1;
+    for (const s of customSources) {
+      const end = cursor + s.categoryCount - 1;
+      if (s.id === editingSourceId) return cursor === end ? `Col ${cursor}` : `Cols ${cursor}–${end}`;
+      cursor = end + 1;
+    }
+    return '';
+  })();
 
   // Game title grows as column topics are added (theme always wins; the final
   // polished title is still AI-generated at Generate time).
@@ -1127,16 +1213,16 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               <div className={currentStep === 'liveboard' ? 'lg:grid lg:grid-cols-[minmax(320px,400px)_minmax(0,1fr)] lg:gap-7 lg:items-stretch lg:h-full lg:min-h-0' : ''}>
               <div className={`space-y-6 ${currentStep === 'liveboard' ? 'lg:overflow-y-auto lg:min-h-0 lg:pr-2 lg:-mr-2' : ''}`}>
                 {/* ==================== SPAN EDITOR (columns first) ==================== */}
-                {getRemainingCategories() > 0 ? (
+                {(getRemainingCategories() > 0 || editingSourceId) ? (
                 <>
                 {/* Which columns this content will fill — the starting point */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Now filling</Label>
-                    <span className="font-board text-sm uppercase tracking-wider text-yellow-400">{spanRangeLabel}</span>
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{editingSourceId ? 'Editing' : 'Now filling'}</Label>
+                    <span className="font-board text-sm uppercase tracking-wider text-yellow-400">{editingSourceId ? editingRangeLabel : spanRangeLabel}</span>
                   </div>
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/40 px-3 py-1.5">
+                    <div className={`flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/40 px-3 py-1.5 ${editingSourceId ? 'opacity-40 pointer-events-none' : ''}`}>
                       <button
                         type="button"
                         onClick={() => setCurrentSourceCategoryCount(Math.max(1, currentSourceCategoryCount - 1) as 1 | 2 | 3 | 4 | 5 | 6)}
@@ -1157,7 +1243,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       <button
                         type="button"
                         onClick={() => setCurrentSourceCategoryCount(getRemainingCategories() as 1 | 2 | 3 | 4 | 5 | 6)}
-                        className="text-xs font-semibold text-yellow-500/80 hover:text-yellow-400"
+                        disabled={!!editingSourceId}
+                        className="text-xs font-semibold text-yellow-500/80 hover:text-yellow-400 disabled:opacity-40"
                       >
                         All {getRemainingCategories()}
                       </button>
@@ -1173,7 +1260,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 {/* What fills them */}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Fill with</Label>
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className={`grid grid-cols-3 gap-2.5 ${editingSourceId ? 'opacity-40 pointer-events-none' : ''}`}>
                     {([
                       { type: 'topic', Icon: Zap, label: 'Topic', sub: 'Any subject', grad: 'from-purple-500/25 to-purple-500/5', ring: 'border-purple-500', on: 'text-purple-300' },
                       { type: 'paste', Icon: FileText, label: 'Paste', sub: 'Notes, articles', grad: 'from-blue-500/25 to-blue-500/5', ring: 'border-blue-500', on: 'text-blue-300' },
@@ -1243,7 +1330,28 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   {successMessage && <p className="text-sm text-green-400">{successMessage}</p>}
                 </div>
 
-                {/* Fill the span */}
+                {/* Fill the span / Save edit */}
+                {editingSourceId ? (
+                  <div className="flex gap-2 w-full">
+                    <Button
+                      type="button"
+                      onClick={() => void saveSourceEdit()}
+                      disabled={!currentSourceContent.trim() || isFetching}
+                      className="flex-1 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold shadow-lg shadow-yellow-500/20"
+                    >
+                      <Check className="w-4 h-4 mr-1.5" /> Save changes
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => exitEditMode(true)}
+                      disabled={isFetching}
+                      className="text-slate-400 hover:text-slate-200 px-3"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                ) : (
                 <Button
                   type="button"
                   onClick={() => void addCurrentSource()}
@@ -1253,6 +1361,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 >
                   <Plus className="w-4 h-4 mr-1.5" /> Fill {spanRangeLabel.toLowerCase()}
                 </Button>
+                )}
                 </>
                 ) : (
                   <div className="flex items-center gap-2.5 rounded-xl border border-green-600/40 bg-green-500/10 p-3 text-sm text-green-300">
@@ -1278,7 +1387,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         const end = colStart + source.categoryCount - 1;
                         colStart = end + 1;
                         return (
-                          <div key={source.id} className="p-2.5 bg-slate-800/40 border border-slate-700/70 rounded-xl flex items-center gap-3">
+                          <div key={source.id} onClick={() => { if (!editingSourceId) enterEditMode(source.id); }} className={`p-2.5 bg-slate-800/40 border rounded-xl flex items-center gap-3 cursor-pointer hover:border-slate-600 ${editingSourceId === source.id ? 'border-yellow-500 ring-2 ring-yellow-500/30' : 'border-slate-700/70'}`}>
                             <span className="font-board text-[11px] uppercase tracking-wider text-yellow-500/90 bg-slate-900/60 rounded-md px-2 py-1.5 flex-shrink-0">
                               {start === end ? `Col ${start}` : `${start}–${end}`}
                             </span>
@@ -1292,7 +1401,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                 {source.type === 'topic' ? source.topic : source.type === 'paste' ? 'Pasted content' : source.url}
                               </div>
                             </div>
-                            <button type="button" onClick={() => handleRemoveSource(source.id)} className="text-slate-500 hover:text-red-400 p-1.5 rounded-md hover:bg-red-500/10" aria-label="Remove from board">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleRemoveSource(source.id); }} className="text-slate-500 hover:text-red-400 p-1.5 rounded-md hover:bg-red-500/10" aria-label="Remove from board">
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
@@ -1388,7 +1497,10 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                             {span.columns.map((col) => (
                               <div
                                 key={`head-${col.key}`}
+                                onClick={() => { if (!editingSourceId && span.state === 'added' && spanSource) enterEditMode(spanSource.id); }}
                                 className={`relative group h-[70px] rounded-md flex items-center justify-center text-center px-1.5 py-2 ${
+                                  span.state === 'added' && spanSource ? 'cursor-pointer hover:ring-2 hover:ring-yellow-400/50' : ''
+                                } ${spanSource && editingSourceId === spanSource.id ? 'ring-2 ring-yellow-400' : ''} ${
                                   col.state === 'added'
                                     ? 'bg-gradient-to-b from-[#13289f] to-[#0c1b74] border border-white/10 shadow-[inset_0_0_0_1px_rgba(0,0,30,0.4)]'
                                     : col.state === 'draft'
@@ -1413,7 +1525,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                 {col.name && col.unitKey !== undefined && col.idx !== undefined && (
                                   <button
                                     type="button"
-                                    onClick={() => void rerollDraftName(col.unitKey!, col.idx!, col.key)}
+                                    onClick={(e) => { e.stopPropagation(); void rerollDraftName(col.unitKey!, col.idx!, col.key); }}
                                     disabled={rerollingColKey !== null}
                                     title="Reroll this category title"
                                     aria-label="Reroll this category title"
