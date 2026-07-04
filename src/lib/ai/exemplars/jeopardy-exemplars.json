@@ -1,0 +1,1722 @@
+{
+  "source": "Curated from public Jeopardy! clue transcripts (jwolle1/jeopardy_clue_dataset, seasons 35-41)",
+  "count": 286,
+  "exemplars": [
+    {
+      "category": "AT 35",
+      "value": 200,
+      "clue": "At 35 he was elected to the Senate from Massachusetts; later he became the 35th president",
+      "response": "JFK"
+    },
+    {
+      "category": "COME UP TO THE LAB",
+      "value": 400,
+      "clue": "In 1945 more than 5,000 people lived at the top secret lab in this town in New Mexico",
+      "response": "Los Alamos"
+    },
+    {
+      "category": "THIS & THAT",
+      "value": 200,
+      "clue": "This landmark in Wiltshire, England was built in several stages over about 1,500 years",
+      "response": "Stonehenge"
+    },
+    {
+      "category": "FRIEND LIKE ME",
+      "value": 1000,
+      "clue": "Elizabeth Cady Stanton wrote a celebratory poem for the 80th birthday of this \"life-long friend\" & fellow crusader",
+      "response": "Susan B. Anthony"
+    },
+    {
+      "category": "POP CULTURE POPS",
+      "value": 1000,
+      "clue": "In \"Four Christmases\" Robert Duvall is this actor's not exactly warm & fuzzy papa",
+      "response": "Vince Vaughn"
+    },
+    {
+      "category": "AUTOBIOGRAPHIES",
+      "value": 400,
+      "clue": "A sad moment in his autobiography is the death of his little boy, Kit Carson Cody",
+      "response": "Buffalo Bill"
+    },
+    {
+      "category": "TV GUIDE MAGAZINE 65th ANNIVERSARY",
+      "value": 400,
+      "clue": "In 1974 TV Guide went with a cover from this show about a family beloved from books",
+      "response": "Little House on the Prairie"
+    },
+    {
+      "category": "DISNEY SONGS",
+      "value": 200,
+      "clue": "This wonderful Swahili phrase means \"no worries for the rest of your days\\\"",
+      "response": "hakuna matata"
+    },
+    {
+      "category": "ARTS & CULTURE",
+      "value": 400,
+      "clue": "Humperdinck's opera about these fairy-tale siblings was the first complete opera aired on radio",
+      "response": "Hansel and Gretel"
+    },
+    {
+      "category": "FIDDLER",
+      "value": 200,
+      "clue": "Violinist Isaac Stern helped save this NYC hall from the wrecking ball, & its main auditorium is now named for him",
+      "response": "Carnegie Hall"
+    },
+    {
+      "category": "FUN WITH TEAM NAMES",
+      "value": 400,
+      "clue": "The linguistics dept. at the Univ. of Toronto said this team name is not incorrectly pluralized, as it is a proper noun",
+      "response": "the Maple Leafs"
+    },
+    {
+      "category": "THE MOVIES",
+      "value": 800,
+      "clue": "A Disneyland ride was the basis for this adventure film starring Dwayne Johnson & Emily Blunt",
+      "response": "Jungle Cruise"
+    },
+    {
+      "category": "NEW ENGLAND",
+      "value": 1000,
+      "clue": "This state's House of Representatives includes seats for 3 nonvoting members, including 1 representing the Penobscot nation",
+      "response": "Maine"
+    },
+    {
+      "category": "IN THE MIDDLE",
+      "value": 400,
+      "clue": "In the name of a metropolitan statistical area, it's between Tampa & Clearwater",
+      "response": "St. Petersburg"
+    },
+    {
+      "category": "NOVEL ACTORS",
+      "value": 400,
+      "clue": "In addition to the play \"Picasso at the Lapin Agile\", this wild & crazy guy writes novels like \"The Pleasure of My Company\\\"",
+      "response": "Steve Martin"
+    },
+    {
+      "category": "TALE AS OLD AS TIME",
+      "value": 800,
+      "clue": "In this poetic work pilgrims meet at the Tabard Inn & agree to a storytelling contest as they travel",
+      "response": "The Canterbury Tales"
+    },
+    {
+      "category": "COUNTRY, HIP-HOP & JAZZ",
+      "value": 2000,
+      "clue": "Just out of high school in 1944, this \"Kind of Blue\" trumpeter sat in with a band that had Dizzy Gillespie & Charlie Parker",
+      "response": "Miles Davis"
+    },
+    {
+      "category": "HISTORY",
+      "value": 1000,
+      "clue": "Born in Italy, he helped prep the ships for Columbus' second & third voyagers before setting to sea himself",
+      "response": "Vespucci"
+    },
+    {
+      "category": "QUEEN CONSORT",
+      "value": 800,
+      "clue": "This woman from Aquitaine went from queen consort of France to queen consort of England",
+      "response": "Eleanor"
+    },
+    {
+      "category": "READING",
+      "value": 200,
+      "clue": "Let's investigate how \"A Higher Loyalty\" by this ex-FBI head was a 2018 bestseller before it was even released",
+      "response": "Comey"
+    },
+    {
+      "category": "THE COLD WAR",
+      "value": 800,
+      "clue": "In 1991 the USSR was dissolved & the flag nicknamed this for its 2 symbols was lowered for the last time",
+      "response": "the Hammer and Sickle"
+    },
+    {
+      "category": "DISNEY SONGS",
+      "value": 600,
+      "clue": "\\\"You can bet before we're through, mister I'll make a man out of you\", says a song from this China-set film",
+      "response": "Mulan"
+    },
+    {
+      "category": "LETTER PERFECT",
+      "value": 600,
+      "clue": "The author of \"As I Lay Dying\" added this letter to the family name",
+      "response": "U"
+    },
+    {
+      "category": "CELEBRITIES' FASHION LINES",
+      "value": 600,
+      "clue": "She hit a grand slam with her Eleven athletic apparel",
+      "response": "Venus Williams"
+    },
+    {
+      "category": "7-LETTER WORDS",
+      "value": 800,
+      "clue": "A city in the Czech Republic gives this type of beer its name",
+      "response": "Pilsner"
+    },
+    {
+      "category": "NUMERICAL CINEMA",
+      "value": 800,
+      "clue": "A derelict alien spaceship is stalled out over South Africa",
+      "response": "District 9"
+    },
+    {
+      "category": "RELIGION & SPIRITUALITY BOOKS",
+      "value": 1600,
+      "clue": "This actress' memoir \"Troublemaker\" is subtitled \"Surviving Hollywood and Scientology\\\"",
+      "response": "Leah Remini"
+    },
+    {
+      "category": "UNDER STUDIES",
+      "value": 800,
+      "clue": "The Cloaca Maxima of this city is one of the oldest sewer systems in the world",
+      "response": "Rome"
+    },
+    {
+      "category": "COLLEGES EAST OF THE MISSISSIPPI FROM K TO Q",
+      "value": 800,
+      "clue": "It's about a 50-mile drive from Penn to this other Ivy League school that fits the category",
+      "response": "Princeton"
+    },
+    {
+      "category": "\\\"G\" IS FOR...",
+      "value": 400,
+      "clue": "This Dutch cheese that's named for a port near Rotterdam",
+      "response": "Gouda"
+    },
+    {
+      "category": "SHOW BOATS",
+      "value": 1000,
+      "clue": "The Pacific Princess, exciting & new in 1977",
+      "response": "The Love Boat"
+    },
+    {
+      "category": "VIDEO GAMES",
+      "value": 800,
+      "clue": "In the deluxe edition of the 8th \"Kart\" game named for this plumber, Bowser Jr. & King Boo make appearances",
+      "response": "Mario"
+    },
+    {
+      "category": "\\\"V\"ACATION SPOTS",
+      "value": 800,
+      "clue": "The Trapp Family Lodge in Stowe in this state welcome skiers as well as superfans of \"The Sound of Music\\\"",
+      "response": "Vermont"
+    },
+    {
+      "category": "MARK TWAIN REALLY SAID IT",
+      "value": 800,
+      "clue": "This city is \"the grand old benevolent national asylum for the helpless\\\"",
+      "response": "Washington"
+    },
+    {
+      "category": "STATE SONGS",
+      "value": 200,
+      "clue": "\\\"The skyline piercing Providence, the state house dome so rare\\\"",
+      "response": "Rhode Island"
+    },
+    {
+      "category": "NUMERICAL CINEMA",
+      "value": 400,
+      "clue": "A trio of bachelors cares for a foundling left on their doorstep",
+      "response": "Three Men and a Baby"
+    },
+    {
+      "category": "PARDONER",
+      "value": 400,
+      "clue": "One of the last acts of this president was to pardon his brother Roger for drug offenses",
+      "response": "Bill Clinton"
+    },
+    {
+      "category": "THIS & THAT",
+      "value": 400,
+      "clue": "A giant sculpture of a dead Norwegian blue parrot in London celebrated the 2014 reunion of this comedy troupe",
+      "response": "Monty Python"
+    },
+    {
+      "category": "QUEEN'S CONCERT",
+      "value": 400,
+      "clue": "This lead singer was given \"the biggest sendoff in history\" at the 1992 tribute concert for AIDS awareness",
+      "response": "Freddie Mercury"
+    },
+    {
+      "category": "CHRIS P.",
+      "value": 800,
+      "clue": "The 9 days this actor worked on \"All the Money in the World\" were well spent: he got an Oscar nomination",
+      "response": "Christopher Plummer"
+    },
+    {
+      "category": "MOVIE ROLE, TV ROLE",
+      "value": 400,
+      "clue": "The Oscar-winning role of Sally Hyde in \"Coming Home\" & the Emmy-nominated role of Grace on \"Grace and Frankie\\\"",
+      "response": "Jane Fonda"
+    },
+    {
+      "category": "WORLD HISTORY",
+      "value": 400,
+      "clue": "In 1869 the discovery of diamonds near what became the town of Kimberley in this nation led to quite a rush",
+      "response": "South Africa"
+    },
+    {
+      "category": "RELIGION & SPIRITUALITY BOOKS",
+      "value": 2000,
+      "clue": "\\\"Mere Christianity\" was a non-fiction testament of faith by this novelist of fantastic children's tales",
+      "response": "C.S. Lewis"
+    },
+    {
+      "category": "ONE-SYLLABLE CITIES",
+      "value": 1000,
+      "clue": "A huge Reformation monument stands in this city where Martin Luther stood before the diet in 1521",
+      "response": "Worms"
+    },
+    {
+      "category": "ONE-SYLLABLE CITIES",
+      "value": 600,
+      "clue": "This city on the French Riviera has been hosting its famous film festival for over 70 years",
+      "response": "Cannes"
+    },
+    {
+      "category": "YOUR SIGNIFICANT AUTHOR",
+      "value": 400,
+      "clue": "It was a \"red letter\" day for this author in 1846 as he became surveyor of the custom house in Salem, Mass.",
+      "response": "Hawthorne"
+    },
+    {
+      "category": "NEW ENGLAND",
+      "value": 400,
+      "clue": "Some of Vermont's best farmland is located in this valley that shares its name with a large lake in the region",
+      "response": "Champlain"
+    },
+    {
+      "category": "AUSTRALIAN HISTORY",
+      "value": 400,
+      "clue": "Neville Bonner was the first member of this native Australian group to sit in the federal Parliament",
+      "response": "the Aborigines"
+    },
+    {
+      "category": "FORT NIGHT",
+      "value": 200,
+      "clue": "The 1814 bombardment of this Maryland fort almost made it to a second night, but the flag was still there",
+      "response": "Fort McHenry"
+    },
+    {
+      "category": "FRENCH ARTISTS",
+      "value": 400,
+      "clue": "This painter of \"Water Lilies\" met Renoir when the 2 were students in the same painter's studio",
+      "response": "Monet"
+    },
+    {
+      "category": "NUMERICAL CINEMA",
+      "value": 600,
+      "clue": "A chaste nerd trades his action figures in for chicks",
+      "response": "The 40-Year-Old Virgin"
+    },
+    {
+      "category": "CONTEMPORARIES",
+      "value": 400,
+      "clue": "When Isaac Newton died in 1727, this 21-year-old Philadelphia clerk was still a few years away from taking up science",
+      "response": "Franklin"
+    },
+    {
+      "category": "COUNTRY, HIP-HOP & JAZZ",
+      "value": 800,
+      "clue": "Garth Brooks sang, \"I'm not big on social graces, think I'll slip on down to the oasis, oh I've got friends in\" here",
+      "response": "low places"
+    },
+    {
+      "category": "PARDONER",
+      "value": 800,
+      "clue": "In 2018 Donald Trump pardoned this man, Dick Cheney's chief of staff, who was convicted of perjury",
+      "response": "Scooter Libby"
+    },
+    {
+      "category": "TV GUIDE MAGAZINE 65th ANNIVERSARY",
+      "value": 200,
+      "clue": "In its first issue, TV Guide became an entertainment fixture with a 1953 photo of Desiderio, son of this comedian",
+      "response": "Lucille Ball"
+    },
+    {
+      "category": "AROUND THE CARIBBEAN",
+      "value": 400,
+      "clue": "White sand beaches are an attraction of this \"A\" of the Caribbean's ABC islands",
+      "response": "Aruba"
+    },
+    {
+      "category": "\\\"V\"ACATION SPOTS",
+      "value": 400,
+      "clue": "A town 14 miles southwest of Paris developed around this 17th century palace that tourists flock to",
+      "response": "Versailles"
+    },
+    {
+      "category": "ARTS & CULTURE",
+      "value": 800,
+      "clue": "An annoyed critic wrote of this -ism's 1876 show, \"Trees are not violet...the sky is not the color of fresh butter\\\"",
+      "response": "Impressionism"
+    },
+    {
+      "category": "READING",
+      "value": 400,
+      "clue": "In a Shakespeare adaptation by Jo Nesbø, Duncan is chief of police & this title guy, a devious inspector",
+      "response": "Macbeth"
+    },
+    {
+      "category": "POP CULTURE ADAPTS SHAKESPEARE",
+      "value": 800,
+      "clue": "The 1950s sci-fi classic \"Forbidden Planet\" is based on this play, with Robby the Robot as Ariel",
+      "response": "The Tempest"
+    },
+    {
+      "category": "MAKES SCENTS",
+      "value": 1200,
+      "clue": "Perfumes from this celeb & socialite include Can Can, Dazzle & of course, Heiress",
+      "response": "Paris Hilton"
+    },
+    {
+      "category": "WORDS FROM THE COMICS",
+      "value": 400,
+      "clue": "This character inspired a suit, a collar & shoe with his name",
+      "response": "Buster Brown"
+    },
+    {
+      "category": "SAILING INTO HISTORY",
+      "value": 600,
+      "clue": "It's said to have gotten its famous nickname after British shot bounced off its wooden hull in 1812",
+      "response": "Old Ironsides (or Constitution)"
+    },
+    {
+      "category": "YOUR SIGNIFICANT AUTHOR",
+      "value": 1200,
+      "clue": "The title boy hits a foul ball that kills his friend's mom in \"A Prayer for Owen Meany\" by this novelist",
+      "response": "John Irving"
+    },
+    {
+      "category": "TOYS & GAMES",
+      "value": 200,
+      "clue": "This classic game's Cavity Sam has been given a new ailment: Brain Freeze",
+      "response": "Operation"
+    },
+    {
+      "category": "HISTORY",
+      "value": 600,
+      "clue": "In 1949 the Kuomintang party fled mainland China for this island",
+      "response": "Taiwan"
+    },
+    {
+      "category": "BRICK BY BRICK",
+      "value": 200,
+      "clue": "Using bricks can keep creepers out of your house in this video game",
+      "response": "Minecraft"
+    },
+    {
+      "category": "IN THE MIDDLE",
+      "value": 600,
+      "clue": "Middle name of aviator Francis Powers or filmmaker F. Gray",
+      "response": "Gary"
+    },
+    {
+      "category": "TOMB RAIDER",
+      "value": 800,
+      "clue": "In 1876 the Secret Service foiled a plot to remove this president's remains from his tomb in Springfield, Ill.",
+      "response": "Lincoln"
+    },
+    {
+      "category": "A BABY",
+      "value": 200,
+      "clue": "parents.com recommends using a washcloth & warm water vs. wipes to avoid baby getting this \"rash\\\"",
+      "response": "diaper rash"
+    },
+    {
+      "category": "IN THE MIDDLE",
+      "value": 200,
+      "clue": "If you tally it up in sequence, this Bible book is between Leviticus & Deuteronomy",
+      "response": "Numbers"
+    },
+    {
+      "category": "SPECIFIC GENERAL HISTORY",
+      "value": 800,
+      "clue": "This general got his 5th star in December 1944, but that wouldn't be his last government job",
+      "response": "Eisenhower"
+    },
+    {
+      "category": "MOVIE ROLE, TV ROLE",
+      "value": 400,
+      "clue": "Lucy Whitmore in \"50 First Dates\"; Sheila Hammond on \"Santa Clarita Diet\\\"",
+      "response": "Drew Barrymore"
+    },
+    {
+      "category": "ASTRONOMY",
+      "value": 800,
+      "clue": "The brightest star in the night sky is this binary star in Canis Major",
+      "response": "Sirius"
+    },
+    {
+      "category": "VIDEO GAMES",
+      "value": 400,
+      "clue": "In this sport's \"The Show 18\", Diamond Dynasty mode allows you to build your own team",
+      "response": "MLB (or Major League Baseball)"
+    },
+    {
+      "category": "CAN YOU HEAR ME?",
+      "value": 600,
+      "clue": "Some scientists think the voices heard by this female saint who died in 1431 were caused by epilepsy",
+      "response": "Joan of Arc"
+    },
+    {
+      "category": "BUSINESS",
+      "value": 800,
+      "clue": "In 2007 Forbes reported that this TV personality was \"America's sole black female billionaire\\\"",
+      "response": "Oprah Winfrey"
+    },
+    {
+      "category": "THE COLD WAR",
+      "value": 800,
+      "clue": "In 1960 pilot Francis Gary Powers was shot down over the Soviet Union flying one of these spy planes",
+      "response": "a U-2"
+    },
+    {
+      "category": "I LEARNED IT FROM MENTAL FLOSS",
+      "value": 200,
+      "clue": "Although Bela Lugosi resented the typecasting, he was buried wearing the signature cape of this character",
+      "response": "Count Dracula"
+    },
+    {
+      "category": "ARTS & CULTURE",
+      "value": 1600,
+      "clue": "He had nothing to do with the title, but Aaron Copland said, \"I've begun to see the\" mountains \"myself\" on hearing this piece",
+      "response": "Appalachian Spring"
+    },
+    {
+      "category": "POP CULTURE POPS",
+      "value": 200,
+      "clue": "In 2008's \"Taken\", this actor was a dad who had real problems connecting with his daughter",
+      "response": "Liam Neeson"
+    },
+    {
+      "category": "IT CAN'T GET MUCH WORSE",
+      "value": 400,
+      "clue": "Messina was destroyed in a 1908 earthquake that devastated this Italian island",
+      "response": "Sicily"
+    },
+    {
+      "category": "BAD FOLKS IN BOOKS",
+      "value": 400,
+      "clue": "A burglar, a murderer & a dog beater, Bill Sikes is a true villain in this novel",
+      "response": "Oliver Twist"
+    },
+    {
+      "category": "POETRY",
+      "value": 400,
+      "clue": "This poet wrote \"Adonais\" on the death of his friend John Keats",
+      "response": "Percy Bysshe Shelley"
+    },
+    {
+      "category": "OCTOBER OBSERVANCES",
+      "value": 200,
+      "clue": "The U.K. celebrates this fruit's day on October 21; events include the Longest Peel competition",
+      "response": "Apple Day"
+    },
+    {
+      "category": "THE ONLY PRESCRIPTION",
+      "value": 600,
+      "clue": "The \"Nation\" has learned that this, AKA fluoxetine, can be used to treat OCD & panic attacks",
+      "response": "Prozac"
+    },
+    {
+      "category": "CELEBRITIES' FASHION LINES",
+      "value": 400,
+      "clue": "She named Ivy Park in part for her daughter",
+      "response": "Beyoncé"
+    },
+    {
+      "category": "FAMOUS THREESOMES",
+      "value": 600,
+      "clue": "A legendary love triangle consisted of King Arthur, Queen Guinevere & him",
+      "response": "Lancelot"
+    },
+    {
+      "category": "SHOW BOATS",
+      "value": 800,
+      "clue": "The USS Nathan James, whose crew has survived a global pandemic",
+      "response": "The Last Ship"
+    },
+    {
+      "category": "WHAT'S THAT ON YOUR SHELF?",
+      "value": 1000,
+      "clue": "A bobblehead of this chocolatier & philanthropist—cool giveaway from a Lancaster Barnstormers game",
+      "response": "Milton Hershey"
+    },
+    {
+      "category": "AWARDS & HONORS",
+      "value": 400,
+      "clue": "The inaugural Templeton Prize, for contributions to life's spiritual aspects, was given to this nun in 1973",
+      "response": "Mother Teresa"
+    },
+    {
+      "category": "POTPOURRI",
+      "value": 200,
+      "clue": "In TV commercials Reba McEntire served as this brand's first female Colonel Sanders",
+      "response": "KFC"
+    },
+    {
+      "category": "BRICK BY BRICK",
+      "value": 800,
+      "clue": "This state says it has the first brick-paved street in America—on Summers Street near the Kanawha River in Charleston",
+      "response": "West Virginia"
+    },
+    {
+      "category": "QUEEN'S CONCERT",
+      "value": 2000,
+      "clue": "Named for the prisoner number of this man, the 46664 campaign started with a Queen concert in South Africa",
+      "response": "Mandela"
+    },
+    {
+      "category": "OFFBEAT MUSEUMS",
+      "value": 800,
+      "clue": "Sweet! In Burlingame, Calif. there's a toy museum along with one of the largest types of these candy dispensers",
+      "response": "PEZ"
+    },
+    {
+      "category": "THIS & THAT",
+      "value": 600,
+      "clue": "In 1868 the prestigious winemaking Chateau Lafite was bought by a member of this family",
+      "response": "Rothschild"
+    },
+    {
+      "category": "IN OTTER NEWS",
+      "value": 600,
+      "clue": "The aquarium on Cannery Row in this California city has a sea otter cam & celebrates Sea Otter Week, the last week of Sept.",
+      "response": "Monterey"
+    },
+    {
+      "category": "FORT NIGHT",
+      "value": 400,
+      "clue": "Before this war had even started, Austrians took a Serbian fortress in a midnight attack in July 1914",
+      "response": "World War I"
+    },
+    {
+      "category": "HIS WIDOW LIVED ON",
+      "value": 800,
+      "clue": "This composer died in 1791; his widow Constanze lived until 1842 & there are even purported photos of her",
+      "response": "Mozart"
+    },
+    {
+      "category": "FRIEND LIKE ME",
+      "value": 400,
+      "clue": "This physicist wrote a foreword to the bio of his German pal Emanuel Lasker, world chess champ from 1896 to 1921",
+      "response": "Einstein"
+    },
+    {
+      "category": "VACATION SPOTS",
+      "value": 400,
+      "clue": "Mahalia Jackson & Duke Ellington headlined the first edition of this southern city's famed Jazz Fest in 1970",
+      "response": "New Orleans"
+    },
+    {
+      "category": "COMPAN\"EE\"S",
+      "value": 600,
+      "clue": "This chain's first drugstore opened in Chicago in 1901",
+      "response": "Walgreens"
+    },
+    {
+      "category": "NEON",
+      "value": 1600,
+      "clue": "George Benson reminded us in song that \"they say the neon lights are bright on\" this thoroughfare",
+      "response": "Broadway"
+    },
+    {
+      "category": "IN OTTER NEWS",
+      "value": 200,
+      "clue": "As an otter uses its tail to steer, the tail is called this, just like a ship's steering device",
+      "response": "a rudder"
+    },
+    {
+      "category": "AUTOBIOGRAPHIES",
+      "value": 800,
+      "clue": "The title of this Pulitzer-winning memoir refers to Frank McCourt's memory of his mom staring into an unlit fireplace",
+      "response": "Angela's Ashes"
+    },
+    {
+      "category": "I LEARNED IT FROM MENTAL FLOSS",
+      "value": 200,
+      "clue": "This 19th c. pres. was a champion wrestler who only lost 1 match, to another soldier in the Illinois volunteer militia",
+      "response": "Abraham Lincoln"
+    },
+    {
+      "category": "MULTI-WORD CAPITAL CITIES",
+      "value": 400,
+      "clue": "With a name meaning \"new flower\", this city replaced Entoto as the capital of Ethiopia in 1887",
+      "response": "Addis Ababa"
+    },
+    {
+      "category": "PAINTED LADIES",
+      "value": 800,
+      "clue": "Around 1875 he painted \"Dancers Preparing for the Ballet\\\"",
+      "response": "Degas"
+    },
+    {
+      "category": "BRICK BY BRICK",
+      "value": 600,
+      "clue": "This Lionel Richie group sang, \"She's a brick house, yeah, she's the one, the only one, built like an Amazon\\\"",
+      "response": "The Commodores"
+    },
+    {
+      "category": "\\\"A\", BABY!",
+      "value": 1000,
+      "clue": "This score assesses a newborn baby's health by measuring 5 signs; a score of 10 is perfect",
+      "response": "Apgar"
+    },
+    {
+      "category": "NOVEL ACTORS",
+      "value": 800,
+      "clue": "Lorelai from \"Gilmore Girls\", she's had 3 books hit the New York Times bestsellers list, one a novel",
+      "response": "Lauren Graham"
+    },
+    {
+      "category": "THE TELEVISION ACADEMY HALL OF FAME",
+      "value": 400,
+      "clue": "The first \"Seinfeld\" star to be inducted, she was part of the class of 2014",
+      "response": "(Julia Louis-)Dreyfus"
+    },
+    {
+      "category": "OCTOBER OBSERVANCES",
+      "value": 800,
+      "clue": "The invention of this language's alphabet by King Sejong on Oct. 8, 1446 is observed annually",
+      "response": "Korean"
+    },
+    {
+      "category": "TV CRIMESOLVERS",
+      "value": 1000,
+      "clue": "This alliterative Oscar-winning actress was our \"Saving Grace\" from 2007 to 2010",
+      "response": "Holly Hunter"
+    },
+    {
+      "category": "AWARDS & HONORS",
+      "value": 400,
+      "clue": "In 1895 he received the Rumford Prize for his work in electric lighting",
+      "response": "Edison"
+    },
+    {
+      "category": "FUN WITH TEAM NAMES",
+      "value": 1000,
+      "clue": "This city's NBA & NFL teams run the full gamut of stock market animals",
+      "response": "Chicago"
+    },
+    {
+      "category": "NO FILTER",
+      "value": 400,
+      "clue": "These used to come unfiltered, but the Kent Micronite got one in '52...y'know, for your health! Except it also had asbestos!",
+      "response": "a cigarette"
+    },
+    {
+      "category": "LARGEST CITIES",
+      "value": 1200,
+      "clue": "The largest city in southern Germany, it's also the largest city & capital of Bavaria",
+      "response": "Munich"
+    },
+    {
+      "category": "US OPEN 50 YEARS",
+      "value": 600,
+      "clue": "With a powerful style of play, she won the women's singles in the 1990s, 2000s & 2010s, the only player to do so",
+      "response": "Serena Williams"
+    },
+    {
+      "category": "CONTEMPORARIES",
+      "value": 800,
+      "clue": "In 1824 the House of Reps picked John Quincy Adams as president &, further south, this man chose himself as dictator of Peru",
+      "response": "Simón Bolívar"
+    },
+    {
+      "category": "FORT NIGHT",
+      "value": 600,
+      "clue": "In 1756 only 23 of the 146 British soldiers survived the night in the \"black hole\" of Fort William in this Indian city",
+      "response": "Calcutta"
+    },
+    {
+      "category": "AUSTRALIAN HISTORY",
+      "value": 800,
+      "clue": "A memorial in Canberra honors the 50,000 Aussies who served in this conflict in the 1960s & '70s",
+      "response": "Vietnam"
+    },
+    {
+      "category": "SCIENCE AROUND US",
+      "value": 800,
+      "clue": "Many invertebrates comprising this 1,400-mile structure off Australia died in 2016",
+      "response": "the Great Barrier Reef"
+    },
+    {
+      "category": "OCTOBER OBSERVANCES",
+      "value": 400,
+      "clue": "In tribute to this man, the U.N. declared his birthday, October 2, International Day of Non-Violence",
+      "response": "(Mohandas) Gandhi"
+    },
+    {
+      "category": "TOYS & GAMES",
+      "value": 800,
+      "clue": "What could be more fun than this game featuring plastic simians? Hasbro suggests 2 casks or more are even better",
+      "response": "Barrel of Monkeys"
+    },
+    {
+      "category": "IT CAN'T GET MUCH WORSE",
+      "value": 1000,
+      "clue": "In 1989 this hurricane that followed Gabrielle caused $3 billion in damage to Charleston",
+      "response": "Hugo"
+    },
+    {
+      "category": "I'M ALLEN",
+      "value": 600,
+      "clue": "In 1844 Macon Allen became the first black one of these professionals in the U.S. & later, first black justice of the peace",
+      "response": "an attorney (or lawyer)"
+    },
+    {
+      "category": "AUTHORS BORN & DIED",
+      "value": 400,
+      "clue": "Born in \"a little house in the big woods\" of Wisconsin in 1867, died in Missouri in 1957",
+      "response": "(Laura Ingalls) Wilder"
+    },
+    {
+      "category": "SCIENCE AROUND US",
+      "value": 1000,
+      "clue": "This man's scale is based on the logarithm of the amplitude of the largest seismic wave in an earthquake",
+      "response": "Richter"
+    },
+    {
+      "category": "STATE CAPITAL NEWSPAPERS",
+      "value": 400,
+      "clue": "From 1843 to 1988 it had the Knickerbocker News; it still has the Times Union",
+      "response": "Albany"
+    },
+    {
+      "category": "WORDS FROM THE COMICS",
+      "value": 1000,
+      "clue": "Lockheed Martin adopted the name \"Skunk Works\" from a similar name for a backwoods still in this comic strip",
+      "response": "Li'l Abner"
+    },
+    {
+      "category": "QUEEN'S CONCERT",
+      "value": 800,
+      "clue": "Queen stole the show at this July 1985 worldwide concert",
+      "response": "Live Aid"
+    },
+    {
+      "category": "COUNTRY, HIP-HOP & JAZZ",
+      "value": 400,
+      "clue": "In 1951 this jazz master released the album \"Satchmo at Symphony Hall\\\"",
+      "response": "Louis Armstrong"
+    },
+    {
+      "category": "IN OTTER NEWS",
+      "value": 800,
+      "clue": "Here are some of the colorful characters from this brand",
+      "response": "Otter Pops"
+    },
+    {
+      "category": "WORDS FROM THE COMICS",
+      "value": 600,
+      "clue": "This 2-word name for a rich benefactor comes from a \"Little Orphan Annie\" character",
+      "response": "Daddy Warbucks"
+    },
+    {
+      "category": "POETRY",
+      "value": 800,
+      "clue": "Sara Teasdale mentions Lesbos in her poem named for this other female poet",
+      "response": "Sappho"
+    },
+    {
+      "category": "FIRST LADIES",
+      "value": 400,
+      "clue": "In a 2019 memoir Carly Simon wrote about her friendship with this first lady, whom she first met on Martha's Vineyard",
+      "response": "Jacqueline Kennedy"
+    },
+    {
+      "category": "TV CRIMESOLVERS",
+      "value": 800,
+      "clue": "MeTV stated that a \"roller disco scene\" on this Erik Estrada cop show \"is the most 1970s moment in 1970s television\\\"",
+      "response": "CHiPs"
+    },
+    {
+      "category": "HISTORY",
+      "value": 800,
+      "clue": "The first capital of California following American occupation in 1846 was this city, today the \"capital\" of Silicon Valley",
+      "response": "San Jose"
+    },
+    {
+      "category": "RELIGIOUS LEADERS",
+      "value": 1600,
+      "clue": "In 1996, he formally retired as archbishop of Cape Town",
+      "response": "(Desmond) Tutu"
+    },
+    {
+      "category": "WORLD HISTORY",
+      "value": 600,
+      "clue": "A church in Greenland dating from around 1000 A.D. is named for Thjodhild, wife & mom of these 2 famous explorers",
+      "response": "Erik and Leif Erikson"
+    },
+    {
+      "category": "SPECIFIC GENERAL HISTORY",
+      "value": 1600,
+      "clue": "In March 2018 this 3-star general advised the nation he'd no longer serve as national security advisor",
+      "response": "H.R. McMaster"
+    },
+    {
+      "category": "UNDER STUDIES",
+      "value": 400,
+      "clue": "Phycology is the study of this very common type of underwater plant",
+      "response": "seaweed (or algae)"
+    },
+    {
+      "category": "JUST FOR REFERENCE",
+      "value": 800,
+      "clue": "This music trade magazine that dates back to 1894 has an online database of historical record charts",
+      "response": "Billboard"
+    },
+    {
+      "category": "LARGEST CITIES",
+      "value": 400,
+      "clue": "The largest cities in Maine & Oregon share this name",
+      "response": "Portland"
+    },
+    {
+      "category": "COMPAN\"EE\"S",
+      "value": 400,
+      "clue": "A 1995 merger added \"Martin\" to the name of this aerospace company",
+      "response": "Lockheed"
+    },
+    {
+      "category": "THE TELEVISION ACADEMY HALL OF FAME",
+      "value": 1600,
+      "clue": "This late writer, director, producer & actor was inducted into the Hall in 1997",
+      "response": "Garry Marshall"
+    },
+    {
+      "category": "MOVIE ROLE, TV ROLE",
+      "value": 200,
+      "clue": "The genie in 2019's \"Aladdin\" & \"The Fresh Prince of Bel-Air\\\"",
+      "response": "Will Smith"
+    },
+    {
+      "category": "THE TELEVISION ACADEMY HALL OF FAME",
+      "value": 800,
+      "clue": "The class of 2017 included the original 7-member cast of this show that debuted on NBC in 1975",
+      "response": "SNL or Saturday Night Live"
+    },
+    {
+      "category": "U.S. HISTORY",
+      "value": 600,
+      "clue": "In 1817, Congress divided a territory that became these two states that are practically mirror images of each other",
+      "response": "Alabama and Mississippi"
+    },
+    {
+      "category": "AROUND THE CARIBBEAN",
+      "value": 800,
+      "clue": "The Windward Passage separates Haiti from this country to the northwest",
+      "response": "Cuba"
+    },
+    {
+      "category": "7-LETTER WORDS",
+      "value": 200,
+      "clue": "Named for its inventor, it's a brand of hot tub with underwater jets",
+      "response": "Jacuzzi"
+    },
+    {
+      "category": "MULTI-WORD CAPITAL CITIES",
+      "value": 200,
+      "clue": "San Jose in this Central American nation is home to John F. Kennedy Park, memorializing his visit to the country in 1963",
+      "response": "Costa Rica"
+    },
+    {
+      "category": "PARDONER",
+      "value": 2000,
+      "clue": "This politician refused to ask for a pardon in 1881; one was granted by Jimmy Carter nearly 100 years later",
+      "response": "Jefferson Davis"
+    },
+    {
+      "category": "STATE SONGS",
+      "value": 400,
+      "clue": "This state's song is about its flag, \"The Simple Flag Of A Last Frontier\\\"",
+      "response": "Alaska"
+    },
+    {
+      "category": "STATE SONGS",
+      "value": 200,
+      "clue": "The third verse of this state's song begins, \"I love your old gray missions, love your vineyards stretching far\\\"",
+      "response": "California"
+    },
+    {
+      "category": "TERMS IN HISTORY",
+      "value": 200,
+      "clue": "The South African War, fought from 1899 to 1902, was also known as this war or the Anglo-this war",
+      "response": "the Boer War"
+    },
+    {
+      "category": "NEW ENGLAND",
+      "value": 200,
+      "clue": "\\\"The Hub of the Universe\", it's the largest city in New England",
+      "response": "Boston"
+    },
+    {
+      "category": "DISNEY SONGS",
+      "value": 400,
+      "clue": "A song in \"101 Dalmatians\" says if this villainess \"doesn't scare you, no evil thing will\\\"",
+      "response": "Cruella de Vil"
+    },
+    {
+      "category": "FRENCH ARTISTS",
+      "value": 800,
+      "clue": "Ingres & David both worked in this \"new\" style based on antiquity that made use of crisp outlines",
+      "response": "Neoclassicism"
+    },
+    {
+      "category": "NONFICTION",
+      "value": 1000,
+      "clue": "A Hulu miniseries of the same name was based on this Lawrence Wright book subtitled \"Al-Qaeda and the Road to 9/11\\\"",
+      "response": "The Looming Tower"
+    },
+    {
+      "category": "A BIT O' BRIT LIT",
+      "value": 400,
+      "clue": "This 14th century poet created the oft-widowed wife of Bath",
+      "response": "Chaucer"
+    },
+    {
+      "category": "AUTHORS BORN & DIED",
+      "value": 200,
+      "clue": "Born in Connecticut in 1811, she went to that \"cabin\" in the sky July 1, 1896",
+      "response": "(Harriet Beecher) Stowe"
+    },
+    {
+      "category": "PAINTED LADIES",
+      "value": 400,
+      "clue": "His \"Arrangement in Grey and Black, No. 1\" is better known as his \"Mother\\\"",
+      "response": "Whistler"
+    },
+    {
+      "category": "MARK TWAIN REALLY SAID IT",
+      "value": 1600,
+      "clue": "The advantages of riding this big creature include an \"immunity from collisions\" & the fine view one has from up there\\\"",
+      "response": "an elephant"
+    },
+    {
+      "category": "TOMB RAIDER",
+      "value": 400,
+      "clue": "Looted from an Etruscan tomb, the Euphronios Krater was returned to this country in 2008",
+      "response": "Italy"
+    },
+    {
+      "category": "QUEEN CONSORT",
+      "value": 200,
+      "clue": "Catherine of Aragon had a second chance as queen consort when Prince Arthur died—she married this brother",
+      "response": "Henry VIII"
+    },
+    {
+      "category": "ALTERNATIVES TO COACHELLA?",
+      "value": 400,
+      "clue": "This king of Wakanda is the alter ego of the Black Panther",
+      "response": "T'Challa"
+    },
+    {
+      "category": "TALE AS OLD AS TIME",
+      "value": 600,
+      "clue": "This Voltaire title guy rejects Dr. Pangloss' optimism that all is for the best \"in this best of all possible worlds\\\"",
+      "response": "Candide"
+    },
+    {
+      "category": "1973: THE GROOVY & NOT-SO-GROOVY",
+      "value": 400,
+      "clue": "The Washington Post won the 1973 Pulitzer in Public Service \"for its investigation of\" this \"case\\\"",
+      "response": "Watergate"
+    },
+    {
+      "category": "COLLEGES EAST OF THE MISSISSIPPI FROM K TO Q",
+      "value": 400,
+      "clue": "You're always part of the Wolfpack at this Raleigh school",
+      "response": "NC State"
+    },
+    {
+      "category": "BAD FOLKS IN BOOKS",
+      "value": 600,
+      "clue": "Inner party member & torturer O'Brien shows this man the true face of evil in \"Nineteen Eighty-Four\\\"",
+      "response": "Winston Smith"
+    },
+    {
+      "category": "NURSERY RHYMES",
+      "value": 200,
+      "clue": "\\\"All the king's horses, and all the king's men\" couldn't put him \"together again\\\"",
+      "response": "Humpty-Dumpty"
+    },
+    {
+      "category": "PSA MASCOTS",
+      "value": 200,
+      "clue": "Here are Vince & Larry, two of these 3-word guys who helped America use seat belts",
+      "response": "crash test dummies"
+    },
+    {
+      "category": "FRIEND LIKE ME",
+      "value": 600,
+      "clue": "Marilyn Monroe adored this jazz great & helped her get a booking at a Hollywood hot spot",
+      "response": "Ella Fitzgerald"
+    },
+    {
+      "category": "LIVE ENTERTAINMENT",
+      "value": 200,
+      "clue": "A group of street performers in Quebec became this circus troupe that puts on shows like Mystère",
+      "response": "Cirque du Soleil"
+    },
+    {
+      "category": "TOMB RAIDER",
+      "value": 2000,
+      "clue": "In the 1100s B.C. robbing of royal tombs in this ancient Upper Egyptian capital was already a problem",
+      "response": "Thebes"
+    },
+    {
+      "category": "TERMS IN HISTORY",
+      "value": 600,
+      "clue": "These Vikings came from the north of France & their descendants included William the Conqueror",
+      "response": "the Normans"
+    },
+    {
+      "category": "LARGEST CITIES",
+      "value": 800,
+      "clue": "This largest city in Alabama was named for the second largest city in the United Kingdom",
+      "response": "Birmingham"
+    },
+    {
+      "category": "COLLEGES EAST OF THE MISSISSIPPI FROM K TO Q",
+      "value": 1200,
+      "clue": "Neil Armstrong took more than one small step for himself attending this Big Ten university in Indiana",
+      "response": "Purdue"
+    },
+    {
+      "category": "ONE-SYLLABLE CITIES",
+      "value": 400,
+      "clue": "In 2016 a state of emergency was declared over lead contamination in this Michigan city's water",
+      "response": "Flint"
+    },
+    {
+      "category": "FIRST LADIES",
+      "value": 800,
+      "clue": "Her first husband John Todd & their youngest son died during a 1793 yellow fever epidemic in Philadelphia",
+      "response": "Dolley Madison"
+    },
+    {
+      "category": "LETTER PERFECT",
+      "value": 600,
+      "clue": "It's the symbol for the very first element on the periodic table",
+      "response": "H"
+    },
+    {
+      "category": "LITERATURE",
+      "value": 400,
+      "clue": "In a 1923 book by Kahlil Gibran, Almustafa is this mystical title character",
+      "response": "The Prophet"
+    },
+    {
+      "category": "PSA MASCOTS",
+      "value": 800,
+      "clue": "From one of this owl's songs: \"Never be a dirty bird; in the city or in the woods, help keep America looking good\\\"",
+      "response": "Woodsy Owl"
+    },
+    {
+      "category": "ALTERNATIVES TO COACHELLA?",
+      "value": 1600,
+      "clue": "This word precedes \"leopard dog\" in the name of the official pooch of Louisiana",
+      "response": "Catahoula"
+    },
+    {
+      "category": "VIDEO GAMES",
+      "value": 200,
+      "clue": "This company's \"Infinity\" allowed you to play characters from \"The Incredibles\" & \"Cars\", to name a few",
+      "response": "Disney"
+    },
+    {
+      "category": "AT 35",
+      "value": 400,
+      "clue": "He was 35 when he crowned himself emperor in 1804",
+      "response": "Napoleon"
+    },
+    {
+      "category": "JUST FOR REFERENCE",
+      "value": 400,
+      "clue": "The history of this judicial body's work is on view at oyez.org",
+      "response": "the Supreme Court"
+    },
+    {
+      "category": "POTPOURRI",
+      "value": 800,
+      "clue": "It's the only letter that doesn't appear in the name of a U.S. state",
+      "response": "Q"
+    },
+    {
+      "category": "US OPEN 50 YEARS",
+      "value": 800,
+      "clue": "The 1990 Open heralded a new all-time great when, at 19, he beat Agassi to become the youngest men's singles champ",
+      "response": "(Pete) Sampras"
+    },
+    {
+      "category": "I LEARNED IT FROM MENTAL FLOSS",
+      "value": 800,
+      "clue": "One of the first companies in Ireland to provide pensions, it also gave workers a daily 2-pint beer allowance",
+      "response": "Guinness"
+    },
+    {
+      "category": "LIVE ENTERTAINMENT",
+      "value": 400,
+      "clue": "In Las Vegas, you can double down on this pair, who perform at their own theater in the Rio Hotel",
+      "response": "Penn & Teller"
+    },
+    {
+      "category": "COMPAN\"EE\"S",
+      "value": 800,
+      "clue": "This seed seller says it never has & never will sell GMOs",
+      "response": "Burpee"
+    },
+    {
+      "category": "WORLD HISTORY",
+      "value": 400,
+      "clue": "The start of the Persian Gulf War in January 1991 was known as Operation this",
+      "response": "Desert Storm"
+    },
+    {
+      "category": "CHRIS P.",
+      "value": 400,
+      "clue": "In TV ads, this Houston Rockets guard was there to assist you with all your insurance needs along with his \"twin\", Cliff",
+      "response": "Chris Paul"
+    },
+    {
+      "category": "FIRST LADIES",
+      "value": 400,
+      "clue": "She won a 1962 Emmy for \"A Tour of the White House\\\"",
+      "response": "Jackie Kennedy"
+    },
+    {
+      "category": "TOYS & GAMES",
+      "value": 1000,
+      "clue": "This classic drawing toy was once called Telecran, still its name in France",
+      "response": "Etch a Sketch"
+    },
+    {
+      "category": "RELIGIOUS LEADERS",
+      "value": 400,
+      "clue": "In 2005 some 300,000 mourners filled St. Peter's Square for his funeral",
+      "response": "John Paul II"
+    },
+    {
+      "category": "GOVERNMENT & POLITICS",
+      "value": 400,
+      "clue": "In April 2018 Paul Ryan said he'd leave the House of Representatives & this top post there",
+      "response": "Speaker"
+    },
+    {
+      "category": "FIDDLER",
+      "value": 800,
+      "clue": "In \"The Devil Went Down To Georgia\", the devil bows his head & lays a golden fiddle at the feet of this man",
+      "response": "Johnny"
+    },
+    {
+      "category": "ALTERNATIVES TO COACHELLA?",
+      "value": 800,
+      "clue": "A Grimm fairy tale says, \"As...she always looked dusty and dirty, they called her\" this name",
+      "response": "Cinderella"
+    },
+    {
+      "category": "SAILING INTO HISTORY",
+      "value": 200,
+      "clue": "This little lady that sailed with Columbus was originally named the Santa Clara",
+      "response": "the Niña"
+    },
+    {
+      "category": "OFFBEAT MUSEUMS",
+      "value": 400,
+      "clue": "The KGB Museum & the Gingerbread Museum are just 2 attractions in this Czech capital",
+      "response": "Prague"
+    },
+    {
+      "category": "KARATE",
+      "value": 800,
+      "clue": "This island conquered by Japan in the 19th century is often said to be karate's birthplace",
+      "response": "Okinawa"
+    },
+    {
+      "category": "NONFICTION",
+      "value": 600,
+      "clue": "The actual 1948 kidnapping of 11-year-old Sally Horner is the subject of \"the real\" this fictional girl",
+      "response": "Lolita"
+    },
+    {
+      "category": "1973: THE GROOVY & NOT-SO-GROOVY",
+      "value": 800,
+      "clue": "His death on Jan. 22, 2 days after Nixon's second inauguration, left no living ex-U.S. presidents",
+      "response": "LBJ"
+    },
+    {
+      "category": "A BIT O' BRIT LIT",
+      "value": 600,
+      "clue": "In a Thomas Hardy novel, this \"Obscure\" guy is warned that \"the Fawleys were not made for wedlock\\\"",
+      "response": "Jude"
+    },
+    {
+      "category": "7-LETTER WORDS",
+      "value": 400,
+      "clue": "A crease in facial skin, or an unexpected development",
+      "response": "a wrinkle"
+    },
+    {
+      "category": "WHAT'S THAT ON YOUR SHELF?",
+      "value": 200,
+      "clue": "You have a \"Star Wars\" version of this classic board game?! Look, Hoth & Bespin are on either side of the Jail space!",
+      "response": "Monopoly"
+    },
+    {
+      "category": "CAN YOU HEAR ME?",
+      "value": 200,
+      "clue": "In 2016 pitchman Paul Marcarelli went from \"Can you hear me now?\" for Verizon to \"Can you hear that?\" for this company",
+      "response": "Sprint"
+    },
+    {
+      "category": "U.S. HISTORY",
+      "value": 400,
+      "clue": "In 1875 this Tammany Hall \"Boss\" escaped from prison & fled to Cuba & then to Spain",
+      "response": "Boss Tweed"
+    },
+    {
+      "category": "FAMOUS THREESOMES",
+      "value": 800,
+      "clue": "Their names are Melchior, Balthasar & Gaspar",
+      "response": "the three wise men (or the Magi)"
+    },
+    {
+      "category": "THE MOVIES",
+      "value": 400,
+      "clue": "This Hitchcock movie has the line \"A boy's best friend is his mother\\\"",
+      "response": "Psycho"
+    },
+    {
+      "category": "SHOW BOATS",
+      "value": 600,
+      "clue": "A reality show debuting in 2005: A bunch of boats operating out of Dutch Harbor, Alaska",
+      "response": "the Deadliest Catch"
+    },
+    {
+      "category": "\\\"A\", BABY!",
+      "value": 800,
+      "clue": "The first successful use of this technique dates to the 1700s, when Dr. John Hunter helped a couple conceive",
+      "response": "artificial insemination"
+    },
+    {
+      "category": "FUN WITH TEAM NAMES",
+      "value": 200,
+      "clue": "The 1962 groundbreaking ceremony for this Houston venue included guns, as the team was then the Colt .45s",
+      "response": "the Astrodome"
+    },
+    {
+      "category": "AT 35",
+      "value": 800,
+      "clue": "He was a young man of 35 when he performed for inmates at Folsom Prison for a live album",
+      "response": "Johnny Cash"
+    },
+    {
+      "category": "STATE CAPITAL NEWSPAPERS",
+      "value": 1200,
+      "clue": "This city's Star provides the local angle on Andrew Luck's shoulder & other body parts, too",
+      "response": "Indianapolis"
+    },
+    {
+      "category": "BOOKS OF THE 1940s",
+      "value": 1600,
+      "clue": "In Chapter 1 of this Betty Smith novel, we're told that the one in Francie Nolan's yard \"was neither a pine nor a hemlock\\\"",
+      "response": "A Tree Grows in Brooklyn"
+    },
+    {
+      "category": "LITERATURE",
+      "value": 400,
+      "clue": "In this H.G. Wells classic, the narrator is \"drawn on by the...Earth's fate\" & sees it in \"strides of a thousand years\\\"",
+      "response": "The Time Machine"
+    },
+    {
+      "category": "THE ONLY PRESCRIPTION",
+      "value": 800,
+      "clue": "Used to treat ADHD, this combo medication \"XR\" helps you stay focused, but taking it after noon may cause insomnia",
+      "response": "Adderall"
+    },
+    {
+      "category": "LITERATURE",
+      "value": 1000,
+      "clue": "The title peak of this Thomas Mann novel is home to a Swiss sanatorium",
+      "response": "Magic Mountain"
+    },
+    {
+      "category": "HOW CHEAP WERE THEY?",
+      "value": 200,
+      "clue": "Worth $58 billion, Ikea founder Ingvar Kamprad got haircuts when visiting developing countries instead of in this homeland",
+      "response": "Sweden"
+    },
+    {
+      "category": "HOW CHEAP WERE THEY?",
+      "value": 600,
+      "clue": "In 1922, as perhaps the world's biggest movie star, this comic had studio carpenters build his new home",
+      "response": "Charlie Chaplin"
+    },
+    {
+      "category": "COME UP TO THE LAB",
+      "value": 800,
+      "clue": "Open Source Development Labs was backed by IBM, Intel & other companies to promote this O.S. outta Finland",
+      "response": "Linux"
+    },
+    {
+      "category": "AWARDS & HONORS",
+      "value": 800,
+      "clue": "A prize honoring work that promotes European unity is named for this Holy Roman Emperor",
+      "response": "Charlemagne"
+    },
+    {
+      "category": "GOVERNMENT & POLITICS",
+      "value": 800,
+      "clue": "This obstructive tactic is used by senators to block potential legislation by debating it as long as possible",
+      "response": "a filibuster"
+    },
+    {
+      "category": "READING",
+      "value": 1000,
+      "clue": "The structure of her novel \"To the Lighthouse\" is 2 days separated by the passage of 10 years",
+      "response": "Virginia Woolf"
+    },
+    {
+      "category": "TALE AS OLD AS TIME",
+      "value": 200,
+      "clue": "Tired & disillusioned after a duel with the knight of the white moon, he returns home to La Mancha",
+      "response": "Don Quixote"
+    },
+    {
+      "category": "BOOKS OF THE 1940s",
+      "value": 800,
+      "clue": "Among the objects mentioned in this beloved bedtime story are \"a comb and a brush and a bowl full of mush\\\"",
+      "response": "Goodnight Moon"
+    },
+    {
+      "category": "POP CULTURE POPS",
+      "value": 400,
+      "clue": "He'll be your daddy, oh! This singer became a \"father figure\", taking that song all the way to No. 1 in 1988",
+      "response": "George Michael"
+    },
+    {
+      "category": "RELIGIOUS LEADERS",
+      "value": 1200,
+      "clue": "John Carroll, the first Roman Catholic bishop in the U.S., founded this D.C. university in 1789",
+      "response": "Georgetown"
+    },
+    {
+      "category": "HIS WIDOW LIVED ON",
+      "value": 400,
+      "clue": "In 2018 this widow of a Beatle turned 85 & voiced a role in the movie \"Isle of Dogs\\\"",
+      "response": "Yoko Ono"
+    },
+    {
+      "category": "NEON",
+      "value": 800,
+      "clue": "This western U.S. city has a museum featuring a \"neon boneyard\", an outdoor exhibit of old signs dating back to the 1930s",
+      "response": "Las Vegas"
+    },
+    {
+      "category": "FAMOUS THREESOMES",
+      "value": 1000,
+      "clue": "The Three Tenors were Pavarotti, Domingo & this man, who is on an extended farewell tour",
+      "response": "José Carreras"
+    },
+    {
+      "category": "MAKES SCENTS",
+      "value": 800,
+      "clue": "It seems like eons ago that he introduced Eternity & Obsession",
+      "response": "Calvin Klein"
+    },
+    {
+      "category": "POP CULTURE ADAPTS SHAKESPEARE",
+      "value": 1600,
+      "clue": "Amanda Bynes pretends to be a boy & plays soccer at Illyria Prep in \"She's the Man\", loosely based on this comedy",
+      "response": "Twelfth Night"
+    },
+    {
+      "category": "U.S. HISTORY",
+      "value": 800,
+      "clue": "The Senate didn't ratify the Treaty of Versailles, so this G.O.P. president proclaimed peace between the U.S. & Germany in 1921",
+      "response": "Harding"
+    },
+    {
+      "category": "AROUND THE CARIBBEAN",
+      "value": 1000,
+      "clue": "The small town of Kralendijk is the capital of this Caribbean island, the \"B\" of the ABC territories of the Netherlands",
+      "response": "Bonaire"
+    },
+    {
+      "category": "JUST FOR REFERENCE",
+      "value": 2000,
+      "clue": "What's another word for lexicon? Look one up in this landmark book of synonyms from 1852",
+      "response": "Roget's Thesaurus"
+    },
+    {
+      "category": "RELIGION & SPIRITUALITY BOOKS",
+      "value": 800,
+      "clue": "In 2018 she published \"I've Been Thinking: Reflections, Prayers, and Meditations for a Meaningful Life\\\"",
+      "response": "Maria Shriver"
+    },
+    {
+      "category": "BAD FOLKS IN BOOKS",
+      "value": 200,
+      "clue": "He only appears in 2 of Conan Doyle's stories, but he's quite a match for the hero",
+      "response": "Moriarty"
+    },
+    {
+      "category": "\\\"G\" IS FOR...",
+      "value": 600,
+      "clue": "This small sac that store about 1 1/2 ounces of bile at a time",
+      "response": "the gallbladder"
+    },
+    {
+      "category": "ASTRONOMY",
+      "value": 800,
+      "clue": "The first close-up images sent back to Earth from another planet were from a Russian probe on this planet in 1975",
+      "response": "Venus"
+    },
+    {
+      "category": "LETTER PERFECT",
+      "value": 400,
+      "clue": "In NBA fandom nicknames, this letter comes in front of players \"Rose\" & \"Wade\\\"",
+      "response": "D"
+    },
+    {
+      "category": "POETRY",
+      "value": 400,
+      "clue": "Chicago had Carl Sandburg; this city had Philip Levine, whose \"What Work Is\" mentions Ford & Cadillac",
+      "response": "Detroit"
+    },
+    {
+      "category": "HOW CHEAP WERE THEY?",
+      "value": 1000,
+      "clue": "This billionaire & husband of Catherine T. didn't buy rubber bands—they were free with the morning paper!",
+      "response": "John D. MacArthur"
+    },
+    {
+      "category": "AUSTRALIAN HISTORY",
+      "value": 800,
+      "clue": "The largest attack on Australia during World War II was a 1942 bombing of this port city named for a British naturalist",
+      "response": "Darwin"
+    },
+    {
+      "category": "US OPEN 50 YEARS",
+      "value": 200,
+      "clue": "In 1968, the first Open men's singles winner was this athlete & activist, whose name is now on the Open's main stadium",
+      "response": "Arthur Ashe"
+    },
+    {
+      "category": "POETS & POETRY",
+      "value": 400,
+      "clue": "This Welshman was famed for his lyrical writing & his bouts of drinking; one binge preceded his death in 1953",
+      "response": "Thomas"
+    },
+    {
+      "category": "AUTHORS BORN & DIED",
+      "value": 1000,
+      "clue": "Born in Chicago in 1888, made \"The Long Goodbye\" & went to \"The Big Sleep\" on March 26, 1959",
+      "response": "Raymond Chandler"
+    },
+    {
+      "category": "CONTEMPORARIES",
+      "value": 800,
+      "clue": "She arrived in England from Virginia in June 1616, in time to take in a new masque by Ben Jonson",
+      "response": "Pocahontas"
+    },
+    {
+      "category": "POETS & POETRY",
+      "value": 400,
+      "clue": "In \"Ode on a Grecian Urn\", he wrote, \"Beauty is truth, truth beauty\\\"",
+      "response": "Keats"
+    },
+    {
+      "category": "TV GUIDE MAGAZINE 65th ANNIVERSARY",
+      "value": 1000,
+      "clue": "A 2014 cover about this show featured an appropriate James Bond title as a caption",
+      "response": "The Americans"
+    },
+    {
+      "category": "THE MOVIES",
+      "value": 800,
+      "clue": "A mute Sally Hawkins falls in love with an amphibious creature in this 2017 movie, Oscar's Best Picture",
+      "response": "The Shape of Water"
+    },
+    {
+      "category": "ASTRONOMY",
+      "value": 800,
+      "clue": "Including Portia & Juliet, several moons of this 7th planet were discovered by the Voyager 2 spacecraft in 1986",
+      "response": "Uranus"
+    },
+    {
+      "category": "OFFBEAT MUSEUMS",
+      "value": 1600,
+      "clue": "Naturally, this city famed for its Red Light District also has the adults-only Sex Museum on Damrak Street",
+      "response": "Amsterdam"
+    },
+    {
+      "category": "I'M ALLEN",
+      "value": 1000,
+      "clue": "This 1960 Pulitzer Prize winner by Allen Drury told about the inner workings of the U.S. Senate",
+      "response": "Advise and Consent"
+    },
+    {
+      "category": "TV CRIMESOLVERS",
+      "value": 400,
+      "clue": "David Caruso, on this CBS show: \"The verdict is in, Frank... but the jury is out\\\"",
+      "response": "CSI: Miami"
+    },
+    {
+      "category": "THE COLD WAR",
+      "value": 400,
+      "clue": "This U.S. president declared his \"doctrine\" in 1947 promising to help any country facing a Communist takeover",
+      "response": "Truman"
+    },
+    {
+      "category": "POP CULTURE ADAPTS SHAKESPEARE",
+      "value": 400,
+      "clue": "Fox' \"Empire\" has been seen as a hip-hop take on this play, with Jamal Lyon as a gender-swapped Cordelia",
+      "response": "King Lear"
+    },
+    {
+      "category": "BUSINESS",
+      "value": 400,
+      "clue": "This 3-letter memorandum of debt is a strong but not legally binding promise to pay",
+      "response": "I.O.U."
+    },
+    {
+      "category": "NO FILTER",
+      "value": 800,
+      "clue": "In 2017 filterless Charles Barkley stumped for Doug Jones, telling this state's voters, \"Stop looking like idiots\\\"",
+      "response": "Alabama"
+    },
+    {
+      "category": "NONFICTION",
+      "value": 800,
+      "clue": "A book about this body is subtitled \"The Rise & Fall of America's Favorite Planet\\\"",
+      "response": "Pluto"
+    },
+    {
+      "category": "CELEBRITIES' FASHION LINES",
+      "value": 1000,
+      "clue": "He founded denim-heavy William Rast with a childhood friend from Memphis",
+      "response": "Justin Timberlake"
+    },
+    {
+      "category": "NO FILTER",
+      "value": 2000,
+      "clue": "This ever-quotable man put in a brief but memorable 10 days in 2017 as White House communications director",
+      "response": "the Mooch (or Anthony Scaramucci)"
+    },
+    {
+      "category": "AUTOBIOGRAPHIES",
+      "value": 400,
+      "clue": "The first chapter of this Cuban leader's autobiography \"My Life\" says, \"I made myself into a revolutionary\\\"",
+      "response": "Fidel Castro"
+    },
+    {
+      "category": "BOOKS OF THE 1940s",
+      "value": 400,
+      "clue": "The basis for \"The King and I\" was the 1944 bestseller \"Anna and the King of\" this place",
+      "response": "Siam"
+    },
+    {
+      "category": "I'M ALLEN",
+      "value": 200,
+      "clue": "He became friends with Bill Gates at Lakeside School; like Bill, he dropped out of college",
+      "response": "Paul Allen"
+    },
+    {
+      "category": "MULTI-WORD CAPITAL CITIES",
+      "value": 600,
+      "clue": "This Malaysian capital lies in the country's tin & rubber belt; I used to wear one of those, but it chafed",
+      "response": "Kuala Lumpur"
+    },
+    {
+      "category": "SPECIFIC GENERAL HISTORY",
+      "value": 400,
+      "clue": "A brigadier gen. at 23, he distinguished himself at Gettysburg, but things didn't go as well for him in the Montana territory",
+      "response": "Custer"
+    },
+    {
+      "category": "COME UP TO THE LAB",
+      "value": 1600,
+      "clue": "The Tevatron particle accelerator at the Illinois lab named for this Italian had a circumference of 3.9 miles",
+      "response": "Fermi"
+    },
+    {
+      "category": "NURSERY RHYMES",
+      "value": 600,
+      "clue": "This guy is on a strict \"no fat\" diet; his wife is on a \"no lean\" diet",
+      "response": "Jack Sprat"
+    },
+    {
+      "category": "POTPOURRI",
+      "value": 400,
+      "clue": "This city was established as the capital of the territory of Florida in 1824",
+      "response": "Tallahassee"
+    },
+    {
+      "category": "1973: THE GROOVY & NOT-SO-GROOVY",
+      "value": 2000,
+      "clue": "The 2018 TV show \"Trust\" dramatizes the 1973 kidnapping of this man III & the lack of interest of his billionaire grandpa",
+      "response": "Getty"
+    },
+    {
+      "category": "NOVEL ACTORS",
+      "value": 1200,
+      "clue": "You know him as Dr. Gregory House, but he's also the author of the comic spy novel \"The Gun Seller\\\"",
+      "response": "Hugh Laurie"
+    },
+    {
+      "category": "BUSINESS",
+      "value": 400,
+      "clue": "This company \"crawled\" onto the New York Stock Exchange in 1929 with just 3 products: a combine, a grader & a tractor",
+      "response": "Caterpillar"
+    },
+    {
+      "category": "UNDER STUDIES",
+      "value": 1200,
+      "clue": "The under secretary for nuclear security works for this U.S. department",
+      "response": "Energy"
+    },
+    {
+      "category": "TERMS IN HISTORY",
+      "value": 1000,
+      "clue": "This adjective meaning \"Germanic\" is the name of a medieval order of knights founded by Germans in the holy land",
+      "response": "Teutonic"
+    },
+    {
+      "category": "NURSERY RHYMES",
+      "value": 400,
+      "clue": "Her cupboard bare, she went to the baker's to buy her dog bread",
+      "response": "Old Mother Hubbard"
+    },
+    {
+      "category": "STATE CAPITAL NEWSPAPERS",
+      "value": 800,
+      "clue": "It's just another day in paradise for its Star-Advertiser; is it gonna be 82 & sunny...again? Probably",
+      "response": "Honolulu"
+    },
+    {
+      "category": "\\\"G\" IS FOR...",
+      "value": 200,
+      "clue": "This burrowing rodent; the pocket type is native to North America",
+      "response": "a gopher"
+    },
+    {
+      "category": "FIDDLER",
+      "value": 600,
+      "clue": "A decent gig in the orchestra, as an idiom it refers to one who serves in a subsidiary capacity",
+      "response": "second fiddle"
+    },
+    {
+      "category": "CHRIS P.",
+      "value": 200,
+      "clue": "In the movies, this actor has paid several visits to the final frontier",
+      "response": "Chris Pine"
+    },
+    {
+      "category": "GOVERNMENT & POLITICS",
+      "value": 400,
+      "clue": "This very large building in Virginia is headquarters to the Army, Navy & Air Force",
+      "response": "The Pentagon"
+    }
+  ]
+}

@@ -15,6 +15,7 @@
  * Each clue is tagged provenance: "answer_first" (judged/selected) | "fallback".
  */
 import { filterAnswerBoard, nearDupKey } from './answers';
+import { retrieveExemplars } from './exemplars';
 import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
 
 type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty) => Promise<any>;
@@ -121,7 +122,12 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     const { board } = filterAnswerBoard(raw, 5, existingAnswers);
     if (board.length && board.some(c => c.answers.length > 0)) {
       onStage?.('Writing clues for locked answers…');
-      const clueRes = await generate('clues-from-answers', { answerBoard: board, theme } as AIContext, difficulty);
+      // Few-shot: retrieve real-Jeopardy exemplars matching the board's topics
+      // so the model imitates authentic Jeopardy voice. Up to 4 across the
+      // board, query biased by the game theme + the categories being written.
+      const query = [theme, ...board.map(c => c.title)].filter(Boolean).join(' · ');
+      const exemplars = retrieveExemplars(query, 4);
+      const clueRes = await generate('clues-from-answers', { answerBoard: board, theme, exemplars } as AIContext, difficulty);
       const clueCats = (clueRes?.categories || []) as Array<{ title: string; clues: ValuedClue[] }>;
       if (clueCats.length) {
         onStage?.('Judging clue quality…');

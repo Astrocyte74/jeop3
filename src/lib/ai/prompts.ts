@@ -296,8 +296,15 @@ Return JSON only:
       system: SYSTEM_INSTRUCTION,
       user: (() => {
         const board = context.answerBoard || [];
+        const exemplars = context.exemplars && context.exemplars.length > 0
+          ? context.exemplars.map(e => `▎ "${e.clue}" → ${e.response}`).join('\n')
+          : '';
+        const exemplarBlock = exemplars
+          ? `\nREAL JEOPARDY! STYLE REFERENCES (imitate this voice — the cadence, the "this/that" framing, the way each clue points at one specific answer without naming it; do NOT reuse these answers):
+${exemplars}\n`
+          : '';
         return `Write Jeopardy clues for a board whose ANSWERS are already chosen. Use EXACTLY these answers — do not change, generalize, merge, split, or invent any answer; each clue's "response" must be the provided answer string verbatim.
-
+${exemplarBlock}
 ${UNIQUENESS_SELF_CHECK}
 
 Board answers — write one clue per answer, in order:

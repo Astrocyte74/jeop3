@@ -90,6 +90,10 @@ export interface AIContext {
   // answer-first pipeline: pre-chosen answer board (answers for clues-from-answers,
   // or the resulting clues for judge-clues).
   answerBoard?: Array<{ title: string; answers?: Array<{ answer: string; fact: string }>; clues?: Array<{ clue: string; response: string }> }>;
+  // Real-Jeopardy few-shot exemplars to steer the clue-writing voice. The
+  // pipeline retrieves topical examples (see exemplars.ts) and passes them in;
+  // the clues-from-answers template renders them as style references.
+  exemplars?: Array<{ category: string; value: number; clue: string; response: string }>;
 
   // Category level
   categoryTitle?: string;
