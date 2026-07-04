@@ -190,10 +190,10 @@ PORT=7476                      # AI server (server/.env)
 - Social features
 - Multiplayer real-time
 
-## 📌 Next up: click-to-edit span (refinement #1)
+## ✅ Done: click-to-edit span (refinement #1)
 
-The board should be a two-way authoring surface: click a filled column (or an
-"On the board" list row) to load that span back into the left rail for editing.
+Implemented (`8de14d5`). The board is a two-way authoring surface: click a filled
+column (or an "On the board" list row) to load that span back into the left rail for editing.
 
 **Why it matters:** the worst mistake-recovery case today is a paste span —
 trashing a 5,000-char article to fix something means re-pasting it. Edit-in-place
