@@ -792,6 +792,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                   count: source.categoryCount,
                   difficulty: difficulty || 'normal',
                   existingAnswers,
+                  // Server endpoints don't enforce Clerk auth today (no auth
+                  // middleware on the AI server). Threading the token here is
+                  // forward-compatible if that changes.
+                  authToken: null,
                   onStage: (stage: string) => setWizardStage(stage),
                 });
                 spanCategories = span.categories;

@@ -311,6 +311,86 @@ export async function generateAI<T = unknown>(
   return result as T;
 }
 
+// =============================================================================
+// Wikipedia retrieval — topic-mode grounding (per-category real sources).
+// Breaks the self-referential loop where the model invents a fact-sheet and
+// then grades clues against its own invention. Server endpoints at
+// /api/search-wikipedia + /api/fetch-article do the work; this is the paired
+// search-then-fetch client helper.
+// =============================================================================
+
+export interface CategorySource {
+  /** Clean plain-text source material for the answer-first pipeline. */
+  text: string;
+  /** Wikipedia article title that grounded this category. */
+  title: string;
+  /** Canonical Wikipedia URL. */
+  url: string;
+}
+
+/**
+ * Search Wikipedia for a category title, then fetch the top article's text.
+ * Returns null when there's no good match or the fetch fails/thins out — the
+ * caller falls back to the AI fact-sheet in that case (see generateTopicSpan).
+ *
+ * @param query      Category title to ground (e.g. "Julio-Claudians")
+ * @param authToken  Optional Clerk auth token
+ * @param contextTopic Optional game topic (e.g. "Ancient Rome") used to bias the
+ *                     search query so ambiguous titles disambiguate correctly
+ *                     ("Roman Gods" the pantheon vs. "Roman Gods" the album).
+ */
+export async function searchAndFetchCategorySource(
+  query: string,
+  authToken?: string | null,
+  /** Reserved: game topic for future relevance boosting. Currently unused. */
+  _contextTopic?: string
+): Promise<CategorySource | null> {
+  const apiBase = getAIApiBase();
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+  // Search the title alone first — OpenSearch ranks the primary topic highest
+  // when one exists (e.g. "Julio-Claudian dynasty" for "Julio-Claudians"). We
+  // deliberately do NOT prefix with the game topic: that over-restricts the
+  // query and causes good matches to miss. Instead, ambiguous titles that
+  // resolve to the wrong article (e.g. "Roman Gods" → an album) are caught by
+  // the relevance check below, and the caller falls back to the fact-sheet.
+  try {
+    // 1. OpenSearch for the best article title.
+    const sr = await fetch(`${apiBase}/search-wikipedia`, {
+      method: 'POST', headers, body: JSON.stringify({ query }),
+    });
+    if (!sr.ok) return null;
+    const sdata = await sr.json();
+    const results: Array<{ title?: string; snippet?: string; url?: string }> = sdata?.results || [];
+    if (!results.length || !results[0]?.url) return null;
+    const top = results[0];
+
+    // 2. Relevance guard using Wikipedia's own disambiguation conventions.
+    //    A parenthetical in the article title ("Roman Gods (album)",
+    //    "Mercury (planet)") means this is NOT the primary topic — the query
+    //    likely intended something else, so reject and let the fact-sheet
+    //    handle it. Disambiguation pages are rejected outright.
+    const topTitle = top.title || '';
+    const queryHasParen = /[()]/.test(query);
+    const hasParenDisambig = !queryHasParen && /\(/.test(topTitle);
+    const isDisambigPage = /disambiguation/i.test(topTitle) || /\(disambiguation\)/i.test(topTitle);
+    if (hasParenDisambig || isDisambigPage) return null;
+
+    // 3. Fetch the article's plain-text extract.
+    const fr = await fetch(`${apiBase}/fetch-article`, {
+      method: 'POST', headers, body: JSON.stringify({ url: top.url }),
+    });
+    if (!fr.ok) return null;
+    const fdata = await fr.json();
+    // Reject thin extracts — too short to mine for 5 specific answers.
+    if (typeof fdata?.text !== 'string' || fdata.text.length < 400) return null;
+    return { text: fdata.text, title: top.title || query, url: top.url! };
+  } catch {
+    return null; // caller falls back to fact-sheet
+  }
+}
+
 /**
  * Fetch article content from URL
  *

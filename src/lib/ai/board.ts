@@ -16,6 +16,7 @@
  */
 import { filterAnswerBoard, nearDupKey } from './answers';
 import { retrieveExemplars } from './exemplars';
+import { searchAndFetchCategorySource } from './service';
 import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
 
 type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty) => Promise<any>;
@@ -36,6 +37,12 @@ export interface ContentSpanInput {
 export interface ContentSpanResult {
   categories: AICategory[];
   patched: boolean;
+  /**
+   * Per-category grounding record for topic-mode spans. Map key is the
+   * category title (normalized matching is the caller's job). Absent for
+   * content-mode spans (which have a single paste/URL source already).
+   */
+  categorySources?: Array<{ title: string; sourceType: 'retrieved' | 'ai_synthesized'; url?: string }>;
 }
 
 const VALUES = [200, 400, 600, 800, 1000];
@@ -193,51 +200,96 @@ export interface TopicSpanInput {
   count: number;
   difficulty: AIDifficulty;
   existingAnswers?: string[];
+  /** Clerk token for the /search-wikipedia + /fetch-article endpoints. */
+  authToken?: string | null;
   /** Called before each pipeline step so the UI can show staged progress. */
   onStage?: (stage: string) => void;
 }
 
 /**
  * Topic-mode parity: bring a bare topic ("Ancient Rome") onto the answer-first
- * pipeline by synthesizing a grounding fact-sheet first, then feeding it in as
- * the source. This gives topic games the same extract → clues → judge → select
- * curation that content games get, instead of the older single-pass path.
+ * pipeline. Real grounding is preferable to AI synthesis — so for each category
+ * title we first try to retrieve a Wikipedia article and fall back to the AI
+ * fact-sheet only when retrieval fails or is thin. This breaks the
+ * self-referential loop where the model invents a fact-sheet and then grades
+ * clues against its own invention.
  *
- * Falls back to the single-pass generation on fact-sheet failure so the board
- * is never empty — callers should keep their existing single-pass branch as a
- * last-resort fallback (see MainMenu.handleWizardComplete).
+ * Per-category retrieval runs against the curated category titles (already
+ * produced by the wizard's category-names-draft pass). Each retrieved/synthesized
+ * section is concatenated into the same sectioned format the fact-sheet used to
+ * produce, then the existing extract → clues → judge → select pipeline runs
+ * unchanged.
+ *
+ * Per-category provenance is recorded in `categorySources` so the UI can later
+ * distinguish "grounded in Wikipedia" from "AI fact-sheet" categories.
  */
 export async function generateTopicSpan(
   generate: Generate,
   opts: TopicSpanInput
 ): Promise<ContentSpanResult> {
-  const { topic, titles, count, difficulty, existingAnswers = [], onStage } = opts;
+  const { topic, titles, count, difficulty, existingAnswers = [], authToken = null, onStage } = opts;
+  const catTitles = titles && titles.length
+    ? titles.slice(0, count)
+    : Array.from({ length: count }, (_, i) => `${topic} ${i + 1}`);
 
-  onStage?.('Researching the topic…');
-  const sheet = await generate(
-    'topic-fact-sheet',
-    { theme: topic, count, topicList: titles } as AIContext,
-    difficulty
-  );
-  const sections = (sheet?.sections || []) as Array<{ title: string; facts: string[] }>;
-  if (!sections.length || !sections.some(s => s.facts?.length)) {
-    throw new Error('topic-fact-sheet returned no usable facts');
+  // 1. Per-category retrieval (Wikipedia). Fall back to fact-sheet per-title.
+  const sections: Array<{ title: string; body: string }> = [];
+  const categorySources: ContentSpanResult['categorySources'] = [];
+  const needFactSheet: string[] = [];
+
+  for (const title of catTitles) {
+    onStage?.(`Researching ${title}…`);
+    const retrieved = await searchAndFetchCategorySource(title, authToken);
+    if (retrieved) {
+      sections.push({ title, body: retrieved.text });
+      categorySources.push({ title, sourceType: 'retrieved', url: retrieved.url });
+    } else {
+      needFactSheet.push(title);
+      categorySources.push({ title, sourceType: 'ai_synthesized' });
+    }
   }
-  // Flatten the fact-sheet into a single reference string that the existing
-  // pipeline can mine exactly like pasted content.
-  const referenceMaterial = sections
-    .map(s => `${s.title}\n${(s.facts || []).map(f => `- ${f}`).join('\n')}`)
-    .join('\n\n');
 
-  return generateContentSpan(generate, {
+  // 2. AI fact-sheet fallback for any categories retrieval couldn't ground.
+  if (needFactSheet.length) {
+    onStage?.('Filling gaps from AI research…');
+    let synthSections: Array<{ title: string; facts: string[] }> = [];
+    try {
+      const sheet = await generate(
+        'topic-fact-sheet',
+        { theme: topic, count: needFactSheet.length, topicList: needFactSheet } as AIContext,
+        difficulty
+      );
+      synthSections = (sheet?.sections || []) as Array<{ title: string; facts: string[] }>;
+    } catch { synthSections = []; }
+    for (let i = 0; i < needFactSheet.length; i++) {
+      const title = needFactSheet[i];
+      const facts = synthSections[i]?.facts || [];
+      const body = facts.length
+        ? facts.map(f => `- ${f}`).join('\n')
+        : `- General facts about ${title} in the context of ${topic}.`;
+      sections.push({ title, body });
+    }
+  }
+
+  // 3. If retrieval got NOTHING and the fact-sheet also failed for all, we have
+  //    no grounding — bail so the caller's last-resort single-pass runs.
+  if (!sections.some(s => s.body && s.body.length > 50)) {
+    throw new Error('topic grounding failed (no Wikipedia results, fact-sheet empty)');
+  }
+
+  // 4. Concat into one sectioned reference string the existing pipeline mines
+  //    exactly like pasted content, and hand off to the unchanged pipeline.
+  const referenceMaterial = sections.map(s => `${s.title}\n${s.body}`).join('\n\n');
+  const result = await generateContentSpan(generate, {
     referenceMaterial,
     theme: topic,
-    titles,
+    titles: catTitles,
     count,
     difficulty,
     existingAnswers,
     // No sourceMaterial/sourceUrl: topics have no original paste/URL to attach.
     onStage,
   });
+  return { ...result, categorySources };
 }
 

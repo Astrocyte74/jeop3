@@ -275,7 +275,9 @@ app.post('/api/fetch-article', async (req, res) => {
   const apiBase = `https://${lang || 'en'}.wikipedia.org/w/api.php`;
 
   try {
-    const apiUrl = `${apiBase}?action=query&prop=extracts&explaintext=true&exsectionformat=plain&titles=${encodeURIComponent(title)}&format=json&origin=*`;
+    // redirects=1 resolves redirect pages (e.g. "Julio-Claudians" →
+    // "Julio-Claudian dynasty") so the extract comes back populated.
+    const apiUrl = `${apiBase}?action=query&prop=extracts&explaintext=true&exsectionformat=plain&redirects=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
     const r = await fetch(apiUrl);
     if (!r.ok) throw new Error(`Wikipedia extracts HTTP ${r.status}`);
     const data = await r.json();
