@@ -186,3 +186,58 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   const categories: AICategory[] = catTitles.map((title, i) => ({ title, clues: pickedPerCat[i] }) as AICategory);
   return { categories: withSource(categories, sourceMaterial, sourceUrl), patched };
 }
+
+export interface TopicSpanInput {
+  topic: string;
+  titles?: string[];
+  count: number;
+  difficulty: AIDifficulty;
+  existingAnswers?: string[];
+  /** Called before each pipeline step so the UI can show staged progress. */
+  onStage?: (stage: string) => void;
+}
+
+/**
+ * Topic-mode parity: bring a bare topic ("Ancient Rome") onto the answer-first
+ * pipeline by synthesizing a grounding fact-sheet first, then feeding it in as
+ * the source. This gives topic games the same extract → clues → judge → select
+ * curation that content games get, instead of the older single-pass path.
+ *
+ * Falls back to the single-pass generation on fact-sheet failure so the board
+ * is never empty — callers should keep their existing single-pass branch as a
+ * last-resort fallback (see MainMenu.handleWizardComplete).
+ */
+export async function generateTopicSpan(
+  generate: Generate,
+  opts: TopicSpanInput
+): Promise<ContentSpanResult> {
+  const { topic, titles, count, difficulty, existingAnswers = [], onStage } = opts;
+
+  onStage?.('Researching the topic…');
+  const sheet = await generate(
+    'topic-fact-sheet',
+    { theme: topic, count, topicList: titles } as AIContext,
+    difficulty
+  );
+  const sections = (sheet?.sections || []) as Array<{ title: string; facts: string[] }>;
+  if (!sections.length || !sections.some(s => s.facts?.length)) {
+    throw new Error('topic-fact-sheet returned no usable facts');
+  }
+  // Flatten the fact-sheet into a single reference string that the existing
+  // pipeline can mine exactly like pasted content.
+  const referenceMaterial = sections
+    .map(s => `${s.title}\n${(s.facts || []).map(f => `- ${f}`).join('\n')}`)
+    .join('\n\n');
+
+  return generateContentSpan(generate, {
+    referenceMaterial,
+    theme: topic,
+    titles,
+    count,
+    difficulty,
+    existingAnswers,
+    // No sourceMaterial/sourceUrl: topics have no original paste/URL to attach.
+    onStage,
+  });
+}
+

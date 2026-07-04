@@ -821,6 +821,7 @@ export function AIPreviewDialog({
       'extract-board-answers': 'Extract Answers',
       'clues-from-answers': 'Write Clues',
       'judge-clues': 'Judge Clues',
+      'topic-fact-sheet': 'Research Topic',
       'category-rename': 'Rename Category',
       'category-title-generate': 'Generate Category Title',
       'category-generate-clues': 'Generate Missing Clues',

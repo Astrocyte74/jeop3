@@ -28,7 +28,7 @@ import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, sav
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
-import { generateContentSpan } from '@/lib/ai/board';
+import { generateContentSpan, generateTopicSpan } from '@/lib/ai/board';
 import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
@@ -769,21 +769,38 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               });
               spanCategories = span.categories;
             } else {
-              // Topic (no content): single-pass generation.
-              const sourceResult = await aiGenerate('categories-generate', {
-                theme: source.topic || 'random',
-                count: source.categoryCount,
-                suggestedCategoryTitles: source.suggestedTitles,
-                existingAnswers,
-              } as any, difficulty);
-              if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
-                console.error('[MainMenu] Invalid categories result for source:', source);
-                failedSources.push({ source, error: 'Invalid response format from AI' });
-                continue;
+              // Topic (no content): route through the answer-first pipeline too,
+              // via a synthesized grounding fact-sheet (topic-mode parity). This
+              // gives topics the same extract → clues → judge → select curation
+              // that content gets. Falls back to single-pass on failure so the
+              // board is never empty.
+              try {
+                const span = await generateTopicSpan(aiGenerate as any, {
+                  topic: source.topic || 'random',
+                  titles: source.suggestedTitles,
+                  count: source.categoryCount,
+                  difficulty: difficulty || 'normal',
+                  existingAnswers,
+                  onStage: (stage: string) => setWizardStage(stage),
+                });
+                spanCategories = span.categories;
+              } catch (topicErr) {
+                console.warn('[MainMenu] Topic pipeline failed, falling back to single-pass:', topicErr);
+                const sourceResult = await aiGenerate('categories-generate', {
+                  theme: source.topic || 'random',
+                  count: source.categoryCount,
+                  suggestedCategoryTitles: source.suggestedTitles,
+                  existingAnswers,
+                } as any, difficulty);
+                if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
+                  console.error('[MainMenu] Invalid categories result for source:', source);
+                  failedSources.push({ source, error: 'Invalid response format from AI' });
+                  continue;
+                }
+                spanCategories = ((sourceResult as any).categories || [])
+                  .slice(0, source.categoryCount)
+                  .map((cat: any) => ({ ...cat, sourceMaterial, sourceUrl }));
               }
-              spanCategories = ((sourceResult as any).categories || [])
-                .slice(0, source.categoryCount)
-                .map((cat: any) => ({ ...cat, sourceMaterial, sourceUrl }));
             }
 
             if (!spanCategories || spanCategories.length === 0) {

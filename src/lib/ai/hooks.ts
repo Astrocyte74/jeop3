@@ -189,6 +189,7 @@ export function useAIGeneration() {
       'extract-board-answers': 'Choosing answers...',
       'clues-from-answers': 'Writing clues...',
       'judge-clues': 'Judging clues...',
+      'topic-fact-sheet': 'Researching topic...',
       'category-rename': 'Generating name options...',
       'category-title-generate': 'Generating category title...',
       'category-generate-clues': 'Generating clues...',

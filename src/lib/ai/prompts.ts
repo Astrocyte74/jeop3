@@ -259,6 +259,39 @@ Return JSON format:
       })()
     },
 
+    'topic-fact-sheet': {
+      system: `You are a Jeopardy! researcher. You write dense, fact-rich reference material that another step will mine for specific answers. Always respond with valid JSON only — no prose, no markdown code fences.`,
+      user: (() => {
+        const topic = context.theme || 'general';
+        const titles = context.topicList && context.topicList.length > 0 ? context.topicList : null;
+        const count = context.count || 6;
+        return `Write a fact-sheet for a Jeopardy board about: "${topic}".
+
+${titles
+          ? `Cover exactly these ${count} category angles, in this order — one fact-sheet section per title:\n${titles.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n')}`
+          : `Propose ${count} distinct category angles covering "${topic}" (people, places, events, works, dates, numbers).`}
+
+For EACH section, list 10 to 14 SPECIFIC, NAMED facts that would make good Jeopardy answers — real proper names, exact dates, specific places, named works, specific numbers WITH units. Each fact must be a complete sentence verifiable from general knowledge.
+FORBIDDEN (too generic — never write a fact whose subject is just a bare concept): "size", "speed", "atmosphere", "orbit", "temperature", "the sun", "planet", "surface", "rotation", "distance", "gravity", "year", "day". Each fact must point at a SPECIFIC named thing.
+Within a section, every fact must target a DIFFERENT specific entity (no near-duplicates). Across sections, no entity should repeat.
+
+This fact-sheet is the sole grounding source for the board, so density and specificity matter more than narrative.
+
+Return JSON only:
+{
+  "sections": [
+    {
+      "title": "${titles ? titles[0] : 'Category title'}",
+      "facts": [
+        "Mariner 10 was the first spacecraft to visit Mercury, flying by in 1974-75.",
+        "Mercury's Caloris Basin spans about 1,550 km, one of the largest impact craters in the Solar System."
+      ]
+    }
+  ]
+}`;
+      })()
+    },
+
     'extract-board-answers': {
       system: SYSTEM_INSTRUCTION,
       user: (() => {
@@ -785,6 +818,17 @@ export const validators: Record<AIPromptType, AIValidator<unknown>> = {
         typeof cat.title === 'string' &&
         Array.isArray(cat.answers) && cat.answers.length > 0 &&
         cat.answers.every(a => typeof a.answer === 'string' && a.answer.trim().length > 0 && typeof a.fact === 'string')
+      );
+  },
+
+  'topic-fact-sheet': (data): data is AIResponses['topic-fact-sheet'] => {
+    const d = data as AIResponses['topic-fact-sheet'];
+    return typeof d === 'object' && d !== null &&
+      Array.isArray(d.sections) && d.sections.length > 0 &&
+      d.sections.every(sec =>
+        typeof sec.title === 'string' &&
+        Array.isArray(sec.facts) && sec.facts.length > 0 &&
+        sec.facts.every(f => typeof f === 'string' && f.trim().length > 0)
       );
   },
 

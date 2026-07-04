@@ -98,6 +98,7 @@ const ALLOWED_PROMPT_TYPES = new Set([
   'extract-board-answers',
   'clues-from-answers',
   'judge-clues',
+  'topic-fact-sheet',
   'category-rename',
   'category-names-draft',
   'category-title-generate',
@@ -205,6 +206,7 @@ function getMaxTokens(promptType) {
     'extract-board-answers': 4000, // Answer candidates + facts per category
     'clues-from-answers': 8000, // Full board of clues for fixed answers
     'judge-clues': 4000, // Score every clue/answer pair
+    'topic-fact-sheet': 4000, // Grounding fact-sheet for topic-mode parity
     'category-replace-all': 4000, // Single category with 5 clues
     'questions-generate-five': 3000, // 5 clues
     'category-generate-clues': 3000, // Fill missing clues

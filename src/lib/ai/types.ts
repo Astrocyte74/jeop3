@@ -15,6 +15,7 @@ export type AIPromptType =
   | 'extract-board-answers'   // answer-first pipeline: source -> specific answer candidates
   | 'clues-from-answers'      // answer-first pipeline: clues for pre-chosen answers
   | 'judge-clues'             // answer-first pipeline: score + rank clues, assign difficulty
+  | 'topic-fact-sheet'        // topic-mode parity: topic -> grounding fact-sheet (becomes the source)
   // Category level
   | 'category-rename'
   | 'category-names-draft'
@@ -123,6 +124,7 @@ export interface AIResponses {
   'categories-generate-from-content': { categories: AICategory[] };
   'extract-board-answers': { categories: Array<{ title: string; answers: Array<{ answer: string; fact: string }> }> };
   'clues-from-answers': { categories: Array<{ title: string; clues: Array<{ clue: string; response: string; value?: number }> }> };
+  'topic-fact-sheet': { sections: Array<{ title: string; facts: string[] }> };
   'judge-clues': { categories: Array<{ title: string; scored: Array<{ answer: string; specificity: number; sourceSupport: number; clarity: number; jeopardyStyle: number; duplicateRisk: number; difficulty: number }> }> };
   'category-rename': { names: string[] };
   'category-names-draft': { names: string[] };
