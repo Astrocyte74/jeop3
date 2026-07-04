@@ -259,6 +259,71 @@ Return JSON format:
       })()
     },
 
+    'extract-board-answers': {
+      system: SYSTEM_INSTRUCTION,
+      user: (() => {
+        const ref = (context.referenceMaterial || '').slice(0, 200000);
+        const titles = context.topicList && context.topicList.length > 0 ? context.topicList : null;
+        const count = context.count || 6;
+        return `You are PLANNING a Jeopardy board from the source below. Extract SPECIFIC answer candidates — do NOT write any clues yet.
+
+Source:
+"""${ref}"""
+
+${titles
+          ? `Group the answers under these ${count} category titles, in this order:\n${titles.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n')}`
+          : `Propose ${count} category titles covering distinct aspects of the source, and group answers under them.`}
+
+For EACH category, provide exactly 5 answer candidates. Every answer MUST be a SPECIFIC entity found in or directly supported by the source — a proper name, a person, a place, a mission or spacecraft, a year, or a number WITH units.
+FORBIDDEN as answers (too generic — never use): "size", "speed", "atmosphere", "orbit", "temperature", "craters", "the sun", "sun", "planet", "surface", "rotation", "distance", "gravity", "core", "moons", "year", "day", "name".
+Each candidate includes a one-sentence supporting fact paraphrased from the source. All answers within a category must be DISTINCT entities, and distinct across all categories.
+
+Return JSON only:
+{
+  "categories": [
+    {
+      "title": "${titles ? titles[0] : 'Category title'}",
+      "answers": [
+        { "answer": "Mariner 10", "fact": "Mariner 10 was the first spacecraft to visit Mercury, in 1974-75." }
+      ]
+    }
+  ]
+}`;
+      })()
+    },
+
+    'clues-from-answers': {
+      system: SYSTEM_INSTRUCTION,
+      user: (() => {
+        const board = context.answerBoard || [];
+        return `Write Jeopardy clues for a board whose ANSWERS are already chosen. Use EXACTLY these answers — do not change, generalize, merge, split, or invent any answer; each clue's "response" must be the provided answer string verbatim.
+
+${difficultyText}
+${valueGuidanceText}
+${UNIQUENESS_SELF_CHECK}
+
+Board answers — write one clue per answer, in order:
+${JSON.stringify(board, null, 2)}
+
+Rules:
+- Each clue is a Jeopardy-style statement that POINTS TO its answer without naming or revealing it, grounded in the provided fact.
+- Within each category assign values 200, 400, 600, 800, 1000 (200 most accessible, 1000 hardest).
+- A clue must never contain its own answer or an obvious stem/synonym of it.
+
+Return JSON only:
+{
+  "categories": [
+    {
+      "title": "...",
+      "clues": [
+        { "value": 200, "clue": "...", "response": "Mariner 10" }
+      ]
+    }
+  ]
+}`;
+      })()
+    },
+
     'category-rename': {
       system: SYSTEM_INSTRUCTION,
       user: `Suggest 3 alternative names for this Jeopardy category: "${context.currentTitle}"
@@ -670,6 +735,28 @@ export const validators: Record<AIPromptType, AIValidator<unknown>> = {
                typeof clue.response === 'string'
              )
            );
+  },
+
+  'extract-board-answers': (data): data is AIResponses['extract-board-answers'] => {
+    const d = data as AIResponses['extract-board-answers'];
+    return typeof d === 'object' && d !== null &&
+      Array.isArray(d.categories) && d.categories.length > 0 &&
+      d.categories.every(cat =>
+        typeof cat.title === 'string' &&
+        Array.isArray(cat.answers) && cat.answers.length > 0 &&
+        cat.answers.every(a => typeof a.answer === 'string' && a.answer.trim().length > 0 && typeof a.fact === 'string')
+      );
+  },
+
+  'clues-from-answers': (data): data is AIResponses['clues-from-answers'] => {
+    const d = data as AIResponses['clues-from-answers'];
+    return typeof d === 'object' && d !== null &&
+      Array.isArray(d.categories) &&
+      d.categories.every(cat =>
+        typeof cat.title === 'string' &&
+        Array.isArray(cat.clues) &&
+        cat.clues.every(clue => typeof clue.value === 'number' && typeof clue.clue === 'string' && typeof clue.response === 'string')
+      );
   },
 
   'category-rename': (data): data is AIResponses['category-rename'] => {

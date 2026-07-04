@@ -95,6 +95,8 @@ const ALLOWED_PROMPT_TYPES = new Set([
   'game-title',
   'categories-generate',
   'categories-generate-from-content',
+  'extract-board-answers',
+  'clues-from-answers',
   'category-rename',
   'category-names-draft',
   'category-title-generate',
@@ -199,6 +201,8 @@ function getMaxTokens(promptType) {
   const tokenLimits = {
     'categories-generate': 8000,  // Full game with 6 categories × 5 clues
     'categories-generate-from-content': 8000, // Full game generated from source material
+    'extract-board-answers': 4000, // Answer candidates + facts per category
+    'clues-from-answers': 8000, // Full board of clues for fixed answers
     'category-replace-all': 4000, // Single category with 5 clues
     'questions-generate-five': 3000, // 5 clues
     'category-generate-clues': 3000, // Fill missing clues

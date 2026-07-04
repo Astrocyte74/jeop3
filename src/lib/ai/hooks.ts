@@ -186,6 +186,8 @@ export function useAIGeneration() {
       'categories-generate': 'Generating full game...',
       'categories-generate-from-content': 'Generating game from content...',
       'category-names-draft': 'Drafting category names...',
+      'extract-board-answers': 'Choosing answers...',
+      'clues-from-answers': 'Writing clues...',
       'category-rename': 'Generating name options...',
       'category-title-generate': 'Generating category title...',
       'category-generate-clues': 'Generating clues...',

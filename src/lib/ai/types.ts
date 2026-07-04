@@ -12,6 +12,8 @@ export type AIPromptType =
   | 'game-title'
   | 'categories-generate'
   | 'categories-generate-from-content'
+  | 'extract-board-answers'   // answer-first pipeline: source -> specific answer candidates
+  | 'clues-from-answers'      // answer-first pipeline: clues for pre-chosen answers
   // Category level
   | 'category-rename'
   | 'category-names-draft'
@@ -82,6 +84,8 @@ export interface AIContext {
   // Curated draft category titles to honor (from the Live Board) so generation
   // matches the preview the user curated.
   suggestedCategoryTitles?: string[];
+  // answer-first pipeline: the pre-chosen answer board passed to clues-from-answers.
+  answerBoard?: Array<{ title: string; answers: Array<{ answer: string; fact: string }> }>;
 
   // Category level
   categoryTitle?: string;
@@ -109,6 +113,8 @@ export interface AIResponses {
   'game-title': { titles: Array<{ title: string; subtitle: string }> };
   'categories-generate': { categories: AICategory[] };
   'categories-generate-from-content': { categories: AICategory[] };
+  'extract-board-answers': { categories: Array<{ title: string; answers: Array<{ answer: string; fact: string }> }> };
+  'clues-from-answers': { categories: AICategory[] };
   'category-rename': { names: string[] };
   'category-names-draft': { names: string[] };
   'category-title-generate': { title: string };
