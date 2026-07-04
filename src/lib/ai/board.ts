@@ -1,18 +1,20 @@
 /**
- * Answer-first board generation for one content span, with A+ fallback.
+ * Answer-first board generation for one content span, with overgeneration +
+ * judging (curate, don't just generate) and A+ fallback.
  *
- * Flow: extract specific answer-candidates -> filter generic/dup -> clues for
- * FIXED answers. If the source is too thin to fill every category, KEEP the
- * pipeline's good clues and patch only the missing slots from a single-pass
- * fallback — never discard good clues, never ship a partial board. Each clue is
- * tagged `provenance: "answer_first" | "fallback"` for later "regenerate weak
- * first" / analytics.
+ * Flow:
+ *   1. extract 8-10 specific answer-candidates / category (overgenerate)
+ *   2. filter generic + exact/near duplicates (incl. cross-span)
+ *   3. clues for the FIXED answers (generator does NOT assign difficulty)
+ *   4. judge every clue/answer pair (specificity, source-support, clarity,
+ *      jeopardy-style, duplicate-risk, difficulty)
+ *   5. select the best 5 per category, ordered by JUDGED difficulty -> $200-$1000
+ *   6. if a category is still short, patch the gaps from a single-pass fallback
+ *      (keep the good clues, never ship a partial board)
  *
- * (A future increment adds overgeneration + a judging pass that scores and
- * selects the best 5 per category by difficulty; this structure is what that
- * plugs into.)
+ * Each clue is tagged provenance: "answer_first" (judged/selected) | "fallback".
  */
-import { filterAnswerBoard } from './answers';
+import { filterAnswerBoard, nearDupKey } from './answers';
 import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
 
 type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty) => Promise<any>;
@@ -30,29 +32,84 @@ export interface ContentSpanInput {
 
 export interface ContentSpanResult {
   categories: AICategory[];
-  /** true if any clue was patched in from the fallback pass (thin source). */
   patched: boolean;
 }
 
+const VALUES = [200, 400, 600, 800, 1000];
 const norm = (s: string): string =>
   (s || '').toLowerCase().trim().replace(/^(the|a|an)\s+/, '').replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ');
+const withSource = (cats: AICategory[], sm?: string, su?: string): AICategory[] =>
+  cats.map(c => ({ ...c, sourceMaterial: sm, sourceUrl: su }));
 
-const withSource = (cats: AICategory[], sourceMaterial?: string, sourceUrl?: string): AICategory[] =>
-  cats.map(c => ({ ...c, sourceMaterial, sourceUrl }));
+interface Score {
+  specificity: number; sourceSupport: number; clarity: number;
+  jeopardyStyle: number; duplicateRisk: number; difficulty: number;
+}
+const overall = (s: Score): number => s.specificity + s.sourceSupport + s.clarity + s.jeopardyStyle - s.duplicateRisk;
+const passes = (s: Score | undefined): s is Score =>
+  !!s && s.sourceSupport >= 4 && s.specificity >= 4 && s.duplicateRisk <= 3;
 
-const isFullBoard = (cats: AICategory[], want: number): boolean =>
-  cats.length >= want && cats.slice(0, want).every(c => (c.clues?.length ?? 0) >= 5);
+interface ValuedClue { clue: string; response: string; value?: number; }
+interface JudgedCat { title: string; clues: ValuedClue[]; scores: Map<string, Score>; }
+
+/** Select up to 5 clues for a category: reject failures, drop near-dups (keep best),
+ *  then order by judged difficulty and assign $200-$1000. Mutates `spanNear`. */
+function pickBestFive(clues: ValuedClue[], scores: Map<string, Score>, spanNear: Set<string>): Clue[] {
+  const scored = clues
+    .map(cl => ({ cl, s: scores.get(norm(cl.response)) }))
+    .filter((x): x is { cl: ValuedClue; s: Score } => passes(x.s));
+  scored.sort((a, b) => overall(b.s) - overall(a.s)); // best first (wins near-dup ties)
+  const picked: typeof scored = [];
+  for (const x of scored) {
+    if (picked.length >= 5) break;
+    const nk = nearDupKey(x.cl.response);
+    if (spanNear.has(nk) || spanNear.has(norm(x.cl.response))) continue;
+    spanNear.add(nk); spanNear.add(norm(x.cl.response));
+    picked.push(x);
+  }
+  picked.sort((a, b) => a.s.difficulty - b.s.difficulty); // easiest -> hardest
+  return picked.map((x, i) => ({
+    value: VALUES[Math.min(i, VALUES.length - 1)],
+    clue: x.cl.clue,
+    response: x.cl.response,
+    provenance: 'answer_first',
+  }));
+}
+
+/** Fill a category to 5: keep the (already-valued) pipeline clues, add fallback
+ *  clues for the empty value slots, deduped against `spanNear`. */
+function fillCategory(title: string, pipelineClues: Clue[], fallbackClues: Clue[], spanNear: Set<string>): { category: AICategory; usedFallback: boolean } {
+  let usedFallback = false;
+  const chosen: Clue[] = [...pipelineClues];
+  const usedVals = new Set(chosen.map(c => c.value));
+  for (const fc of fallbackClues) {
+    if (chosen.length >= 5) break;
+    const nk = nearDupKey(fc.response);
+    if (spanNear.has(nk) || spanNear.has(norm(fc.response))) continue;
+    spanNear.add(nk); spanNear.add(norm(fc.response));
+    let v = fc.value ?? VALUES.find(x => !usedVals.has(x)) ?? VALUES[0];
+    if (usedVals.has(v)) { const nv = VALUES.find(x => !usedVals.has(x)); if (nv !== undefined) v = nv; }
+    usedVals.add(v);
+    chosen.push({ ...fc, value: v, provenance: 'fallback' });
+    usedFallback = true;
+  }
+  chosen.sort((a, b) => a.value - b.value);
+  return { category: { title, clues: chosen } as AICategory, usedFallback };
+}
 
 export async function generateContentSpan(generate: Generate, opts: ContentSpanInput): Promise<ContentSpanResult> {
   const { referenceMaterial, theme, titles, count, difficulty, existingAnswers = [], sourceMaterial, sourceUrl } = opts;
+  const spanNear = new Set<string>(existingAnswers.map(norm));
+  const catTitles = titles && titles.length
+    ? titles.slice(0, count)
+    : Array.from({ length: count }, (_, i) => `Category ${i + 1}`);
 
-  // 1. extract specific answers -> filter -> clues for fixed answers
-  let pipelineCats: AICategory[] = [];
+  // 1-4. extract (overgenerate) -> filter -> clues (value-less) -> judge
+  let judged: JudgedCat[] = [];
   try {
     const extracted = await generate(
       'extract-board-answers',
-      { referenceMaterial, count, topicList: titles, theme } as AIContext,
-      difficulty
+      { referenceMaterial, count, topicList: titles, theme } as AIContext, difficulty
     );
     const raw = (extracted?.categories || []).map((c: any) => ({
       title: c.title,
@@ -60,80 +117,60 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     }));
     const { board } = filterAnswerBoard(raw, 5, existingAnswers);
     if (board.length && board.some(c => c.answers.length > 0)) {
-      const clueResult = await generate(
-        'clues-from-answers',
-        { answerBoard: board, theme } as AIContext,
-        difficulty
-      );
-      pipelineCats = ((clueResult?.categories || []) as AICategory[]).filter(
-        c => Array.isArray(c.clues) && c.clues.length > 0
-      );
+      const clueRes = await generate('clues-from-answers', { answerBoard: board, theme } as AIContext, difficulty);
+      const clueCats = (clueRes?.categories || []) as Array<{ title: string; clues: ValuedClue[] }>;
+      if (clueCats.length) {
+        const judgeRes = await generate(
+          'judge-clues',
+          { answerBoard: clueCats, referenceMaterial, theme } as AIContext, difficulty
+        );
+        const judgeCats = (judgeRes?.categories || []) as Array<{ title: string; scored: any[] }>;
+        judged = clueCats.map((cc, i) => {
+          const scores = new Map<string, Score>();
+          for (const s of (judgeCats[i]?.scored || [])) {
+            if (s?.answer) scores.set(norm(s.answer), {
+              specificity: +s.specificity, sourceSupport: +s.sourceSupport, clarity: +s.clarity,
+              jeopardyStyle: +s.jeopardyStyle, duplicateRisk: +s.duplicateRisk, difficulty: +s.difficulty,
+            });
+          }
+          return { title: cc.title, clues: cc.clues || [], scores };
+        });
+      }
     }
   } catch {
-    pipelineCats = [];
+    judged = [];
   }
 
-  // 2. full pipeline board -> use it, tagged answer_first
-  if (isFullBoard(pipelineCats, count)) {
-    return {
-      categories: withSource(
-        pipelineCats.slice(0, count).map(c => ({
-          ...c,
-          clues: (c.clues || []).map(cl => ({ ...cl, provenance: 'answer_first' })),
-        })) as AICategory[],
-        sourceMaterial, sourceUrl
-      ),
-      patched: false,
-    };
-  }
-
-  // 3. A+ patch: single-pass fallback (same titles) + merge, keeping pipeline clues.
-  // Pool both sources, dedup across the whole span (and prior spans), and enforce
-  // distinct 200–1000 values per category — answer_first clues are pooled first so
-  // they win ties; fallback clues fill the gaps.
-  const single = await generate(
-    'categories-generate-from-content',
-    {
-      theme: theme || 'random', count, referenceMaterial,
-      suggestedCategoryTitles: titles, existingAnswers,
-    } as AIContext,
-    difficulty
-  );
-  const singleCats = ((single?.categories || []) as AICategory[]).slice(0, count);
-
-  const ALL_VALS = [200, 400, 600, 800, 1000];
-  const spanSeen = new Set<string>(existingAnswers.map(norm)); // span- + cross-span dedup
-  let patched = false;
-
-  const merged: AICategory[] = singleCats.map((sc, i): AICategory => {
-    const pc = pipelineCats[i];
-    const pool: Clue[] = [
-      ...((pc?.clues || []) as Clue[]).map(cl => ({ ...cl, provenance: 'answer_first' })),
-      ...((sc.clues || []) as Clue[]).map(cl => ({ ...cl, provenance: 'fallback' })),
-    ];
-    const chosen: Clue[] = [];
-    for (const cl of pool) {
-      if (chosen.length >= 5) break;
-      const n = norm(cl.response);
-      if (spanSeen.has(n)) continue; // dup answer — skip
-      spanSeen.add(n);
-      chosen.push(cl);
-      if (cl.provenance === 'fallback') patched = true;
-    }
-    // enforce distinct values 200–1000 (answer_first are first in `chosen`, so they keep their values)
-    const usedVals = new Set<number>();
-    const distinct = chosen.map(cl => {
-      let v = cl.value;
-      if (usedVals.has(v)) {
-        const nv = ALL_VALS.find(x => !usedVals.has(x));
-        if (nv !== undefined) v = nv;
-      }
-      usedVals.add(v);
-      return { ...cl, value: v };
-    });
-    distinct.sort((a, b) => a.value - b.value);
-    return { ...(pc || sc), title: (pc?.title || sc.title) as string, clues: distinct } as AICategory;
+  // 5. pick best 5/category by judge scores (assigns $200-$1000 by difficulty)
+  let pickedPerCat: Clue[][] = catTitles.map((t, i) => {
+    const jc = judged.find(c => norm(c.title) === norm(t)) || judged[i];
+    return jc ? pickBestFive(jc.clues, jc.scores, spanNear) : [];
   });
 
-  return { categories: withSource(merged, sourceMaterial, sourceUrl), patched };
+  // 6. patch gaps with a single-pass fallback (keep good clues, fill to 5)
+  let patched = false;
+  const needsPatch = pickedPerCat.some(cs => cs.length < 5);
+  if (needsPatch) {
+    patched = true;
+    let singleCats: AICategory[] = [];
+    try {
+      const single = await generate(
+        'categories-generate-from-content',
+        { theme: theme || 'random', count, referenceMaterial, suggestedCategoryTitles: titles, existingAnswers } as AIContext,
+        difficulty
+      );
+      singleCats = ((single?.categories || []) as AICategory[]).slice(0, count);
+    } catch {
+      singleCats = [];
+    }
+    pickedPerCat = catTitles.map((t, i) => {
+      if (pickedPerCat[i].length >= 5) return pickedPerCat[i];
+      const res = fillCategory(t, pickedPerCat[i], (singleCats[i]?.clues || []) as Clue[], spanNear);
+      if (res.usedFallback) patched = true;
+      return res.category.clues;
+    });
+  }
+
+  const categories: AICategory[] = catTitles.map((title, i) => ({ title, clues: pickedPerCat[i] }) as AICategory);
+  return { categories: withSource(categories, sourceMaterial, sourceUrl), patched };
 }

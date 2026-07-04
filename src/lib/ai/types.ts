@@ -14,6 +14,7 @@ export type AIPromptType =
   | 'categories-generate-from-content'
   | 'extract-board-answers'   // answer-first pipeline: source -> specific answer candidates
   | 'clues-from-answers'      // answer-first pipeline: clues for pre-chosen answers
+  | 'judge-clues'             // answer-first pipeline: score + rank clues, assign difficulty
   // Category level
   | 'category-rename'
   | 'category-names-draft'
@@ -86,8 +87,9 @@ export interface AIContext {
   // Curated draft category titles to honor (from the Live Board) so generation
   // matches the preview the user curated.
   suggestedCategoryTitles?: string[];
-  // answer-first pipeline: the pre-chosen answer board passed to clues-from-answers.
-  answerBoard?: Array<{ title: string; answers: Array<{ answer: string; fact: string }> }>;
+  // answer-first pipeline: pre-chosen answer board (answers for clues-from-answers,
+  // or the resulting clues for judge-clues).
+  answerBoard?: Array<{ title: string; answers?: Array<{ answer: string; fact: string }>; clues?: Array<{ clue: string; response: string }> }>;
 
   // Category level
   categoryTitle?: string;
@@ -116,7 +118,8 @@ export interface AIResponses {
   'categories-generate': { categories: AICategory[] };
   'categories-generate-from-content': { categories: AICategory[] };
   'extract-board-answers': { categories: Array<{ title: string; answers: Array<{ answer: string; fact: string }> }> };
-  'clues-from-answers': { categories: AICategory[] };
+  'clues-from-answers': { categories: Array<{ title: string; clues: Array<{ clue: string; response: string; value?: number }> }> };
+  'judge-clues': { categories: Array<{ title: string; scored: Array<{ answer: string; specificity: number; sourceSupport: number; clarity: number; jeopardyStyle: number; duplicateRisk: number; difficulty: number }> }> };
   'category-rename': { names: string[] };
   'category-names-draft': { names: string[] };
   'category-title-generate': { title: string };

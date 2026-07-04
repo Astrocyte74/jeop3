@@ -29,6 +29,22 @@ const normalize = (s: string): string =>
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ');
 
+// Unit-ish words stripped when comparing non-numeric answers (e.g. "176 Earth days").
+const UNIT_STOP = /\b(earth\s+)?(days?|years?|months?|hours?|minutes?|seconds?|km|kilometers?|met(er|re)s?|miles?|c|degrees?\s*(celsius|fahrenheit)?|%|percent|times?|orbits?|solar)\b/gi;
+
+/**
+ * Near-duplicate clustering key. Number-bearing answers cluster on their digits
+ * ("176", "176 Earth days", "a 176-day solar day" -> "n:176"); other answers
+ * cluster on their words minus units/possessives. Stricter than `normalize` so
+ * semantically-equal answers don't both reach the board.
+ */
+export function nearDupKey(answer: string): string {
+  let a = normalize(answer).replace(/['']s\b/g, '');
+  const nums = a.match(/\d[\d,\.]*/g);
+  if (nums && nums.length) return 'n:' + nums.map(n => n.replace(/[,.]/g, '')).join('-');
+  return 'w:' + a.replace(UNIT_STOP, '').replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 export function isGenericAnswer(answer: string): boolean {
   const a = normalize(answer);
   if (!a) return true;
@@ -58,16 +74,19 @@ export function filterAnswerBoard(
   avoid: string[] = []
 ): FilterResult {
   const seen = new Set<string>(avoid.map(normalize));
+  const seenNear = new Set<string>(avoid.map(nearDupKey));
   let dropped = 0;
   let kept = 0;
   const cleaned = board.map(cat => {
     const answers = cat.answers.filter(a => {
       const n = normalize(a.answer);
-      if (isGenericAnswer(a.answer) || seen.has(n)) {
+      const nk = nearDupKey(a.answer);
+      if (isGenericAnswer(a.answer) || seen.has(n) || seenNear.has(nk)) {
         dropped++;
         return false;
       }
       seen.add(n);
+      seenNear.add(nk);
       kept++;
       return true;
     });

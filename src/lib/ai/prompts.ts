@@ -274,7 +274,7 @@ ${titles
           ? `Group the answers under these ${count} category titles, in this order:\n${titles.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n')}`
           : `Propose ${count} category titles covering distinct aspects of the source, and group answers under them.`}
 
-For EACH category, provide exactly 5 answer candidates. Every answer MUST be a SPECIFIC entity found in or directly supported by the source — a proper name, a person, a place, a mission or spacecraft, a year, or a number WITH units.
+For EACH category, provide 8 to 10 answer candidates (aim for 8) — more than needed, so a later judge can pick the best 5. Every answer MUST be a SPECIFIC entity found in or directly supported by the source — a proper name, a person, a place, a mission or spacecraft, a year, or a number WITH units.
 FORBIDDEN as answers (too generic — never use): "size", "speed", "atmosphere", "orbit", "temperature", "craters", "the sun", "sun", "planet", "surface", "rotation", "distance", "gravity", "core", "moons", "year", "day", "name".
 Each candidate includes a one-sentence supporting fact paraphrased from the source. All answers within a category must be DISTINCT entities, and distinct across all categories.
 
@@ -298,8 +298,6 @@ Return JSON only:
         const board = context.answerBoard || [];
         return `Write Jeopardy clues for a board whose ANSWERS are already chosen. Use EXACTLY these answers — do not change, generalize, merge, split, or invent any answer; each clue's "response" must be the provided answer string verbatim.
 
-${difficultyText}
-${valueGuidanceText}
 ${UNIQUENESS_SELF_CHECK}
 
 Board answers — write one clue per answer, in order:
@@ -307,8 +305,8 @@ ${JSON.stringify(board, null, 2)}
 
 Rules:
 - Each clue is a Jeopardy-style statement that POINTS TO its answer without naming or revealing it, grounded in the provided fact.
-- Within each category assign values 200, 400, 600, 800, 1000 (200 most accessible, 1000 hardest).
 - A clue must never contain its own answer or an obvious stem/synonym of it.
+- Do NOT assign dollar values or rank difficulty — a separate judge does that afterward. Just write the strongest clue you can for each answer.
 
 Return JSON only:
 {
@@ -316,7 +314,42 @@ Return JSON only:
     {
       "title": "...",
       "clues": [
-        { "value": 200, "clue": "...", "response": "Mariner 10" }
+        { "clue": "...", "response": "Mariner 10" }
+      ]
+    }
+  ]
+}`;
+      })()
+    },
+
+    'judge-clues': {
+      system: `You are a Jeopardy clue judge. Score each clue/answer pair. Always respond with valid JSON only — no prose, no code fences.`,
+      user: (() => {
+        const board = context.answerBoard || [];
+        const ref = (context.referenceMaterial || '').slice(0, 8000);
+        return `Score each clue/answer pair below. Use the SOURCE to assess factual support, and score difficulty RELATIVE to the other clues in the SAME category.
+
+Source:
+"""${ref}"""
+
+Board (each category's clues, in order):
+${JSON.stringify(board, null, 2)}
+
+For EACH clue/answer pair, return integer scores 1-5 (5 = best):
+- specificity: is the answer a specific entity (a name / place / year / specific term), not a generic concept?
+- sourceSupport: is the clue+answer grounded in the source above?
+- clarity: is the clue clear, unambiguous, not awkward?
+- jeopardyStyle: does it read like real Jeopardy — points to the answer without revealing it?
+- duplicateRisk: does this answer near-duplicate ANOTHER answer in this same category? (1 = unique, 5 = essentially the same as another)
+- difficulty: how hard for a player? (1 = very easy / common knowledge, 5 = deep cut / obscure)
+
+Return JSON only:
+{
+  "categories": [
+    {
+      "title": "...",
+      "scored": [
+        { "answer": "Mariner 10", "specificity": 5, "sourceSupport": 5, "clarity": 5, "jeopardyStyle": 4, "duplicateRisk": 1, "difficulty": 2 }
       ]
     }
   ]
@@ -754,8 +787,23 @@ export const validators: Record<AIPromptType, AIValidator<unknown>> = {
       Array.isArray(d.categories) &&
       d.categories.every(cat =>
         typeof cat.title === 'string' &&
-        Array.isArray(cat.clues) &&
-        cat.clues.every(clue => typeof clue.value === 'number' && typeof clue.clue === 'string' && typeof clue.response === 'string')
+        Array.isArray(cat.clues) && cat.clues.length > 0 &&
+        cat.clues.every(clue => typeof clue.clue === 'string' && typeof clue.response === 'string' &&
+          (clue.value === undefined || typeof clue.value === 'number'))
+      );
+  },
+
+  'judge-clues': (data): data is AIResponses['judge-clues'] => {
+    const d = data as AIResponses['judge-clues'];
+    return typeof d === 'object' && d !== null && Array.isArray(d.categories) &&
+      d.categories.every(cat =>
+        typeof cat.title === 'string' &&
+        Array.isArray(cat.scored) && cat.scored.length > 0 &&
+        cat.scored.every(s =>
+          typeof s.answer === 'string' &&
+          ['specificity', 'sourceSupport', 'clarity', 'jeopardyStyle', 'duplicateRisk', 'difficulty']
+            .every(k => typeof (s as any)[k] === 'number')
+        )
       );
   },
 

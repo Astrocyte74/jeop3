@@ -188,6 +188,7 @@ export function useAIGeneration() {
       'category-names-draft': 'Drafting category names...',
       'extract-board-answers': 'Choosing answers...',
       'clues-from-answers': 'Writing clues...',
+      'judge-clues': 'Judging clues...',
       'category-rename': 'Generating name options...',
       'category-title-generate': 'Generating category title...',
       'category-generate-clues': 'Generating clues...',

@@ -799,6 +799,7 @@ export function AIPreviewDialog({
       'category-names-draft': 'Draft Category Names',
       'extract-board-answers': 'Extract Answers',
       'clues-from-answers': 'Write Clues',
+      'judge-clues': 'Judge Clues',
       'category-rename': 'Rename Category',
       'category-title-generate': 'Generate Category Title',
       'category-generate-clues': 'Generate Missing Clues',
