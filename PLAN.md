@@ -190,6 +190,36 @@ PORT=7476                      # AI server (server/.env)
 - Social features
 - Multiplayer real-time
 
+## 📌 Next up: click-to-edit span (refinement #1)
+
+The board should be a two-way authoring surface: click a filled column (or an
+"On the board" list row) to load that span back into the left rail for editing.
+
+**Why it matters:** the worst mistake-recovery case today is a paste span —
+trashing a 5,000-char article to fix something means re-pasting it. Edit-in-place
+turns that into one click. The board already advertises clickability (hover-reroll,
+card-like columns), so this honors an existing affordance rather than adding a new one.
+
+**Scope:** `editingSourceId` state; clicking an added span's column (or its row in
+the "On the board" list) enters edit mode — the rail flips from "Now filling: Column N"
+to "Editing Col X–Y", loads the span's type/content, and "Fill column" becomes
+**Save changes** (update the source in place) + **Cancel** (deselect). Span **width
+is locked while editing** (content-only) so neighbors don't need re-packing.
+
+**Edge cases to handle deliberately:**
+1. **Stash in-progress input.** If the user has typed/pasted content for the next
+   span and then clicks a filled column, stash that draft and restore it on Save/Cancel —
+   never silently discard it (that's the exact data-loss this feature exists to fix).
+2. **Curated titles don't survive content edits — be intentional.** Editing content
+   changes the draft-cache key, so a fresh title pass fires and any hand-rerolled titles
+   for the old content are orphaned. That's semantically correct (new content ⇒ new titles);
+   the code must not half-preserve stale titles.
+3. **Two entry points, one state.** Make the "On the board" list rows clickable into the
+   same edit mode as board columns — covers the sub-lg case where the board pane is hidden
+   and columns can't be clicked.
+
+Reuses the existing draft-pass + truthfulness (`suggestedTitles`) plumbing.
+
 ## 🔗 Related Projects
 
 - **quizzernator** - Inspiration for chunking approach (not used)
