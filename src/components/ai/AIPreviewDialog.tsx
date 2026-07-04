@@ -581,6 +581,9 @@ function CategoriesPreview({
                       {isClueRegenerated && (
                         <Badge className="bg-purple-500 text-xs shrink-0">✨ New</Badge>
                       )}
+                      {(clue as any).provenance === 'fallback' && (
+                        <Badge variant="outline" className="text-amber-400/80 border-amber-500/30 bg-amber-500/5 text-[10px] shrink-0" title="Filled from fallback — click ✨ to regenerate for a better clue">Patched</Badge>
+                      )}
                       <DropdownMenu modal={false}>
                         <DropdownMenuTrigger asChild>
                           <Button
