@@ -703,6 +703,33 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep, customSources, theme, difficulty, currentSourceType, currentSourceContent, currentSourceCategoryCount, draftNames]);
 
+  // Per-span "regenerate titles": re-roll every draft title for one added span
+  // in a single pass, avoiding the span's current titles so the result is fresh.
+  const regenerateSpanTitles = async (source: CustomSource) => {
+    if (rerollingColKey) return;
+    const unit = draftUnitForSource(source);
+    const baseContext = draftUnitContexts.current.get(unit.key) ?? unit.context;
+    const avoid = (draftNames[unit.key] || []).filter(Boolean);
+    setRerollingColKey(`span-${source.id}`);
+    try {
+      const authToken = await getToken().catch(() => null);
+      const raw = await generateAI<string>(
+        'category-names-draft',
+        { ...baseContext, count: source.categoryCount, existingNames: avoid },
+        difficulty, undefined, authToken
+      );
+      const parsed = safeJsonParse(raw, validators['category-names-draft']) as { names: string[] } | null;
+      const names = parsed?.names?.slice(0, source.categoryCount) ?? [];
+      if (names.length) {
+        setDraftNames(prev => ({ ...prev, [unit.key]: names }));
+      }
+    } catch {
+      // keep existing titles on failure
+    } finally {
+      setRerollingColKey(null);
+    }
+  };
+
   const rerollDraftName = async (unitKey: string, index: number, colKey: string) => {
     const baseContext = draftUnitContexts.current.get(unitKey);
     if (!baseContext || rerollingColKey) return;
@@ -772,7 +799,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // highlighted "next" outline before any content is typed, then as shimmering
   // draft columns (with live draft titles for topics) once typing starts.
   if (colCursor <= 6) {
-    const width = Math.min(currentSourceCategoryCount, 7 - colCursor);
+    const width = Math.min(currentSourceCategoryCount, getRemainingCategories());
     const spanState: 'draft' | 'next' = draftInput ? 'draft' : 'next';
     const draftLabel =
       currentSourceType === 'topic' ? draftInput : currentSourceType === 'paste' ? 'Pasted content' : hostnameOf(draftInput);
@@ -1325,6 +1352,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     {previewSpans.map((span) => {
                       const spanEnd = span.startCol + span.columns.length - 1;
                       const rangeText = span.startCol === spanEnd ? `Col ${span.startCol}` : `Cols ${span.startCol}–${spanEnd}`;
+                      const spanSource = customSources.find(s => s.id === span.key);
                       return (
                         <div key={span.key} className="flex flex-col gap-1.5 min-w-0" style={{ flexGrow: span.columns.length, flexBasis: 0 }}>
                           {/* Span ribbon — groups the columns that share one source */}
@@ -1334,6 +1362,18 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                               {span.sourceType === 'paste' && <FileText className="w-3 h-3 text-blue-400 flex-shrink-0" />}
                               {span.sourceType === 'url' && <Globe className="w-3 h-3 text-green-400 flex-shrink-0" />}
                               {span.columns.length > 1 && rangeText}
+                              {spanSource && (
+                                <button
+                                  type="button"
+                                  onClick={() => void regenerateSpanTitles(spanSource)}
+                                  disabled={rerollingColKey !== null}
+                                  title="Regenerate titles for this span"
+                                  aria-label="Regenerate titles for this span"
+                                  className="ml-auto p-0.5 rounded text-slate-400 hover:text-yellow-400 disabled:opacity-40 flex-shrink-0"
+                                >
+                                  <RefreshCw className={`w-3 h-3 ${rerollingColKey === `span-${span.key}` ? 'animate-spin' : ''}`} />
+                                </button>
+                              )}
                             </div>
                           ) : span.state === 'draft' || span.state === 'next' ? (
                             <div className={`h-6 rounded-md border border-dashed border-yellow-500/50 bg-yellow-500/5 flex items-center justify-center gap-1 px-1 text-[10px] font-bold uppercase tracking-wider text-yellow-500/90 overflow-hidden whitespace-nowrap ${span.state === 'next' ? 'animate-pulse' : ''}`}>
