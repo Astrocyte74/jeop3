@@ -275,13 +275,17 @@ For EACH section, list 10 to 14 SPECIFIC, NAMED facts that would make good Jeopa
 FORBIDDEN (too generic — never write a fact whose subject is just a bare concept): "size", "speed", "atmosphere", "orbit", "temperature", "the sun", "planet", "surface", "rotation", "distance", "gravity", "year", "day". Each fact must point at a SPECIFIC named thing.
 Within a section, every fact must target a DIFFERENT specific entity (no near-duplicates). Across sections, no entity should repeat.
 
-This fact-sheet is the sole grounding source for the board, so density and specificity matter more than narrative.
+CRITICAL — NO FABRICATION: This fact-sheet is the sole grounding source for the board, so its facts must be REAL and verifiable. Density and specificity matter, but only for facts you are confident are true.
+- If you are confident a section has enough real, named facts (you genuinely know them), set that section's "confidence" to "high" and list them.
+- If a section's topic is obscure, fictional, made-up, or you do not have enough real facts to fill it, set "confidence" to "low" and return an EMPTY facts array for it. NEVER invent plausible-sounding names, dates, or entities to fill a section you're unsure about — an empty "low"-confidence section is correct and expected for topics you don't know.
+- When in doubt about a fact's truth, omit it.
 
 Return JSON only:
 {
   "sections": [
     {
       "title": "${titles ? titles[0] : 'Category title'}",
+      "confidence": "high",
       "facts": [
         "Mariner 10 was the first spacecraft to visit Mercury, flying by in 1974-75.",
         "Mercury's Caloris Basin spans about 1,550 km, one of the largest impact craters in the Solar System."
@@ -827,7 +831,8 @@ export const validators: Record<AIPromptType, AIValidator<unknown>> = {
       Array.isArray(d.sections) && d.sections.length > 0 &&
       d.sections.every(sec =>
         typeof sec.title === 'string' &&
-        Array.isArray(sec.facts) && sec.facts.length > 0 &&
+        (sec.confidence === 'high' || sec.confidence === 'low') &&
+        Array.isArray(sec.facts) &&
         sec.facts.every(f => typeof f === 'string' && f.trim().length > 0)
       );
   },

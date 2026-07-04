@@ -243,45 +243,75 @@ export async function generateTopicSpan(
     catTitles.map(title => searchAndFetchCategorySource(title, authToken))
   );
   const sections: Array<{ title: string; body: string }> = [];
+  // categorySources is finalized after synthesis — a category's sourceType is
+  // only 'ai_synthesized' if synthesis actually produced confident content.
   const categorySources: ContentSpanResult['categorySources'] = [];
+  const retrievedByTitle = new Map<string, { url: string }>();
   const needFactSheet: string[] = [];
   catTitles.forEach((title, i) => {
     const r = retrieved[i];
     if (r) {
       sections.push({ title, body: r.text });
-      categorySources.push({ title, sourceType: 'retrieved', url: r.url });
+      retrievedByTitle.set(title, { url: r.url });
     } else {
       needFactSheet.push(title);
-      categorySources.push({ title, sourceType: 'ai_synthesized' });
     }
   });
 
   // 2. AI fact-sheet fallback for any categories retrieval couldn't ground.
+  //    The fact-sheet prompt marks each section "high" or "low" confidence and
+  //    is told to return EMPTY facts (rather than fabricate) for sections it
+  //    doesn't truly know. We honor that: low-confidence sections are dropped,
+  //    never filled with invented material. This is what stops made-up topics
+  //    ("A Very Obscure Made-Up Topic") from producing confident fiction.
+  const synthesizedTitles = new Set<string>();
   if (needFactSheet.length) {
     onStage?.('Filling gaps from AI research…');
-    let synthSections: Array<{ title: string; facts: string[] }> = [];
+    let synthSections: Array<{ title: string; confidence: 'high' | 'low'; facts: string[] }> = [];
     try {
       const sheet = await generate(
         'topic-fact-sheet',
         { theme: topic, count: needFactSheet.length, topicList: needFactSheet } as AIContext,
         difficulty
       );
-      synthSections = (sheet?.sections || []) as Array<{ title: string; facts: string[] }>;
+      synthSections = (sheet?.sections || []) as Array<{ title: string; confidence: 'high' | 'low'; facts: string[] }>;
     } catch { synthSections = []; }
     for (let i = 0; i < needFactSheet.length; i++) {
       const title = needFactSheet[i];
-      const facts = synthSections[i]?.facts || [];
-      const body = facts.length
-        ? facts.map(f => `- ${f}`).join('\n')
-        : `- General facts about ${title} in the context of ${topic}.`;
-      sections.push({ title, body });
+      const sec = synthSections[i];
+      const facts = sec?.facts || [];
+      // Only accept the model's facts when it marked itself confident. A
+      // low-confidence section (or one with no facts) is left out rather
+      // than padded with a generic placeholder that the pipeline would then
+      // mine as if it were real grounding.
+      if (sec?.confidence === 'high' && facts.length) {
+        sections.push({ title, body: facts.map(f => `- ${f}`).join('\n') });
+        synthesizedTitles.add(title);
+      }
+      // else: leave the category absent from `sections`. If every category
+      // ends up absent, the bail check below fires and the caller's
+      // last-resort single-pass runs instead of shipping invented facts.
     }
   }
 
-  // 3. If retrieval got NOTHING and the fact-sheet also failed for all, we have
-  //    no grounding — bail so the caller's last-resort single-pass runs.
+  // Finalize per-category provenance. Categories with no confident grounding
+  // are omitted — they'll surface downstream as fallback/patched clues via
+  // the pipeline's gap-fill, which is honest (not falsely "synthesized").
+  for (const title of catTitles) {
+    if (retrievedByTitle.has(title)) {
+      categorySources.push({ title, sourceType: 'retrieved', url: retrievedByTitle.get(title)!.url });
+    } else if (synthesizedTitles.has(title)) {
+      categorySources.push({ title, sourceType: 'ai_synthesized' });
+    }
+    // else: no entry — category has no grounding source.
+  }
+
+  // 3. If no category ended up with usable grounding — retrieval missed
+  //    everywhere AND the fact-sheet was non-confident/empty everywhere — bail
+  //    so the caller's last-resort single-pass runs rather than producing a
+  //    board from fabricated sources.
   if (!sections.some(s => s.body && s.body.length > 50)) {
-    throw new Error('topic grounding failed (no Wikipedia results, fact-sheet empty)');
+    throw new Error('topic grounding failed (no Wikipedia results, fact-sheet not confident)');
   }
 
   // 4. Concat into one sectioned reference string the existing pipeline mines
