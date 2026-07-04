@@ -26,7 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft, Check, AlertCircle } from 'lucide-react';
+import { Wand2, Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft, Check, AlertCircle, BookOpen } from 'lucide-react';
 import type { AIPromptType } from '@/lib/ai/types';
 import { GameMetadata as GameMetadataComponent } from '@/components/GameMetadata';
 import type { GameMetadata } from '@/lib/storage';
@@ -428,6 +428,36 @@ function CategoriesPreview({
         </div>
       )}
 
+      {/* Topic-mode grounding summary: how many categories were grounded in
+          real Wikipedia retrieval vs AI fact-sheet synthesis. Only shows for
+          topic-mode games (content-mode categories have no sourceType). */}
+      {(() => {
+        const typed = categories.filter(c => (c as any).sourceType);
+        if (typed.length === 0) return null;
+        const retrieved = typed.filter(c => (c as any).sourceType === 'retrieved').length;
+        const synthesized = typed.length - retrieved;
+        return (
+          <div className="flex items-start gap-2.5 rounded-lg border border-slate-600/50 bg-slate-800/40 p-3 text-sm text-slate-300">
+            <BookOpen className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-400" />
+            <div>
+              {retrieved > 0 && synthesized > 0 ? (
+                <>
+                  <span className="font-medium text-emerald-300">{retrieved} categor{retrieved === 1 ? 'y' : 'ies'} from Wikipedia</span>
+                  <span className="text-slate-400"> · {synthesized} from AI fact-sheet (no clean Wikipedia match).</span>
+                </>
+              ) : retrieved > 0 ? (
+                <span className="font-medium text-emerald-300">All {retrieved} categor{retrieved === 1 ? 'y' : 'ies'} grounded in Wikipedia.</span>
+              ) : (
+                <span className="text-slate-400">
+                  <span className="font-medium text-amber-300/90">{synthesized} categor{synthesized === 1 ? 'y' : 'ies'} from AI fact-sheet.</span>
+                  {' '}No clean Wikipedia matches — these clues are AI-synthesized, so double-check facts before play.
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Board-quality / thin-source signal (derived from clue provenance) */}
       {(() => {
         const all = categories.flatMap(c => c.clues);
@@ -506,6 +536,27 @@ function CategoriesPreview({
               )}
               {isCatRegenerated && (
                 <Badge className="bg-purple-500 text-xs">Regenerated</Badge>
+              )}
+              {/* Topic-mode source-type provenance: Wikipedia retrieval vs
+                  AI fact-sheet synthesis. Only renders for topic-mode
+                  categories (content-mode has no sourceType). */}
+              {(cat as any).sourceType === 'retrieved' && (
+                <a
+                  href={(cat as any).sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={((cat as any).sourceUrl as string) || 'Wikipedia source'}
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20"
+                >
+                  <BookOpen className="w-3 h-3" />
+                  Wikipedia
+                </a>
+              )}
+              {(cat as any).sourceType === 'ai_synthesized' && (
+                <Badge variant="outline" className="text-[11px] text-amber-300/80 border-amber-500/40 bg-amber-500/10" title="No Wikipedia match — this category's source was synthesized by the AI">
+                  <Sparkles className="w-3 h-3 mr-0.5" />
+                  AI fact-sheet
+                </Badge>
               )}
               <div className="flex-1" />
               <DropdownMenu modal={false}>
