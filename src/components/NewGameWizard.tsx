@@ -1298,6 +1298,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         className="min-h-[120px] bg-slate-800/50 border-slate-700 text-sm"
                       />
                       <p className="text-xs text-slate-500">{currentSourceContent.length.toLocaleString()} / {MAX_CHARS.toLocaleString()} characters</p>
+                      <p className="text-[11px] text-slate-600">Tip: the more facts you include, the more specific the clues.</p>
                     </>
                   ) : (
                     <div className="flex gap-2">

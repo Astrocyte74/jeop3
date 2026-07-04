@@ -54,9 +54,10 @@ export interface FilterResult {
  */
 export function filterAnswerBoard(
   board: Array<{ title: string; answers: AnswerCandidate[] }>,
-  want = 5
+  want = 5,
+  avoid: string[] = []
 ): FilterResult {
-  const seen = new Set<string>();
+  const seen = new Set<string>(avoid.map(normalize));
   let dropped = 0;
   let kept = 0;
   const cleaned = board.map(cat => {

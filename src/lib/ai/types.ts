@@ -46,6 +46,8 @@ export interface Clue {
   value: number;
   clue: string;
   response: string;
+  /** "answer_first" (locked-answer pipeline) or "fallback" (patched from single-pass). */
+  provenance?: string;
 }
 
 // Category data structure (with optional contentTopic for AI)

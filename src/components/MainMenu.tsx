@@ -28,6 +28,7 @@ import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, sav
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
+import { generateContentSpan } from '@/lib/ai/board';
 import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
@@ -737,84 +738,57 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const failedSources: Array<{ source: CustomSource; error: string }> = [];
 
         for (const source of customSources) {
-          // Determine prompt type based on source type and content availability
-          let promptType: AIPromptType = 'categories-generate';
           const hasContent = (source.type === 'paste' && source.content) ||
                             (source.type === 'url' && source.fetchedContent);
+          const sourceMaterial = source.type === 'paste' ? source.content :
+                                 source.type === 'url' ? source.fetchedContent : undefined;
+          const sourceUrl = source.type === 'url' ? source.url : undefined;
+          const existingAnswers = categoriesList.length > 0
+            ? categoriesList.flatMap(c => c.clues.map(cl => cl.response))
+            : [];
 
-          if (hasContent) {
-            promptType = 'categories-generate-from-content';
-          }
-
-          const context: Record<string, any> = {
-            theme: source.topic || 'random',
-            count: source.categoryCount,
-          };
-
-          if (source.type === 'paste' && source.content) {
-            context.referenceMaterial = source.content;
-            context.sourceCharacters = source.content.length;
-          } else if (source.type === 'url' && source.fetchedContent) {
-            context.referenceMaterial = source.fetchedContent;
-            context.referenceUrl = source.url;
-            context.sourceCharacters = source.fetchedContent.length;
-          }
-
-          // Honor the Live Board's curated draft titles so the final board matches the preview.
-          if (source.suggestedTitles && source.suggestedTitles.length > 0) {
-            context.suggestedCategoryTitles = source.suggestedTitles;
-          }
-
-          // Chain answers across sequential span calls: later spans are told
-          // which answers earlier spans already used, so similar sources can't
-          // produce duplicate questions across the board.
-          if (categoriesList.length > 0) {
-            context.existingAnswers = categoriesList.flatMap(c => c.clues.map(cl => cl.response));
-          }
-
-          console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, promptType });
+          console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, answerFirst: hasContent });
           try {
-            const sourceResult = await aiGenerate(promptType, context, difficulty);
+            let spanCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }>; [k: string]: any }>;
 
-            if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
-              console.error('[MainMenu] Invalid categories result for source:', source);
-              failedSources.push({
-                source,
-                error: 'Invalid response format from AI'
+            if (hasContent && sourceMaterial) {
+              // A+ answer-first pipeline (board.ts): extract specific answers -> filter ->
+              // clues for FIXED answers; patch thin-source gaps from a single-pass fallback,
+              // so the good clues are kept and the board is always complete.
+              const span = await generateContentSpan(aiGenerate as any, {
+                referenceMaterial: sourceMaterial,
+                theme: source.topic || theme || 'random',
+                titles: source.suggestedTitles,
+                count: source.categoryCount,
+                difficulty: difficulty || 'normal',
+                existingAnswers,
+                sourceMaterial,
+                sourceUrl,
               });
+              spanCategories = span.categories;
+            } else {
+              // Topic (no content): single-pass generation.
+              const sourceResult = await aiGenerate('categories-generate', {
+                theme: source.topic || 'random',
+                count: source.categoryCount,
+                suggestedCategoryTitles: source.suggestedTitles,
+                existingAnswers,
+              } as any, difficulty);
+              if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
+                console.error('[MainMenu] Invalid categories result for source:', source);
+                failedSources.push({ source, error: 'Invalid response format from AI' });
+                continue;
+              }
+              spanCategories = ((sourceResult as any).categories || [])
+                .slice(0, source.categoryCount)
+                .map((cat: any) => ({ ...cat, sourceMaterial, sourceUrl }));
+            }
+
+            if (!spanCategories || spanCategories.length === 0) {
+              failedSources.push({ source, error: 'No categories generated' });
               continue;
             }
-
-            const sourceCategories = (sourceResult as any).categories as Array<{
-              title: string;
-              clues: Array<{ value: number; clue: string; response: string }>;
-            }>;
-
-            // Validate we got the requested number of categories
-            if (sourceCategories.length !== source.categoryCount) {
-              if (sourceCategories.length < source.categoryCount) {
-                console.warn(`[MainMenu] ⚠️ Source "${source.topic || source.url || 'pasted content'}" returned only ${sourceCategories.length} of ${source.categoryCount} requested categories. Using what we got.`);
-              } else {
-                console.warn(`[MainMenu] Source returned ${sourceCategories.length} categories, requested ${source.categoryCount}. Truncating to ${source.categoryCount}.`);
-              }
-            }
-            // Only take the requested number (or fewer if AI didn't return enough)
-            const adjustedCategories = sourceCategories.slice(0, source.categoryCount);
-
-            // Attach source material to each category for later AI operations
-            const categoriesWithSource = adjustedCategories.map(cat => ({
-              ...cat,
-              sourceMaterial: source.type === 'paste' ? source.content :
-                          source.type === 'url' ? source.fetchedContent : undefined,
-              sourceUrl: source.type === 'url' ? source.url : undefined,
-            }));
-
-            categoriesList.push(...categoriesWithSource);
-
-            // Capture metadata from first successful generation
-            if (!categoriesMetadata) {
-              categoriesMetadata = (sourceResult as any)._metadata;
-            }
+            categoriesList.push(...spanCategories);
           } catch (error) {
             console.error('[MainMenu] Error generating from source:', source, error);
             failedSources.push({
