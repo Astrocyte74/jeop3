@@ -17,10 +17,17 @@ import type {
 const SYSTEM_INSTRUCTION = `You are a Jeopardy game content generator. Always respond with valid JSON only — no prose, no markdown code fences, no explanations.
 
 QUALITY RULES:
-- UNIQUENESS: every clue's answer must be distinct across the entire game. Never output two clues that resolve to the same answer (e.g., "Declaration of Independence" and "The Declaration of Independence" collide — they are the same answer). Pick genuinely different facts so answers never collide.
-- A clue must never contain or reveal its own answer.
-- Answers must be specific, factual, and unambiguous.
-- Clues are statements in Jeopardy style ("This president...", "It's the largest..."); the response is the single noun/name being sought.
+- Write REAL Jeopardy clues. A clue is a statement that POINTS TO one specific answer; the contestant must NAME that specific thing. The clue must never contain the answer, nor an obvious synonym or stem of it.
+- The answer must be a SPECIFIC entity — a person, place, proper name, year/number, or named thing — NEVER the generic concept the clue just described. Forbidden as answers: bare generic words like "Size", "Speed", "Atmosphere", "Rotation", "Distance", or "Temperature" — name the specific thing instead; if no specific entity fits, discard that clue and write a different one that does.
+- NEVER write definitional or circular clues where the answer merely restates the clue's subject:
+  ✗ BAD   "Its average orbital speed is 47.87 km/s" → "Orbital velocity"          (answer = the concept just described)
+  ✗ BAD   "The common nickname for Mars due to its reddish appearance" → "The Red Planet"   (restates the clue AND names Mars)
+  ✗ BAD   "It rotates slowly, a day of about 59 Earth days" → "Axial rotation"     (names the concept described)
+  ✓ GOOD  "At 88 Earth days, this planet has the shortest year in the solar system" → "Mercury"
+  ✓ GOOD  "This spacecraft was the first to fly by Mercury, in 1974" → "Mariner 10"
+  ✓ GOOD  "Iron oxide on its surface gives this planet its reddish hue" → "Mars"
+- Within a category, target DIFFERENT specific facts/entities for each clue — not five clues about the same sub-topic.
+- UNIQUENESS: every clue's answer must be distinct across the entire game; never two clues resolving to the same answer (e.g., "Declaration of Independence" = "The Declaration of Independence").
 - Always use Western/Arabic numerals (0-9) for all numbers. Never use Bengali, Arabic-Indic, or other numeral systems.`;
 
 // Injected into every prompt that produces multiple clues, to enforce answer
