@@ -3,12 +3,21 @@ export type Clue = {
   value: number;
   clue: string;
   response: string;
+  /** Provenance: 'answer_first' (pipeline-curated) | 'fallback' (patched).
+   *  Optional — older games won't have it. Persists with the game so tinting
+   *  survives reloads. Used by the Board Editor for cell tinting + AI badges. */
+  provenance?: string;
 };
 
 export type Category = {
   title: string;
   contentTopic?: string;
   clues: Clue[];
+  /** Topic-mode source type: Wikipedia retrieval vs AI fact-sheet synthesis.
+   *  Optional — only set for topic-mode categories. */
+  sourceType?: 'retrieved' | 'ai_synthesized';
+  sourceMaterial?: string;
+  sourceUrl?: string;
 };
 
 export type GameMetadata = {

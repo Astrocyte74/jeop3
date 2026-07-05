@@ -356,20 +356,52 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   // ==================== SMART AI (drawer) ====================
   // Regenerate the current clue: pull from the alternatives pool first
   // (instant swap of a known-good judged clue), fall back to a fresh
-  // editor-generate-clue call when the pool is empty. (Commit 4 fills this in.)
+  // editor-generate-clue call when the pool is empty. The pool fills when a
+  // category is regenerated (handleRegenerateCategoryEditor).
   const handleRegenerateClueEditor = useCallback(async () => {
     if (!editingCell) return;
+    const { categoryId, clueIndex } = editingCell;
+    const category = categories[categoryId];
+    const clue = category?.clues[clueIndex];
+    if (!category || !clue) return;
+
     setRegeneratingClue(true);
     try {
-      // STUB (Commit 4): pool-first logic + fresh-call fallback. Referencing
-      // `alternatives` here so the state isn't flagged unused until Commit 4
-      // wires the real pool lookup.
-      if (alternatives.length) { /* pool lookup lands in Commit 4 */ }
+      // Pool-first: find a qualified alternative for this category, re-validated
+      // against the live board (the pool was deduped at generation but the board
+      // may have changed since).
+      const norm = (s: string) => s.toLowerCase().replace(/^(the|a|an)\s+/, '').replace(/[^a-z0-9\s]/g, '').trim();
+      const usedNorms = new Set(
+        editingGame.categories
+          .flatMap((c, ci) => ci !== categoryId ? c.clues.map(cl => cl.response) : [])
+          .concat(category.clues.filter((_, i) => i !== clueIndex).map(cl => cl.response))
+          .map(norm)
+      );
+      const pool = alternatives.find(a => a.title.toLowerCase() === category.title.toLowerCase())?.clues || [];
+      const candidate = pool.find(a => !usedNorms.has(norm(a.response)));
+
+      if (candidate) {
+        // Instant swap — re-value to the target clue's dollar amount.
+        updateClue(categoryId, clueIndex, {
+          clue: candidate.clue,
+          response: candidate.response,
+          provenance: 'answer_first',
+        });
+        // Decrement the pool so the next regen pulls the next alternative.
+        setAlternatives(prev => prev
+          .map(a => a.title.toLowerCase() === category.title.toLowerCase()
+            ? { ...a, clues: a.clues.filter(c => !(c.clue === candidate.clue && c.response === candidate.response)) }
+            : a)
+          .filter(a => a.clues.length > 0));
+        return; // pool hit — no fresh AI call needed
+      }
+
+      // Fallback: pool empty (or no candidate) → fresh single-clue generation.
       await handleAIGenerateClue();
     } finally {
       setRegeneratingClue(false);
     }
-  }, [editingCell, handleAIGenerateClue, alternatives]);
+  }, [editingCell, categories, editingGame, alternatives, handleAIGenerateClue, updateClue]);
 
   // Regenerate the whole category through the answer-first pipeline so the
   // live-game edit meets the same quality bar as initial generation.
