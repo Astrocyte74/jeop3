@@ -54,6 +54,10 @@ interface GeneratedGameData {
     sourceMaterial?: string; // Store source material for this specific category
     sourceUrl?: string; // Store source URL if applicable
   }>;
+  /** Judged-but-unpicked clues retained per category, so "regenerate clue" can
+   *  swap in a known-good alternative instead of a fresh AI call. Absent for
+   *  single-source non-pipeline generation. */
+  alternatives?: Array<{ title: string; clues: Array<{ clue: string; response: string; provenance: 'answer_first'; score: { specificity: number; sourceSupport: number; clarity: number; jeopardyStyle: number; duplicateRisk: number; difficulty: number } }> }>;
   titles: Array<{ title: string; subtitle: string }>;
   suggestedTeamNames: string[];
   theme: string;
@@ -739,6 +743,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         clues: Array<{ value: number; clue: string; response: string }>;
       }> = [];
       let categoriesMetadata: any = undefined;
+      // Accumulate judged-but-unpicked alternatives across spans for the
+      // regen-from-pool handler. (Only the answer-first pipeline produces these.)
+      let alternativesList: GeneratedGameData['alternatives'] = [];
 
       // Handle custom sources mode - generate categories from each source
       if (sourceMode === 'custom' && customSources && customSources.length > 0) {
@@ -808,6 +815,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 onStage: (stage: string) => updateProgress(stage),
               });
               spanCategories = span.categories;
+              if (span.alternatives) alternativesList.push(...span.alternatives);
             } else {
               // Topic (no content): route through the answer-first pipeline too,
               // via a synthesized grounding fact-sheet (topic-mode parity). This
@@ -837,6 +845,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                   const cs = sourcesByTitle.get((cat.title || '').toLowerCase());
                   return cs ? { ...cat, sourceType: cs.sourceType, sourceUrl: cs.url } : cat;
                 });
+                if (span.alternatives) alternativesList.push(...span.alternatives);
               } catch (topicErr) {
                 console.warn('[MainMenu] Topic pipeline failed, falling back to single-pass:', topicErr);
                 const sourceResult = await aiGenerate('categories-generate', {
@@ -1087,6 +1096,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       setGeneratedGameData({
         game: newGame,
         categories: categoriesList,
+        alternatives: alternativesList.length ? alternativesList : undefined,
         titles: titlesList,
         suggestedTeamNames,
         theme: theme || 'random',
