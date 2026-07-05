@@ -759,9 +759,42 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       // regen-from-pool handler. (Only the answer-first pipeline produces these.)
       let alternativesList: GeneratedGameData['alternatives'] = [];
 
+      // NORMALIZE single-source modes into the custom-sources path so they go
+      // through the same answer-first pipeline (extract → clues → judge →
+      // select + alternatives + provenance). This closes the last quality gap:
+      // single-source paste/URL/scratch previously used legacy single-pass
+      // 'categories-generate(-from-content)' with no judging.
+      //   paste/url with material → one paste-style source
+      //   scratch (theme only)    → one topic-style source
+      let effectiveSourceMode = sourceMode;
+      let effectiveCustomSources = customSources;
+      if (sourceMode !== 'custom' && (!customSources || customSources.length === 0)) {
+        if (sourceMode !== 'scratch' && referenceMaterial) {
+          effectiveCustomSources = [{
+            id: 'single-source',
+            type: 'paste' as const,
+            content: referenceMaterial,
+            categoryCount: 6,
+          }];
+          effectiveSourceMode = 'custom';
+        } else if (theme && theme !== 'random') {
+          // Scratch with a real theme → treat as a single topic source so it
+          // gets fact-sheet grounding + the full pipeline.
+          effectiveCustomSources = [{
+            id: 'single-source',
+            type: 'topic' as const,
+            topic: theme,
+            categoryCount: 6,
+          }];
+          effectiveSourceMode = 'custom';
+        }
+        // else: scratch + 'random' theme stays single-pass (no source/topic to
+        // ground in — the model picks freely, which is the intended mode).
+      }
+
       // Handle custom sources mode - generate categories from each source
-      if (sourceMode === 'custom' && customSources && customSources.length > 0) {
-        console.log('[MainMenu] Generating categories from custom sources:', customSources);
+      if (effectiveSourceMode === 'custom' && effectiveCustomSources && effectiveCustomSources.length > 0) {
+        const customSourcesLoop = effectiveCustomSources;
 
         // Collect all successful results and track failures
         const failedSources: Array<{ source: CustomSource; error: string }> = [];
@@ -777,13 +810,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         // Skipped for now: most games are single-span (no gain), and this
         // sequential loop's strong dedup guarantee isn't worth trading away
         // for a power-user-only speedup (~60s → ~35s for multi-span only).
-        const sourceLabels: string[] = customSources.map(s => {
+        const sourceLabels: string[] = customSourcesLoop.map(s => {
           if (s.type === 'topic') return s.topic || 'Untitled topic';
           if (s.type === 'paste') return `Pasted content (${(s.content || '').length.toLocaleString()} chars)`;
           return s.url || 'URL source';
         });
-        for (let sourceIdx = 0; sourceIdx < customSources.length; sourceIdx++) {
-          const source = customSources[sourceIdx];
+        for (let sourceIdx = 0; sourceIdx < customSourcesLoop.length; sourceIdx++) {
+          const source = customSourcesLoop[sourceIdx];
           const hasContent = (source.type === 'paste' && source.content) ||
                             (source.type === 'url' && source.fetchedContent);
           const sourceMaterial = source.type === 'paste' ? source.content :
@@ -800,7 +833,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             setWizardStage(stage);
             setWizardProgress({
               sourceIndex: sourceIdx,
-              sourceTotal: customSources.length,
+              sourceTotal: customSourcesLoop.length,
               sourceLabels,
               stage,
             });
@@ -1117,8 +1150,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         referenceUrl,
         referenceMaterial: sourceMode !== 'custom' ? referenceMaterial : undefined, // Store for single-source mode
         sourceCharacters: referenceMaterial?.length,
-        // Preserve wizard inputs so "Regenerate All" can re-run the pipeline.
-        customSources: sourceMode === 'custom' ? customSources : undefined,
+        // Preserve the (possibly normalized) custom sources so "Regenerate
+        // All" can re-run the pipeline. For single-source modes that we
+        // normalized into customSources above, this is the synthetic one-source
+        // array; for genuine custom mode it's the wizard's inputs.
+        customSources: effectiveCustomSources,
         metadata: enhancedMetadata,
       });
 
@@ -1263,9 +1299,11 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // same inputs. This keeps regenerated boards at the same quality bar
     // (extract → clues → judge → select + alternatives + provenance) instead
     // of dropping back to the legacy single-pass 'categories-generate'.
-    const canReroute =
-      (generatedGameData.sourceMode === 'custom' && generatedGameData.customSources?.length) ||
-      (generatedGameData.referenceMaterial && generatedGameData.sourceMode !== 'scratch');
+    // We can re-route through the pipeline iff custom sources were preserved
+    // (true for genuine custom mode AND single-source modes that we normalized
+    // into a one-element customSources array at generation time). Scratch+random
+    // has no source to ground in → falls through to the legacy single-pass path.
+    const canReroute = !!generatedGameData.customSources?.length;
 
     if (canReroute) {
       await handleWizardComplete({
