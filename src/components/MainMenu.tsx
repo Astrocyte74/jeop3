@@ -1696,59 +1696,96 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         .filter((_, i) => i !== catIndex)
         .flatMap(cat => cat.clues.map(c => c.response));
 
-      // Use per-category sourceMaterial if available, otherwise fall back to global
+      // SOURCE-AWARE REGENERATION — route through the same answer-first
+      // pipeline that initial generation uses, so regenerated categories meet
+      // the same quality bar (extract → clues → judge → select). This is the
+      // key fix: the old path used 'category-replace-all' (single-pass, no
+      // judging), which is exactly the quality regression we built the pipeline
+      // to prevent. Now:
+      //   - content category (has sourceMaterial) → generateContentSpan
+      //   - topic category (has sourceType, no material) → generateTopicSpan
+      //   - scratch/random (no source) → fall back to category-replace-all
       const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
+      const isTopicCat = !sourceMaterial && (category as any).sourceType;
+      let newCat: { title: string; clues: Array<{ value: number; clue: string; response: string }> } | null = null;
 
-      const result = await aiGenerate(
-        'category-replace-all',
-        {
-          categoryTitle: category.title,
-          contentTopic,
-          theme,
-          existingClues: category.clues,
-          existingAnswers,
+      if (sourceMaterial) {
+        const span = await generateContentSpan(aiGenerate as any, {
           referenceMaterial: sourceMaterial,
-        },
-        generatedGameData.difficulty
-      );
-
-      if (result && typeof result === 'object') {
-        const catData = result as { category?: typeof category; title?: string; clues?: typeof category.clues };
-        const newCat = catData.category || (catData.title && catData.clues ? { title: catData.title, clues: catData.clues } : null);
-        if (newCat) {
-          const updatedCategories = [...generatedGameData.categories];
-          // Preserve sourceMaterial and sourceUrl when updating category
-          updatedCategories[catIndex] = {
-            ...newCat,
-            sourceMaterial: category.sourceMaterial,
-            sourceUrl: category.sourceUrl,
-          };
-
-          const updatedGame: Game = {
-            ...generatedGameData.game,
-            categories: updatedCategories.map(cat => ({
-              title: cat.title,
-              clues: cat.clues.map(clue => ({
-                value: clue.value,
-                clue: clue.clue,
-                response: clue.response,
-                completed: false,
-              })),
-            })),
-          };
-
-          setGeneratedGameData({
-            ...generatedGameData,
-            game: updatedGame,
-            categories: updatedCategories,
-          });
-
-          setAiPreviewData(prev => ({
-            ...prev,
-            categories: updatedCategories,
-          }));
-          setRegeneratedItems(prev => new Set(prev).add(`cat-${catIndex}`));
+          theme,
+          titles: [category.title],
+          count: 1,
+          difficulty: generatedGameData.difficulty,
+          existingAnswers,
+          sourceMaterial,
+          sourceUrl: category.sourceUrl,
+        });
+        newCat = span.categories[0] ? { title: span.categories[0].title, clues: span.categories[0].clues } : null;
+        // Refresh this category's alternatives from the fresh pipeline run.
+        if (span.alternatives?.length) {
+          const others = (generatedGameData.alternatives || []).filter(a => a.title.toLowerCase() !== category.title.toLowerCase());
+          setGeneratedGameData(prev => prev ? { ...prev, alternatives: [...others, ...span.alternatives!] } : prev);
         }
+      } else if (isTopicCat) {
+        const span = await generateTopicSpan(aiGenerate as any, {
+          topic: contentTopic,
+          titles: [category.title],
+          count: 1,
+          difficulty: generatedGameData.difficulty,
+          existingAnswers,
+        });
+        newCat = span.categories[0] ? { title: span.categories[0].title, clues: span.categories[0].clues } : null;
+        if (span.alternatives?.length) {
+          const others = (generatedGameData.alternatives || []).filter(a => a.title.toLowerCase() !== category.title.toLowerCase());
+          setGeneratedGameData(prev => prev ? { ...prev, alternatives: [...others, ...span.alternatives!] } : prev);
+        }
+      } else {
+        // No source to ground in — fall back to the legacy single-pass path.
+        const result = await aiGenerate(
+          'category-replace-all',
+          { categoryTitle: category.title, contentTopic, theme, existingClues: category.clues, existingAnswers, referenceMaterial: sourceMaterial },
+          generatedGameData.difficulty
+        );
+        if (result && typeof result === 'object') {
+          const catData = result as { category?: typeof category; title?: string; clues?: typeof category.clues };
+          newCat = catData.category || (catData.title && catData.clues ? { title: catData.title, clues: catData.clues } : null);
+        }
+      }
+
+      if (newCat && newCat.clues?.length) {
+        const updatedCategories = [...generatedGameData.categories];
+        updatedCategories[catIndex] = {
+          ...newCat,
+          // Preserve source provenance for the regenerated category.
+          sourceMaterial: category.sourceMaterial,
+          sourceUrl: category.sourceUrl,
+          ...( (category as any).sourceType ? { sourceType: (category as any).sourceType } : {} ),
+        } as typeof category;
+
+        const updatedGame: Game = {
+          ...generatedGameData.game,
+          categories: updatedCategories.map(cat => ({
+            title: cat.title,
+            clues: cat.clues.map(clue => ({
+              value: clue.value,
+              clue: clue.clue,
+              response: clue.response,
+              completed: false,
+            })),
+          })),
+        };
+
+        setGeneratedGameData({
+          ...generatedGameData,
+          game: updatedGame,
+          categories: updatedCategories,
+        });
+
+        setAiPreviewData(prev => ({
+          ...prev,
+          categories: updatedCategories,
+        }));
+        setRegeneratedItems(prev => new Set(prev).add(`cat-${catIndex}`));
       }
     } finally {
       setRegeneratingCategory(null);
