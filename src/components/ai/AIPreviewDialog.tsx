@@ -508,17 +508,17 @@ function CategoriesPreview({
         const isEditingCatTopic = editingCategory?.catIndex === i && editingCategory?.field === 'contentTopic';
 
         return (
-          <div key={i} className={`bg-slate-800/50 border rounded-lg p-4 ${isCatRegenerated ? 'border-purple-500/50' : 'border-slate-700'}`}>
-            {/* Category header */}
-            <div className="flex items-center gap-3 mb-3">
-              <span className="font-semibold text-slate-200">{i + 1}. </span>
+          <div key={i} className={`rounded-lg overflow-hidden border ${isCatRegenerated ? 'border-purple-500/50' : 'border-white/10'}`} style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%), rgb(11, 18, 40)' }}>
+            {/* Category header — board-styled blue gradient bar */}
+            <div className="flex items-center gap-3 px-4 py-3" style={{ background: 'linear-gradient(145deg, var(--theme-primary, #0055a4), var(--theme-secondary, #003366))', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' }}>
+              <span className="font-extrabold text-white/60 text-sm">{i + 1}</span>
               <EditableText
                 value={cat.title}
                 onSave={(newTitle) => onEditCategoryTitle?.(i, newTitle)}
                 isEditing={isEditingCatTitle}
                 onStartEdit={() => setEditingCategory({ catIndex: i, field: 'title' })}
                 onStopEdit={() => setEditingCategory(null)}
-                className="font-semibold text-slate-200"
+                className="font-extrabold uppercase tracking-wide text-white"
                 placeholder="Category title"
               />
               {cat.contentTopic && cat.contentTopic !== cat.title && (
@@ -598,7 +598,7 @@ function CategoriesPreview({
             </div>
 
             {/* Clues */}
-            <ul className="space-y-2">
+            <ul className="space-y-1 p-4 pt-3">
               {cat.clues.map((clue, j) => {
                 const clueId = `cat-${i}-clue-${j}`;
                 const isClueRegenerated = regeneratedItems.has(clueId);
@@ -616,7 +616,7 @@ function CategoriesPreview({
                     `}
                   >
                     <div className="flex items-center gap-3 text-sm">
-                      <span className="text-yellow-500 font-bold min-w-[50px]">
+                      <span className="font-black min-w-[60px] text-right" style={{ color: 'var(--theme-gold, #ffd700)', fontSize: '18px' }}>
                         ${clue.value}
                       </span>
                       <EditableText
