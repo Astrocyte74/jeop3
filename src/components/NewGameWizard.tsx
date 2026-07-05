@@ -70,6 +70,16 @@ export interface WizardCompleteData {
   customSources?: CustomSource[];
 }
 
+/** Per-source progress for multi-source generation. When present and
+ *  sourceTotal > 1, the loading state renders a per-source progress table
+ *  instead of the legacy single stage line. */
+export interface GenerationProgress {
+  sourceIndex: number;       // 0-based, the source currently generating
+  sourceTotal: number;       // total sources in this game
+  sourceLabels: string[];    // every source's label (so all rows can render)
+  stage: string;             // granular pipeline stage ("Judging quality…")
+}
+
 interface NewGameWizardProps {
   open: boolean;
   onClose: () => void;
@@ -78,6 +88,8 @@ interface NewGameWizardProps {
   onImportJSON?: () => void;
   isLoading?: boolean;
   loadingStage?: string;
+  /** Multi-source progress. Null for single-source games (legacy display). */
+  progress?: GenerationProgress | null;
   error?: string | null;
   onRetry?: () => void;
 }
@@ -260,7 +272,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, error, onRetry }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, progress, error, onRetry }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
@@ -1089,10 +1101,58 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="py-12 flex flex-col items-center justify-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
-            <p className="text-lg font-medium text-slate-200 mb-2">{loadingStage || 'Generating your game...'}</p>
-            <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
+          <div className="py-10 flex flex-col items-center justify-center">
+            {progress && progress.sourceTotal > 1 ? (
+              <>
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-purple-500 border-t-transparent mb-3"></div>
+                <p className="text-base font-medium text-slate-200 mb-1">
+                  Source {progress.sourceIndex + 1} of {progress.sourceTotal}: {progress.sourceLabels[progress.sourceIndex] || `Source ${progress.sourceIndex + 1}`}
+                </p>
+                <p className="text-sm text-purple-300/90 mb-5">{progress.stage}</p>
+
+                {/* Per-source progress table. One row per source; the active row
+                    shows the current stage, completed rows show a check,
+                    pending rows are dimmed. Lets the user see WHAT is generating
+                    (the topic name) and how far through the game they are. */}
+                <div className="w-full max-w-md rounded-lg border border-slate-700/70 divide-y divide-slate-700/50 overflow-hidden">
+                  {progress.sourceLabels.map((label, i) => {
+                    const isActive = i === progress.sourceIndex;
+                    const isDone = i < progress.sourceIndex;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex items-center gap-3 px-3 py-2 text-sm ${
+                          isActive ? 'bg-purple-500/10' : isDone ? 'bg-slate-800/40' : 'bg-slate-900/40 opacity-50'
+                        }`}
+                      >
+                        <span className="flex-shrink-0 w-5 flex justify-center">
+                          {isDone ? (
+                            <Check className="w-4 h-4 text-emerald-400" />
+                          ) : isActive ? (
+                            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
+                          ) : (
+                            <span className="w-2 h-2 rounded-full bg-slate-600" />
+                          )}
+                        </span>
+                        <span className={`flex-1 truncate ${isActive ? 'text-slate-100 font-medium' : isDone ? 'text-slate-300' : 'text-slate-500'}`}>
+                          {label}
+                        </span>
+                        <span className={`text-xs flex-shrink-0 ${isActive ? 'text-purple-300/80' : isDone ? 'text-emerald-400/70' : 'text-slate-600'}`}>
+                          {isDone ? 'Done' : isActive ? 'Working…' : 'Pending'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-slate-500 mt-4">Creating categories and questions with AI</p>
+              </>
+            ) : (
+              <>
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                <p className="text-lg font-medium text-slate-200 mb-2">{loadingStage || 'Generating your game...'}</p>
+                <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
+              </>
+            )}
             {error && (
               <div className="mt-6 flex flex-col items-center gap-3 max-w-sm">
                 <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-3 rounded-lg w-full">

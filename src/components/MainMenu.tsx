@@ -111,6 +111,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [isWizardGenerating, setIsWizardGenerating] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardStage, setWizardStage] = useState<string>('');
+  // Per-source progress for multi-source generation. Null for single-source
+  // games (which keep the legacy single-line stage display).
+  const [wizardProgress, setWizardProgress] = useState<{
+    sourceIndex: number;     // 0-based, the source currently generating
+    sourceTotal: number;     // total sources in this game
+    sourceLabels: string[];  // every source's label (so the table can render all rows)
+    stage: string;           // granular stage from the pipeline ("Judging quality…")
+  } | null>(null);
   const [regeneratingCounts] = useState<{ categories: number; clues: number } | undefined>(undefined);
   const [rewritingCategory, setRewritingCategory] = useState<number | null>(null);
   const [rewritingClue, setRewritingClue] = useState<{ catIndex: number; clueIndex: number } | null>(null);
@@ -722,6 +730,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // Reset regenerated items for new game
     setRegeneratedItems(new Set());
     setWizardError(null); // Clear any previous errors
+    setWizardProgress(null); // Cleared until the multi-source loop populates it
     setIsWizardGenerating(true);
 
     try {
@@ -749,7 +758,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         // Skipped for now: most games are single-span (no gain), and this
         // sequential loop's strong dedup guarantee isn't worth trading away
         // for a power-user-only speedup (~60s → ~35s for multi-span only).
-        for (const source of customSources) {
+        const sourceLabels: string[] = customSources.map(s => {
+          if (s.type === 'topic') return s.topic || 'Untitled topic';
+          if (s.type === 'paste') return `Pasted content (${(s.content || '').length.toLocaleString()} chars)`;
+          return s.url || 'URL source';
+        });
+        for (let sourceIdx = 0; sourceIdx < customSources.length; sourceIdx++) {
+          const source = customSources[sourceIdx];
           const hasContent = (source.type === 'paste' && source.content) ||
                             (source.type === 'url' && source.fetchedContent);
           const sourceMaterial = source.type === 'paste' ? source.content :
@@ -758,6 +773,20 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           const existingAnswers = categoriesList.length > 0
             ? categoriesList.flatMap(c => c.clues.map(cl => cl.response))
             : [];
+
+          // Per-source progress: the wizard shows a table of all sources with
+          // the active one highlighted. Wrap setWizardStage so granular
+          // pipeline stages ("Judging quality…") update the active row.
+          const updateProgress = (stage: string) => {
+            setWizardStage(stage);
+            setWizardProgress({
+              sourceIndex: sourceIdx,
+              sourceTotal: customSources.length,
+              sourceLabels,
+              stage,
+            });
+          };
+          updateProgress('Starting…');
 
           console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, answerFirst: hasContent });
           try {
@@ -776,7 +805,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 existingAnswers,
                 sourceMaterial,
                 sourceUrl,
-                onStage: (stage: string) => setWizardStage(stage),
+                onStage: (stage: string) => updateProgress(stage),
               });
               spanCategories = span.categories;
             } else {
@@ -796,7 +825,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                   // middleware on the AI server). Threading the token here is
                   // forward-compatible if that changes.
                   authToken: null,
-                  onStage: (stage: string) => setWizardStage(stage),
+                  onStage: (stage: string) => updateProgress(stage),
                 });
                 // Stamp per-category source-type provenance (retrieved vs
                 // ai_synthesized) onto the category objects so the preview UI
@@ -832,6 +861,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               continue;
             }
             categoriesList.push(...spanCategories);
+            updateProgress('Done');
           } catch (error) {
             console.error('[MainMenu] Error generating from source:', source, error);
             failedSources.push({
@@ -2691,6 +2721,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         onImportJSON={handleCreateGameImport}
         isLoading={isWizardGenerating}
         loadingStage={wizardStage}
+        progress={wizardProgress}
         error={wizardError}
         onRetry={handleWizardRetry}
       />
