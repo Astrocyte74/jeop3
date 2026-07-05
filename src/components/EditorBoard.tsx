@@ -19,8 +19,9 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import type { Game, Category, Clue } from '@/lib/storage';
-import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1 } from 'lucide-react';
+import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
 
 interface EditorBoardProps {
@@ -42,6 +43,13 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
   // AI state
   const { generate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
+  // Per-clue / per-category regen busy state (smart-AI drawer actions).
+  const [regeneratingClue, setRegeneratingClue] = useState(false);
+  const [regeneratingCategory, setRegeneratingCategory] = useState<number | null>(null);
+  // Alternatives pool (filled by per-category regen; consumed by per-clue regen).
+  // Empty until a category is regenerated in this session — alternatives don't
+  // persist across reloads.
+  const [alternatives, setAlternatives] = useState<Array<{ title: string; clues: Array<{ clue: string; response: string; provenance: 'answer_first'; score: { specificity: number; sourceSupport: number; clarity: number; jeopardyStyle: number; duplicateRisk: number; difficulty: number } }> }>>([]);
 
   const categories = editingGame.categories || [];
   const rowCount = editingGame.rows || categories[0]?.clues?.length || 5;
@@ -345,6 +353,39 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     }
   }, [editingCell, categories, generate]);
 
+  // ==================== SMART AI (drawer) ====================
+  // Regenerate the current clue: pull from the alternatives pool first
+  // (instant swap of a known-good judged clue), fall back to a fresh
+  // editor-generate-clue call when the pool is empty. (Commit 4 fills this in.)
+  const handleRegenerateClueEditor = useCallback(async () => {
+    if (!editingCell) return;
+    setRegeneratingClue(true);
+    try {
+      // STUB (Commit 4): pool-first logic + fresh-call fallback. Referencing
+      // `alternatives` here so the state isn't flagged unused until Commit 4
+      // wires the real pool lookup.
+      if (alternatives.length) { /* pool lookup lands in Commit 4 */ }
+      await handleAIGenerateClue();
+    } finally {
+      setRegeneratingClue(false);
+    }
+  }, [editingCell, handleAIGenerateClue, alternatives]);
+
+  // Regenerate the whole category through the answer-first pipeline so the
+  // live-game edit meets the same quality bar as initial generation.
+  // (Commit 5 fills this in.)
+  const handleRegenerateCategoryEditor = useCallback(async (_categoryId: number) => {
+    setRegeneratingCategory(_categoryId);
+    try {
+      // STUB (Commit 5): generateContentSpan(count=1) + fill alternatives pool
+      // via setAlternatives. Referenced here so the state isn't flagged unused
+      // until Commit 5 wires the real pipeline call.
+      setAlternatives(prev => prev);
+    } finally {
+      setRegeneratingCategory(null);
+    }
+  }, []);
+
   // Get the current clue being edited
   const getCurrentEditingClue = () => {
     if (!editingCell) return null;
@@ -546,30 +587,68 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         </div>
       </div>
 
-      {/* Edit clue modal */}
+      {/* Edit clue drawer — slides in from the right, grid visible behind scrim.
+          Holds the full smart-AI workflow (provenance, regen-from-pool,
+          per-category regen through the pipeline). */}
       {editingCell && currentClue && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50">
+          {/* Scrim — click to close */}
           <div
-            className="relative w-full max-w-lg bg-slate-900 border-2 border-purple-500 rounded-xl shadow-2xl shadow-purple-500/20 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-purple-400">Edit Clue</h3>
-              <button
-                onClick={() => setEditingCell(null)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {/* Category and value info */}
-              <div className="flex items-center gap-3 text-sm text-slate-400">
-                <span className="bg-slate-800 px-3 py-1 rounded">{currentClue.category.title}</span>
-                <span className="bg-yellow-500/20 text-yellow-500 px-3 py-1 rounded font-bold">${currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}</span>
+            className="absolute inset-0 bg-black/50 transition-opacity"
+            onClick={() => setEditingCell(null)}
+          />
+          {/* Drawer */}
+          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-slate-900 border-l-2 border-purple-500/50 shadow-2xl shadow-purple-500/20 overflow-y-auto">
+            <div className="p-6 space-y-5">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-purple-400">Edit Clue</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    in <span className="text-slate-300 font-medium">{currentClue.category.title}</span>
+                    {' · '}
+                    <span className="text-yellow-500 font-bold">${currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}</span>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setEditingCell(null)}
+                  className="text-slate-400 hover:text-white transition-colors p-1"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
+
+              {/* Provenance badge area — shows the clue's origin/quality.
+                  Empty for older saved games without provenance data. */}
+              {(() => {
+                const prov = (currentClue.clue as any)?.provenance;
+                const srcType = (currentClue.category as any)?.sourceType;
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {prov === 'fallback' && (
+                      <Badge variant="outline" className="text-amber-400/80 border-amber-500/40 bg-amber-500/10 text-[11px]" title="Filled from fallback — click regenerate for a better clue">
+                        <AlertCircle className="w-3 h-3 mr-0.5" /> Patched
+                      </Badge>
+                    )}
+                    {prov === 'answer_first' && (
+                      <Badge variant="outline" className="text-emerald-400/80 border-emerald-500/40 bg-emerald-500/10 text-[11px]" title="Curated through the answer-first pipeline (judged)">
+                        <Check className="w-3 h-3 mr-0.5" /> Curated
+                      </Badge>
+                    )}
+                    {srcType === 'retrieved' && (
+                      <Badge variant="outline" className="text-emerald-400/80 border-emerald-500/40 bg-emerald-500/10 text-[11px]">
+                        <BookOpen className="w-3 h-3 mr-0.5" /> Wikipedia
+                      </Badge>
+                    )}
+                    {srcType === 'ai_synthesized' && (
+                      <Badge variant="outline" className="text-amber-300/80 border-amber-500/40 bg-amber-500/10 text-[11px]" title="No Wikipedia match — AI fact-sheet source">
+                        <Sparkles className="w-3 h-3 mr-0.5" /> AI fact-sheet
+                      </Badge>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-1 block">Value</label>
@@ -601,49 +680,80 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                 />
               </div>
 
-              <div className="flex gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="flex-1 border-purple-500/50 text-purple-500"
-                      disabled={!aiAvailable || aiLoading}
-                    >
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      {aiLoading ? 'AI Working...' : 'AI Enhance'}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <DropdownMenuItem onClick={handleAIGenerateClue}>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Generate Question & Answer
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleAIRewriteClue} disabled={!currentClue.clue?.clue}>
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Rewrite Question
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleAIGenerateAnswer} disabled={!currentClue.clue?.clue}>
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      Generate Answer
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleAIValidateClue} disabled={!currentClue.clue?.clue || !currentClue.clue?.response}>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Validate Clue
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {/* Smart AI actions. Regenerate pulls from the pool first
+                  (filled by per-category regen), falling back to a fresh
+                  editor-generate-clue call when the pool is empty. The other
+                  actions are the existing single-clue helpers. */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-300 block">AI actions</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    variant="outline"
+                    className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
+                    disabled={!aiAvailable || aiLoading || regeneratingClue || regeneratingCategory !== null}
+                    onClick={handleRegenerateClueEditor}
+                    title="Swap in a judged alternative (instant) or generate a fresh clue"
+                  >
+                    {(regeneratingClue) ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Working…</>
+                      : <><Sparkles className="w-4 h-4 mr-2" /> Regenerate</>}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                    disabled={!aiAvailable || aiLoading || !currentClue.clue?.clue}
+                    onClick={handleAIRewriteClue}
+                    title="Rephrase the existing clue, same answer"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" /> Rephrase
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
+                    disabled={!aiAvailable || aiLoading || regeneratingCategory !== null}
+                    onClick={() => handleRegenerateCategoryEditor(currentClue.categoryId)}
+                    title="Re-run the answer-first pipeline for this whole category"
+                  >
+                    {(regeneratingCategory) ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Working…</>
+                      : <><RefreshCw className="w-4 h-4 mr-2" /> Regen category</>}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
+                        disabled={!aiAvailable || aiLoading}
+                      >
+                        <Wand2 className="w-4 h-4 mr-2" /> More
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      <DropdownMenuItem onClick={handleAIGenerateClue}>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Q & A from scratch
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleAIGenerateAnswer} disabled={!currentClue.clue?.clue}>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Generate Answer only
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={handleAIValidateClue} disabled={!currentClue.clue?.clue || !currentClue.clue?.response}>
+                        <Wand2 className="w-4 h-4 mr-2" />
+                        Validate Clue
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
-            </div>
 
-            <div className="flex gap-2 mt-6">
-              <Button
-                onClick={() => setEditingCell(null)}
-                variant="outline"
-                className="flex-1"
-              >
-                Done
-              </Button>
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={() => setEditingCell(null)}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Done
+                </Button>
+              </div>
             </div>
           </div>
         </div>
