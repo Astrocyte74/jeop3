@@ -1243,7 +1243,16 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // Reset regenerated items since we're regenerating everything
     setRegeneratedItems(new Set());
 
-    // Re-run the generation with same theme/difficulty
+    // Re-run the generation with same theme/difficulty.
+    // NOTE: this uses the legacy single-pass 'categories-generate', which does
+    // NOT route through the answer-first pipeline — so regenerated categories
+    // have no sourceType provenance (no Wikipedia/AI-fact-sheet badges) and no
+    // alternatives pool. That's honest: a fresh single-pass board IS ungrounded
+    // relative to the original source. We DO carry forward sourceMaterial/
+    // referenceMaterial so per-clue regen can still re-read the original source.
+    // (Routing Regenerate-All through the pipeline is tracked as future work —
+    // it requires preserving sourceMode + customSources, which overlaps with
+    // single-source pipeline routing.)
     const result = await aiGenerate(
       'categories-generate',
       { theme: generatedGameData.theme || 'random', count: 6 },
@@ -1254,10 +1263,17 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       return;
     }
 
-    const categoriesList = (result as any).categories as Array<{
+    const categoriesList = ((result as any).categories as Array<{
       title: string;
       clues: Array<{ value: number; clue: string; response: string }>;
-    }>;
+    }>).map(cat => ({
+      ...cat,
+      // Preserve the original source material so per-clue regen can re-read it.
+      // sourceType/sourceUrl are deliberately NOT carried: the new clues didn't
+      // come from that source, so the badges would be misleading.
+      sourceMaterial: generatedGameData.categories.find(c => c.title === cat.title)?.sourceMaterial,
+      sourceUrl: generatedGameData.categories.find(c => c.title === cat.title)?.sourceUrl,
+    }));
 
     // Capture metadata from AI generation
     const categoriesMetadata = (result as any)._metadata;
@@ -1330,12 +1346,15 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     };
 
     setGeneratedGameData({
+      ...generatedGameData,
       game: newGame,
       categories: categoriesList,
       titles: titlesList,
       suggestedTeamNames,
       theme: generatedGameData.theme,
       difficulty: generatedGameData.difficulty,
+      // alternatives cleared: the fresh single-pass board has no judged pool.
+      alternatives: undefined,
     });
 
     setAiPreviewData({ categories: categoriesList, titles: titlesList });
