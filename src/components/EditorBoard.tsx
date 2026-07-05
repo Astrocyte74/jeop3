@@ -22,9 +22,6 @@ import { Textarea } from '@/components/ui/textarea';
 import type { Game, Category, Clue } from '@/lib/storage';
 import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1 } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
-import { AIPreviewDialog } from '@/components/ai';
-import type { PreviewData } from '@/components/ai';
-import type { AIPromptType } from '@/lib/ai';
 
 interface EditorBoardProps {
   game: Game;
@@ -45,11 +42,6 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
   // AI state
   const { generate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
-  const [aiPreview, setAiPreview] = useState<{
-    open: boolean;
-    type: AIPromptType;
-    data: PreviewData;
-  }>({ open: false, type: 'editor-generate-clue', data: {} });
 
   const categories = editingGame.categories || [];
   const rowCount = editingGame.rows || categories[0]?.clues?.length || 5;
@@ -675,20 +667,6 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* AI Preview Dialog */}
-      <AIPreviewDialog
-        open={aiPreview.open}
-        type={aiPreview.type}
-        data={aiPreview.data}
-        onConfirm={() => {
-          // Apply the AI-generated content
-          setAiPreview({ open: false, type: 'editor-generate-clue', data: {} });
-        }}
-        onCancel={() => setAiPreview({ open: false, type: 'editor-generate-clue', data: {} })}
-        onRegenerateAll={() => {
-          // Regenerate with the same context
-        }}
-      />
     </div>
   );
 }

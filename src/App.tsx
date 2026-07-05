@@ -346,11 +346,21 @@ export function App() {
   }, [currentGame, gameState, gameId]);
 
   const handleSaveGame = useCallback((updatedGame: Game) => {
-    // For now, just update the current game
-    // In the future, this would save to localStorage or a backend
+    // Update the in-memory current game and persist to storage so Board
+    // Editor edits survive a reload (previously only updated in-memory —
+    // edits vanished on page refresh). Mirrors handleAIPreviewSave's logic.
     setCurrentGame(updatedGame);
+    if (gameId) {
+      const games = loadCustomGames();
+      const updatedGames = games.map(g =>
+        g.id === gameId
+          ? { ...g, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame }
+          : g
+      );
+      saveCustomGames(updatedGames);
+    }
     setMode('playing');
-  }, []);
+  }, [gameId]);
 
   const handleAIPreviewSave = useCallback((updatedGame: Game) => {
     setCurrentGame(updatedGame);
