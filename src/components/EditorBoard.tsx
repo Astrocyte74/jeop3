@@ -542,6 +542,25 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         </div>
       </div>
 
+      {/* Provenance summary banner — shows when the game carries provenance
+          data (freshly generated this session). Helps spot weak columns. */}
+      {(() => {
+        const allClues = categories.flatMap(c => c.clues || []);
+        const patched = allClues.filter(c => (c as any).provenance === 'fallback').length;
+        const curated = allClues.filter(c => (c as any).provenance === 'answer_first').length;
+        const hasProvenance = patched || curated;
+        if (!hasProvenance) return null;
+        return (
+          <div className="max-w-7xl mx-auto mb-3">
+            <div className="flex items-center gap-4 text-xs text-slate-400 bg-slate-900/40 border border-slate-700/50 rounded-lg px-3 py-2">
+              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />{curated} curated</span>
+              {patched > 0 && <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{patched} patched</span>}
+              <span className="text-slate-500">click a cell to edit · click ✨ Regenerate to fix weak clues</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Game board - same style as play mode */}
       <div className="max-w-7xl mx-auto">
         <div className="board-wrap">
@@ -563,13 +582,29 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               </div>
             ))}
 
-            {/* Clue cells - clickable for editing */}
+            {/* Clue cells - clickable for editing. Subtle provenance tinting:
+                emerald accent = answer_first/curated, amber = fallback/patched.
+                No tint for clues without provenance (older saved games). */}
             {Array.from({ length: rowCount }).map((_, rowIndex) =>
               categories.map((category, categoryIndex) => {
                 const clue = category.clues?.[rowIndex];
+                const prov = (clue as any)?.provenance;
+                const srcType = (category as any)?.sourceType;
+                const isPatched = prov === 'fallback';
+                const isCurated = prov === 'answer_first' || srcType === 'retrieved';
+                const accent = isPatched ? 'border-l-2 border-l-amber-500/60'
+                  : isCurated ? 'border-l-2 border-l-emerald-500/50'
+                  : '';
 
                 return (
-                  <div key={`${categoryIndex}-${rowIndex}`} className="cell cursor-pointer hover:bg-slate-700/30 transition-colors" onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}>
+                  <div
+                    key={`${categoryIndex}-${rowIndex}`}
+                    className={`cell cursor-pointer hover:bg-slate-700/30 transition-colors relative ${accent}`}
+                    onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}
+                  >
+                    {(isPatched || isCurated) && (
+                      <span className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${isPatched ? 'bg-amber-500' : 'bg-emerald-500/80'}`} title={isPatched ? 'Patched (fallback)' : 'Curated'} />
+                    )}
                     <div className="w-full h-full flex items-center justify-center">
                       {clue?.clue ? (
                         <div className="text-xs text-center p-2 line-clamp-3 opacity-50">
