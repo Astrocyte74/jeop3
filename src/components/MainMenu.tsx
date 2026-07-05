@@ -1810,11 +1810,64 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       const category = generatedGameData.categories[catIndex];
       const clue = category.clues[clueIndex];
 
-      // Collect all existing answers to avoid duplicates
+      // Collect all existing answers (excluding the clue being regenerated) to
+      // avoid duplicates in both the pool lookup and any fresh AI call.
       const existingAnswers = generatedGameData.categories
         .flatMap(cat => cat.clues.map(c => c.response))
         .filter((answer, index, self) => answer !== clue.response && self.indexOf(answer) === index);
 
+      // ----- POOL-FIRST: pull a judged alternative if one is available -----
+      // The answer-first pipeline retains judged-but-unpicked clues per
+      // category. Swapping one in is instant (no AI call) and higher-quality
+      // than a fresh single-clue call (it was already curated + judged).
+      // Re-validate against the live board: the pool was deduped at generation
+      // time, but the board may have changed since.
+      const norm = (s: string) => s.toLowerCase().replace(/^(the|a|an)\s+/, '').replace(/[^a-z0-9\s]/g, '').trim();
+      const usedNorms = new Set(existingAnswers.map(norm));
+      const pool = (generatedGameData.alternatives || []).find(
+        a => a.title.toLowerCase() === category.title.toLowerCase()
+      )?.clues || [];
+      const candidate = pool.find(a => !usedNorms.has(norm(a.response)));
+
+      if (candidate) {
+        const replacement = {
+          value: clue.value,
+          clue: candidate.clue,
+          response: candidate.response,
+          provenance: 'answer_first' as const,
+        };
+        const updatedCategories = [...generatedGameData.categories];
+        updatedCategories[catIndex] = { ...category, clues: [...category.clues] };
+        updatedCategories[catIndex].clues[clueIndex] = replacement;
+
+        const updatedGame: Game = {
+          ...generatedGameData.game,
+          categories: updatedCategories.map(cat => ({
+            title: cat.title,
+            clues: cat.clues.map(cl => ({ value: cl.value, clue: cl.clue, response: cl.response })),
+          })),
+        };
+
+        // Decrement the pool: remove the used alternative so the next regen
+        // pulls the next one, not the same one.
+        const updatedAlternatives = (generatedGameData.alternatives || []).map(a =>
+          a.title.toLowerCase() === category.title.toLowerCase()
+            ? { ...a, clues: a.clues.filter(c => !(c.clue === candidate.clue && c.response === candidate.response)) }
+            : a
+        ).filter(a => a.clues.length > 0);
+
+        setGeneratedGameData({
+          ...generatedGameData,
+          game: updatedGame,
+          categories: updatedCategories,
+          alternatives: updatedAlternatives.length ? updatedAlternatives : undefined,
+        });
+        setAiPreviewData(prev => ({ ...prev, categories: updatedCategories }));
+        setRegeneratedItems(prev => new Set(prev).add(`cat-${catIndex}-clue-${clueIndex}`));
+        return; // pool hit — skip the fresh AI call entirely
+      }
+
+      // ----- FRESH-CALL FALLBACK: pool exhausted (or none), generate anew -----
       // Use per-category sourceMaterial if available, otherwise fall back to global
       const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
 
