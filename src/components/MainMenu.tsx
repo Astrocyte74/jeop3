@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { GameMeta, Team, Game, Category, Clue, GameState } from '@/lib/storage';
+import type { GameMeta, Team, Game, Category, GameState } from '@/lib/storage';
 import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, saveGameState, stateKey, recordGamePlay, getGamePlayStats, calculateGameCompletion } from '@/lib/storage';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
@@ -66,6 +66,18 @@ interface GeneratedGameData {
   referenceUrl?: string;
   referenceMaterial?: string; // Store source material for single-source mode
   sourceCharacters?: number;
+  /** Preserved wizard inputs so "Regenerate All" can re-run the same pipeline
+   *  with the same sources (theme/difficulty/sourceMode/customSources). */
+  customSources?: Array<{
+    id: string;
+    type: 'topic' | 'paste' | 'url';
+    topic?: string;
+    content?: string;
+    url?: string;
+    categoryCount: number;
+    fetchedContent?: string;
+    suggestedTitles?: string[];
+  }>;
   metadata?: {
     modelUsed?: string;
     generatedAt?: string;
@@ -1105,6 +1117,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         referenceUrl,
         referenceMaterial: sourceMode !== 'custom' ? referenceMaterial : undefined, // Store for single-source mode
         sourceCharacters: referenceMaterial?.length,
+        // Preserve wizard inputs so "Regenerate All" can re-run the pipeline.
+        customSources: sourceMode === 'custom' ? customSources : undefined,
         metadata: enhancedMetadata,
       });
 
@@ -1243,16 +1257,32 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     // Reset regenerated items since we're regenerating everything
     setRegeneratedItems(new Set());
 
-    // Re-run the generation with same theme/difficulty.
-    // NOTE: this uses the legacy single-pass 'categories-generate', which does
-    // NOT route through the answer-first pipeline — so regenerated categories
-    // have no sourceType provenance (no Wikipedia/AI-fact-sheet badges) and no
-    // alternatives pool. That's honest: a fresh single-pass board IS ungrounded
-    // relative to the original source. We DO carry forward sourceMaterial/
-    // referenceMaterial so per-clue regen can still re-read the original source.
-    // (Routing Regenerate-All through the pipeline is tracked as future work —
-    // it requires preserving sourceMode + customSources, which overlaps with
-    // single-source pipeline routing.)
+    // RE-ROUTE THROUGH THE PIPELINE: if the original generation went through
+    // the answer-first pipeline (custom multi-source mode, or single-source
+    // paste/URL with material preserved), re-run handleWizardComplete with the
+    // same inputs. This keeps regenerated boards at the same quality bar
+    // (extract → clues → judge → select + alternatives + provenance) instead
+    // of dropping back to the legacy single-pass 'categories-generate'.
+    const canReroute =
+      (generatedGameData.sourceMode === 'custom' && generatedGameData.customSources?.length) ||
+      (generatedGameData.referenceMaterial && generatedGameData.sourceMode !== 'scratch');
+
+    if (canReroute) {
+      await handleWizardComplete({
+        mode: 'ai',
+        theme: generatedGameData.theme,
+        difficulty: generatedGameData.difficulty,
+        sourceMode: generatedGameData.sourceMode,
+        referenceMaterial: generatedGameData.referenceMaterial,
+        referenceUrl: generatedGameData.referenceUrl,
+        customSources: generatedGameData.customSources,
+      });
+      return; // handleWizardComplete reopens the preview with fresh data.
+    }
+
+    // FALLBACK: scratch/random themes with no preserved source. No pipeline to
+    // route through, so use the legacy single-pass path. Carries forward
+    // sourceMaterial per-category (by title) so per-clue regen still works.
     const result = await aiGenerate(
       'categories-generate',
       { theme: generatedGameData.theme || 'random', count: 6 },
@@ -1268,28 +1298,20 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       clues: Array<{ value: number; clue: string; response: string }>;
     }>).map(cat => ({
       ...cat,
-      // Preserve the original source material so per-clue regen can re-read it.
-      // sourceType/sourceUrl are deliberately NOT carried: the new clues didn't
-      // come from that source, so the badges would be misleading.
       sourceMaterial: generatedGameData.categories.find(c => c.title === cat.title)?.sourceMaterial,
       sourceUrl: generatedGameData.categories.find(c => c.title === cat.title)?.sourceUrl,
     }));
 
-    // Capture metadata from AI generation
     const categoriesMetadata = (result as any)._metadata;
-
-    // Build context with actual categories for better titles
     const titleContext: Record<string, any> = {
       theme: generatedGameData.theme || 'random',
       count: 3,
       hasContent: true,
     };
-
-    // Include the actual categories and clues in the context
     if (categoriesList && categoriesList.length > 0) {
       const categorySummaries = categoriesList.map(cat => {
         const clueText = (cat.clues || [])
-          .slice(0, 2) // Just first 2 clues per category
+          .slice(0, 2)
           .map(c => `  $${c.value} ${c.clue} (${c.response})`)
           .join('\n');
         return `${cat.title}\n${clueText}`;
@@ -1297,44 +1319,22 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       titleContext.sampleContent = `Game Categories:\n\n${categorySummaries}`;
     }
 
-    // Generate titles
-    const titlesResult = await aiGenerate(
-      'game-title',
-      titleContext,
-      generatedGameData.difficulty
-    );
-
+    const titlesResult = await aiGenerate('game-title', titleContext, generatedGameData.difficulty);
     const titlesList = (titlesResult && typeof titlesResult === 'object' && 'titles' in titlesResult)
       ? (titlesResult as any).titles as Array<{ title: string; subtitle: string }>
       : generatedGameData.titles;
 
-    // Generate team names based on theme
     const teamNamesResult = await aiGenerate('team-name-random', {
-      count: 2,
-      existingNames: [],
-      gameTopic: generatedGameData.theme || '',
+      count: 2, existingNames: [], gameTopic: generatedGameData.theme || '',
     });
-
     const suggestedTeamNames = (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult)
       ? (teamNamesResult as any).names as string[]
       : generatedGameData.suggestedTeamNames;
 
-    // Build categories for the Game object
-    const gameCategories: Category[] = [];
-    for (const cat of categoriesList) {
-      const categoryClues: Clue[] = [];
-      for (const clue of cat.clues) {
-        categoryClues.push({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
-        });
-      }
-      gameCategories.push({
-        title: cat.title,
-        clues: categoryClues,
-      });
-    }
+    const gameCategories: Category[] = categoriesList.map(cat => ({
+      title: cat.title,
+      clues: cat.clues.map(clue => ({ value: clue.value, clue: clue.clue, response: clue.response })),
+    }));
 
     const newGame: Game = {
       title: titlesList[0].title,
@@ -1351,10 +1351,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       categories: categoriesList,
       titles: titlesList,
       suggestedTeamNames,
-      theme: generatedGameData.theme,
-      difficulty: generatedGameData.difficulty,
-      // alternatives cleared: the fresh single-pass board has no judged pool.
-      alternatives: undefined,
+      alternatives: undefined, // legacy path has no judged pool
     });
 
     setAiPreviewData({ categories: categoriesList, titles: titlesList });
