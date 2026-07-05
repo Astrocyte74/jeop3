@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Game, Category, Clue } from '@/lib/storage';
 import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
+import { generateContentSpan } from '@/lib/ai/board';
 
 interface EditorBoardProps {
   game: Game;
@@ -404,19 +405,66 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   }, [editingCell, categories, editingGame, alternatives, handleAIGenerateClue, updateClue]);
 
   // Regenerate the whole category through the answer-first pipeline so the
-  // live-game edit meets the same quality bar as initial generation.
-  // (Commit 5 fills this in.)
-  const handleRegenerateCategoryEditor = useCallback(async (_categoryId: number) => {
-    setRegeneratingCategory(_categoryId);
+  // live-game edit meets the same quality bar as initial generation
+  // (extract → clues → judge → select), instead of single-pass. Fills the
+  // alternatives pool from the run, feeding per-clue regen-from-pool.
+  const handleRegenerateCategoryEditor = useCallback(async (categoryId: number) => {
+    const category = categories[categoryId];
+    if (!category) return;
+    setRegeneratingCategory(categoryId);
     try {
-      // STUB (Commit 5): generateContentSpan(count=1) + fill alternatives pool
-      // via setAlternatives. Referenced here so the state isn't flagged unused
-      // until Commit 5 wires the real pipeline call.
-      setAlternatives(prev => prev);
+      // Existing answers from OTHER categories — preserves cross-category dedup.
+      const existingAnswers = editingGame.categories
+        .filter((_, i) => i !== categoryId)
+        .flatMap(cat => cat.clues.map(c => c.response));
+
+      // Source material: per-category if carried, else the game's metadata source.
+      const sourceMaterial = category.sourceMaterial || (editingGame.metadata as any)?.sourceMaterial;
+      if (!sourceMaterial) {
+        // No source to ground in (e.g. a scratch category). The drawer's
+        // "Generate Q&A" (single-clue) still works; whole-category pipeline
+        // regen needs a source. Surface nothing here — the button is still
+        // clickable but this is a no-op guard.
+        console.warn('[EditorBoard] No source material for category — skipping pipeline regen');
+        return;
+      }
+
+      const span = await generateContentSpan(generate as any, {
+        referenceMaterial: sourceMaterial,
+        theme: editingGame.title || category.title,
+        titles: [category.title],
+        count: 1,
+        difficulty: 'normal',
+        existingAnswers,
+        sourceMaterial,
+        sourceUrl: category.sourceUrl,
+      });
+
+      const newCat = span.categories[0];
+      if (newCat && newCat.clues?.length) {
+        // Replace the category's clues with the pipeline-curated set.
+        const newCategories = [...categories];
+        newCategories[categoryId] = {
+          ...category,
+          title: newCat.title,
+          clues: newCat.clues.map(c => ({ value: c.value, clue: c.clue, response: c.response, provenance: c.provenance })),
+        };
+        setEditingGame({ ...editingGame, categories: newCategories });
+
+        // Fill the alternatives pool from the run — per-clue regen pulls from this.
+        if (span.alternatives?.length) {
+          setAlternatives(prev => [
+            ...prev.filter(a => a.title.toLowerCase() !== category.title.toLowerCase()),
+            ...span.alternatives!,
+          ]);
+        }
+      }
+    } catch (err) {
+      console.error('[EditorBoard] Category regen failed:', err);
     } finally {
       setRegeneratingCategory(null);
     }
-  }, []);
+  }, [categories, editingGame, generate]);
 
   // Get the current clue being edited
   const getCurrentEditingClue = () => {
