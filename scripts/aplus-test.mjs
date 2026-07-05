@@ -24,9 +24,13 @@ console.log(`# A+ pipeline  (model ${MODEL})`);
 const res = await generateContentSpan(generate, { referenceMaterial: source, titles, count: 6, difficulty: 'normal' });
 const total = res.categories.reduce((s, c) => s + c.clues.length, 0);
 const af = res.categories.reduce((s, c) => s + c.clues.filter(cl => cl.provenance === 'answer_first').length, 0);
-console.log(`patched=${res.patched}  categories=${res.categories.length}  clues=${total}  (answer_first=${af}, fallback=${total - af})`);
+const altTotal = (res.alternatives || []).reduce((s, c) => s + c.clues.length, 0);
+console.log(`patched=${res.patched}  categories=${res.categories.length}  clues=${total}  (answer_first=${af}, fallback=${total - af})  alternatives=${altTotal}`);
 let i = 0;
 for (const cat of res.categories) {
-  console.log(`\n${++i}. ${cat.title.toUpperCase()}  (${cat.clues.length})`);
+  const alts = (res.alternatives || []).find(a => a.title === cat.title)?.clues || [];
+  console.log(`\n${++i}. ${cat.title.toUpperCase()}  (${cat.clues.length} picked, ${alts.length} alternatives)`);
   for (const c of cat.clues) console.log(`   $${c.value} [${c.provenance}] ${c.clue}\n        -> ${c.response}`);
+  for (const a of alts.slice(0, 3)) console.log(`     [alt] ${a.clue}\n        -> ${a.response}`);
 }
+

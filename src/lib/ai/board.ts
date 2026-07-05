@@ -43,6 +43,13 @@ export interface ContentSpanResult {
    * content-mode spans (which have a single paste/URL source already).
    */
   categorySources?: Array<{ title: string; sourceType: 'retrieved' | 'ai_synthesized'; url?: string }>;
+  /**
+   * Judged-but-unpicked clues retained per category, so "regenerate" can swap
+   * in a known-good alternative instead of firing a fresh (lower-quality)
+   * single-clue call. Absent when no candidates survived the judge bar.
+   * Keyed by category title.
+   */
+  alternatives?: Array<{ title: string; clues: AlternativeClue[] }>;
 }
 
 const VALUES = [200, 400, 600, 800, 1000];
@@ -55,6 +62,17 @@ interface Score {
   specificity: number; sourceSupport: number; clarity: number;
   jeopardyStyle: number; duplicateRisk: number; difficulty: number;
 }
+
+/** A judged-but-unpicked clue retained for "regenerate" to pull from instead
+ *  of a fresh AI call. Only clues that PASSED the judge bar are kept — these
+ *  are strong runner-ups that lost a near-dup tiebreak or ranked 6th+, not
+ *  quality failures. The score lets a future UI rank alternatives. */
+export interface AlternativeClue {
+  clue: string;
+  response: string;
+  provenance: 'answer_first';
+  score: Score;
+}
 const overall = (s: Score): number => s.specificity + s.sourceSupport + s.clarity + s.jeopardyStyle - s.duplicateRisk;
 const passes = (s: Score | undefined): s is Score =>
   !!s && s.sourceSupport >= 4 && s.specificity >= 4 && s.duplicateRisk <= 3;
@@ -63,27 +81,45 @@ interface ValuedClue { clue: string; response: string; value?: number; }
 interface JudgedCat { title: string; clues: ValuedClue[]; scores: Map<string, Score>; }
 
 /** Select up to 5 clues for a category: reject failures, drop near-dups (keep best),
- *  then order by judged difficulty and assign $200-$1000. Mutates `spanNear`. */
-function pickBestFive(clues: ValuedClue[], scores: Map<string, Score>, spanNear: Set<string>): Clue[] {
+ *  then order by judged difficulty and assign $200-$1000. Mutates `spanNear`.
+ *
+ *  Also returns the judged-but-unpicked clues as `alternatives` — strong
+ *  runner-ups that passed the quality bar but lost a near-dup tiebreak or
+ *  ranked 6th+. These are retained so "regenerate" can swap one in instead of
+ *  firing a fresh AI call. */
+function pickBestFive(clues: ValuedClue[], scores: Map<string, Score>, spanNear: Set<string>): { picked: Clue[]; alternatives: AlternativeClue[] } {
   const scored = clues
     .map(cl => ({ cl, s: scores.get(norm(cl.response)) }))
     .filter((x): x is { cl: ValuedClue; s: Score } => passes(x.s));
   scored.sort((a, b) => overall(b.s) - overall(a.s)); // best first (wins near-dup ties)
   const picked: typeof scored = [];
+  const leftOver: typeof scored = [];
   for (const x of scored) {
-    if (picked.length >= 5) break;
+    if (picked.length >= 5) {
+      // Past the pick window — keep as an alternative unless it's a near-dup
+      // of something already on the board (would duplicate a live answer).
+      const nk = nearDupKey(x.cl.response);
+      if (spanNear.has(nk) || spanNear.has(norm(x.cl.response))) continue;
+      leftOver.push(x);
+      continue;
+    }
     const nk = nearDupKey(x.cl.response);
     if (spanNear.has(nk) || spanNear.has(norm(x.cl.response))) continue;
     spanNear.add(nk); spanNear.add(norm(x.cl.response));
     picked.push(x);
   }
   picked.sort((a, b) => a.s.difficulty - b.s.difficulty); // easiest -> hardest
-  return picked.map((x, i) => ({
+  const pickedClues: Clue[] = picked.map((x, i) => ({
     value: VALUES[Math.min(i, VALUES.length - 1)],
     clue: x.cl.clue,
     response: x.cl.response,
     provenance: 'answer_first',
   }));
+  // Alternatives ranked best-first by overall score (highest-quality swap first).
+  const alternatives: AlternativeClue[] = leftOver
+    .sort((a, b) => overall(b.s) - overall(a.s))
+    .map(x => ({ clue: x.cl.clue, response: x.cl.response, provenance: 'answer_first', score: x.s }));
+  return { picked: pickedClues, alternatives };
 }
 
 /** Fill a category to 5: keep the (already-valued) pipeline clues, add fallback
@@ -160,9 +196,13 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   }
 
   // 5. pick best 5/category by judge scores (assigns $200-$1000 by difficulty)
+  const alternativesByTitle: Array<{ title: string; clues: AlternativeClue[] }> = [];
   let pickedPerCat: Clue[][] = catTitles.map((t, i) => {
     const jc = judged.find(c => norm(c.title) === norm(t)) || judged[i];
-    return jc ? pickBestFive(jc.clues, jc.scores, spanNear) : [];
+    if (!jc) return [];
+    const { picked, alternatives } = pickBestFive(jc.clues, jc.scores, spanNear);
+    if (alternatives.length) alternativesByTitle.push({ title: t, clues: alternatives });
+    return picked;
   });
 
   // 6. patch gaps with a single-pass fallback (keep good clues, fill to 5)
@@ -191,7 +231,11 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   }
 
   const categories: AICategory[] = catTitles.map((title, i) => ({ title, clues: pickedPerCat[i] }) as AICategory);
-  return { categories: withSource(categories, sourceMaterial, sourceUrl), patched };
+  return {
+    categories: withSource(categories, sourceMaterial, sourceUrl),
+    patched,
+    alternatives: alternativesByTitle.length ? alternativesByTitle : undefined,
+  };
 }
 
 export interface TopicSpanInput {
