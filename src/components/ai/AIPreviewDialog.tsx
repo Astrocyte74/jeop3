@@ -383,7 +383,7 @@ function CategoriesPreview({
                     onClick={() => onSelectTitle?.(i)}
                     className="w-full text-left"
                   >
-                    <div className="font-semibold text-sm text-slate-200 pr-6 flex items-center gap-1.5">
+                    <div className="font-semibold text-sm text-slate-200 pr-6 flex items-center gap-1.5 min-w-0 [overflow-wrap:anywhere]">
                       {selectedTitle === i && <Check className="w-3.5 h-3.5 text-yellow-400 flex-shrink-0" />}
                       {option.title}
                     </div>
@@ -983,7 +983,8 @@ export function AIPreviewDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && onCancel()}>
-      <AlertDialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden">
+      {/* data-[size=default]:sm:max-w-3xl matches the base component's own variant so it can override its sm:max-w-lg cap */}
+      <AlertDialogContent className="max-w-[95vw] data-[size=default]:sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <AlertDialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-500/20 rounded-lg">

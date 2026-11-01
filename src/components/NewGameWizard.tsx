@@ -1421,7 +1421,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   variant="outline"
                   className="w-full justify-center border-dashed border-yellow-600/50 text-yellow-300/90 hover:bg-yellow-500/10 hover:text-yellow-200"
                 >
-                  <Plus className="w-4 h-4 mr-1.5" /> Fill {spanRangeLabel.toLowerCase()}
+                  <Plus className="w-4 h-4 mr-1.5" /> Add to {spanRangeLabel.toLowerCase()}
                 </Button>
                 )}
                 </>
@@ -1502,10 +1502,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
               {/* Live board preview pane (liveboard view, lg+ screens only) */}
               {currentStep === 'liveboard' && (
-                <div className="hidden lg:flex flex-col items-center justify-center relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/80 px-6 py-5 mt-6 lg:mt-0">
+                /* flex-1 spacers centre the content when there's room; when the window is short they collapse and the pane scrolls instead of clipping both ends */
+                <div className="hidden lg:flex flex-col items-center relative overflow-y-auto overflow-x-hidden rounded-2xl border border-slate-800 bg-slate-950/80 px-6 py-5 mt-6 lg:mt-0 before:content-[''] before:flex-1 after:content-[''] after:flex-1">
                   <div aria-hidden className="absolute inset-0 pointer-events-none bg-[radial-gradient(640px_320px_at_50%_-10%,rgba(37,58,220,0.28),transparent_65%),radial-gradient(400px_260px_at_90%_110%,rgba(250,204,21,0.05),transparent_60%)]" />
 
-                  <div className="absolute top-5 left-6 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {/* In normal flow (not absolute) so a tall preview on a short window can't overlap it */}
+                  <div className="relative self-start mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                     <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
                     Live preview — updates as you build
                   </div>
@@ -2136,10 +2138,13 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               type="button"
               onClick={handleComplete}
               disabled={isLoading || customSources.length === 0 || isFetching}
+              title={customSources.length === 0 ? 'Add a topic, pasted text or URL to a column first' : undefined}
               className="flex-1 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold shadow-lg shadow-yellow-500/20"
             >
               <Wand2 className="w-4 h-4 mr-2" />
-              Generate Game{customSources.length > 0 ? ` · ${getTotalCategoryCount()} ${getTotalCategoryCount() === 1 ? 'category' : 'categories'}` : ''}
+              {customSources.length === 0
+                ? 'Add a topic to a column to generate'
+                : `Generate Game · ${getTotalCategoryCount()} ${getTotalCategoryCount() === 1 ? 'category' : 'categories'}`}
             </Button>
           )}
           {currentStep !== 'choose-mode' && currentStep !== 'composer' && currentStep !== 'liveboard' && creationMode === 'ai' && (

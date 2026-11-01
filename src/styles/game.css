@@ -253,6 +253,16 @@
   font-size: clamp(16px, 2.2vw, 28px);
 }
 
+/* Size rows to the window height so the board stays above the sticky
+   scoreboard on short laptop windows (100px rows / 80px header at ~900px tall) */
+.cell {
+  min-height: clamp(64px, 11vh, 100px);
+}
+
+.cell-header {
+  min-height: clamp(56px, 9vh, 80px);
+}
+
 /* Tablet and below */
 @media (max-width: 900px) {
   .cell {
