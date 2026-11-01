@@ -352,20 +352,24 @@ export function useTTSClue(clueText: string, answerText: string) {
   }, []);
 
   const preloadAnswer = useCallback(() => {
-    // Only preload if clue synthesis is complete and answer not already loaded
-    if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading && clueSynthesisCompleteRef.current) {
+    // Only preload if clue synthesis is complete and answer not already loaded.
+    // A recorded error also blocks it: a failed synthesis flips isAnswerLoading
+    // back to false, which would otherwise re-trigger this immediately and loop
+    // forever whenever the TTS server is unreachable. Manual playAnswer() still
+    // retries (it clears the error when it starts).
+    if (answerText && !audio.answerAudioUrl && !audio.isAnswerLoading && !audio.answerError && clueSynthesisCompleteRef.current) {
       console.log('[TTS] Preloading answer (clue synthesis complete)');
       synthesizeAudio(answerText, 'answer');
     }
-  }, [answerText, audio.answerAudioUrl, audio.isAnswerLoading, synthesizeAudio]);
+  }, [answerText, audio.answerAudioUrl, audio.isAnswerLoading, audio.answerError, synthesizeAudio]);
 
   // Auto-preload answer when clue synthesis completes
   useEffect(() => {
-    if (clueSynthesisCompleteRef.current && answerText && !audio.answerAudioUrl && !audio.isAnswerLoading) {
+    if (clueSynthesisCompleteRef.current && answerText && !audio.answerAudioUrl && !audio.isAnswerLoading && !audio.answerError) {
       console.log('[TTS] Clue synthesis detected complete, triggering preload');
       preloadAnswer();
     }
-  }, [audio.isClueLoading, answerText, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
+  }, [audio.isClueLoading, answerText, audio.answerAudioUrl, audio.isAnswerLoading, audio.answerError, preloadAnswer]);
 
   return {
     audio,

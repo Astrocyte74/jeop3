@@ -85,6 +85,9 @@ interface GeneratedGameData {
   };
 }
 
+// Set before the dev-bypass reload so the New Game wizard reopens afterwards.
+const RESUME_WIZARD_KEY = 'jeop3:resumeWizard';
+
 export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // Clerk auth
   const { isSignedIn, signOut } = useAuth();
@@ -101,6 +104,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   };
 
   const [games, setGames] = useState<GameMeta[]>([]);
+  // True until the first loadGames() settles, so the menu doesn't flash an
+  // empty list and default "Team 1/Team 2" names while data is on its way.
+  const [gamesLoading, setGamesLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [gameSort, setGameSort] = useState<'newest' | 'oldest' | 'recentlyPlayed' | 'mostPlayed' | 'inProgress' | 'notStarted' | 'completed'>('newest');
@@ -152,6 +158,20 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   // Sign-in prompt dialog state
   const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  // What the user was trying to do when the prompt opened, so the dev-bypass
+  // reload can resume it instead of dropping them back on the menu.
+  const signInIntent = useRef<'create' | 'import'>('create');
+  useEffect(() => {
+    if (!isSignedIn) return;
+    try {
+      if (sessionStorage.getItem(RESUME_WIZARD_KEY) === 'true') {
+        sessionStorage.removeItem(RESUME_WIZARD_KEY);
+        setShowWizard(true);
+      }
+    } catch {
+      // sessionStorage unavailable — user just clicks Create Game again
+    }
+  }, [isSignedIn]);
 
   // Game info dialog state
   const [gameInfoMetadata, setGameInfoMetadata] = useState<any>(null);
@@ -260,6 +280,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       }
     } catch (error) {
       console.error('Failed to load games:', error);
+    } finally {
+      setGamesLoading(false);
     }
   };
 
@@ -493,6 +515,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
     // Require sign-in to import games (consistent with AI creation)
     if (!isSignedIn) {
+      signInIntent.current = 'import';
       setShowSignInPrompt(true);
       // Reset file input
       if (fileInputRef.current) {
@@ -2332,8 +2355,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 <h2 className="text-lg font-semibold">Select Game</h2>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs">
-                  {sortedGames.length} games
+                <Badge variant="outline" className="text-xs min-w-[3.5rem] justify-center">
+                  {gamesLoading ? '…' : `${sortedGames.length} ${sortedGames.length === 1 ? 'game' : 'games'}`}
                 </Badge>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -2385,7 +2408,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               className="mb-4 bg-slate-800/50 border-slate-700"
             />
 
-            <div key={gameStateRefreshKey} className="space-y-2 max-h-80 overflow-y-auto pr-2">
+            <div key={gameStateRefreshKey} className="space-y-2 max-h-80 overflow-y-auto pr-2" aria-busy={gamesLoading}>
+              {gamesLoading && (
+                <>
+                  <div className="h-[62px] rounded-lg border border-slate-700/50 bg-slate-800/40 animate-pulse" />
+                  <div className="h-[62px] rounded-lg border border-slate-700/50 bg-slate-800/30 animate-pulse" />
+                </>
+              )}
               {sortedGames.map((game) => {
                 const gameData = loadCustomGames().find(g => g.id === game.id);
                 const savedState = loadGameState(game.id);
@@ -2535,6 +2564,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 disabled={aiLoading}
                 onClick={() => {
                   if (!isSignedIn) {
+                    signInIntent.current = 'create';
                     setShowSignInPrompt(true);
                   } else {
                     setShowWizard(true);
@@ -2781,7 +2811,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           </div>
 
           {/* Teams panel */}
-          <div className="lg:col-span-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-6">
+          <div
+            aria-busy={gamesLoading}
+            className={`lg:col-span-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-6 transition-opacity duration-300 ${gamesLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-yellow-500" />
@@ -2983,7 +3016,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                 Cancel
               </AlertDialogCancel>
               <SignInButton mode="modal">
-                <AlertDialogAction className="bg-purple-600 hover:bg-purple-500">
+                <AlertDialogAction className="bg-purple-600 hover:bg-purple-500 text-white">
                   Sign In
                 </AlertDialogAction>
               </SignInButton>
@@ -2991,7 +3024,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             {isLocalDev && (
               <button
                 type="button"
-                onClick={() => { enableDevAuthBypass(); window.location.reload(); }}
+                onClick={() => {
+                  enableDevAuthBypass();
+                  if (signInIntent.current === 'create') {
+                    try { sessionStorage.setItem(RESUME_WIZARD_KEY, 'true'); } catch { /* best effort */ }
+                  }
+                  window.location.reload();
+                }}
                 className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-200 underline underline-offset-2"
               >
                 Skip sign-in (local dev / testing)

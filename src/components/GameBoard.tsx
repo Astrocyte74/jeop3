@@ -285,13 +285,13 @@ export function GameBoard({
       {/* Menu dropdown - top right, absolute positioned */}
       <div className="absolute top-4 right-4 z-10 flex gap-2">
         {/* Home button */}
-        <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit}>
+        <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit} aria-label="Back to main menu">
           <Home className="w-5 h-5" />
         </Button>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50">
+            <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" aria-label="Game settings">
               <SettingsIcon className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -549,11 +549,11 @@ export function GameBoard({
       </div>
 
       {/* Header with title */}
-      <div className="max-w-7xl mx-auto mb-8">
-        {/* Title - centered */}
+      <div className="max-w-7xl mx-auto mb-4 md:mb-8 pt-12 md:pt-0">
+        {/* Title - centered (top padding on small screens clears the absolute Home/Settings buttons) */}
         <div className="text-center">
           <div className="flex items-center justify-center gap-4">
-            <h1 className="text-3xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+            <h1 className="text-2xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
               {game.title}
             </h1>
             {gameMode === 'snake' && (
@@ -575,7 +575,7 @@ export function GameBoard({
           <div
             className="game-board"
             style={{
-              gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
+              gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))`,
             }}
           >
             {/* Category headers */}
@@ -610,6 +610,7 @@ export function GameBoard({
                       onClick={() => !used && onOpenClue(categoryIndex, rowIndex)}
                       disabled={used}
                       className="clue-btn"
+                      aria-label={`${category.title} for $${clue.value}${used ? ' (played)' : ''}`}
                     >
                       ${clue.value}
                     </button>
@@ -626,15 +627,16 @@ export function GameBoard({
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="group flex items-center justify-center gap-3 flex-wrap">
             {state.teams.map((team) => {
-              const rank = state.teams.findIndex(t => t.id === team.id) + 1;
-              const isLeader = state.teams[0]?.score === team.score && team.score > 0 && rank === 1;
+              // Crown whoever holds the top positive score (ties share it)
+              const topScore = Math.max(...state.teams.map(t => t.score));
+              const isLeader = team.score > 0 && team.score === topScore;
 
               return (
                 <div
                   key={team.id}
                   className={`relative group rounded-lg border transition-all ${
                     state.activeTeamId === team.id
-                      ? 'bg-yellow-500/20 border-yellow-500/50 shadow-lg shadow-yellow-500/10'
+                      ? 'bg-yellow-500/20 border-yellow-500/60 shadow-lg shadow-yellow-500/20 ring-1 ring-yellow-500/40'
                       : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600'
                   } ${editingTeamId === team.id || editingScoreTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
                 >
@@ -644,7 +646,8 @@ export function GameBoard({
                       <DropdownMenuTrigger asChild>
                         <button
                           onClick={(e) => e.stopPropagation()}
-                          className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          aria-label={`Options for ${team.name}`}
+                          className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-slate-700 hover:bg-slate-600 text-slate-400 hover:text-slate-300 rounded-full opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity z-10"
                         >
                           <MoreVertical className="w-3 h-3" />
                         </button>
@@ -799,20 +802,20 @@ export function GameBoard({
                     /* Normal Display Mode */
                     <button
                       onClick={() => onSetActiveTeam(team.id)}
-                      className="px-4 py-2 min-w-[140px] block w-full text-left"
+                      className="px-5 py-3 min-w-[160px] lg:min-w-[220px] block w-full text-left"
                     >
-                      {/* Team name - larger font */}
-                      <div className={`text-base font-black leading-tight ${
+                      {/* Team name - readable from across the room */}
+                      <div className={`text-lg lg:text-2xl font-black leading-tight ${
                         state.activeTeamId === team.id ? 'text-yellow-400' : 'text-slate-100'
                       }`}>
-                        {isLeader && <span className="mr-1">👑</span>}
+                        {isLeader && <span className="mr-1.5" aria-label="Leading">👑</span>}
                         {team.name}
                       </div>
                       {/* Score */}
-                      <div className={`text-lg font-black mt-1 ${
+                      <div className={`text-2xl lg:text-4xl font-black mt-1 tabular-nums ${
                         team.score >= 0 ? 'text-green-400' : 'text-red-400'
                       }`}>
-                        ${team.score.toLocaleString()}
+                        {team.score < 0 ? '-' : ''}${Math.abs(team.score).toLocaleString()}
                       </div>
                     </button>
                   )}

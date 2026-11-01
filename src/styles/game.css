@@ -231,3 +231,113 @@
   opacity: 1;
   transform: translateY(0);
 }
+
+/* ==================== RESPONSIVE + ACCESSIBILITY POLISH ==================== */
+
+/* Keyboard focus for clue cells (the button is otherwise unstyled) */
+.clue-btn:not(:disabled):focus-visible {
+  outline: 2px solid var(--theme-gold, #ffd700);
+  outline-offset: -4px;
+  border-radius: 8px;
+  text-shadow: 0 0 24px var(--theme-gold, #ffd700);
+}
+
+/* Let long category names wrap instead of forcing the grid wider */
+.cell-header {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+/* Scale values between phone and desktop instead of jumping */
+.clue-btn {
+  font-size: clamp(16px, 2.2vw, 28px);
+}
+
+/* Tablet and below */
+@media (max-width: 900px) {
+  .cell {
+    min-height: 76px;
+  }
+
+  .cell-header {
+    min-height: 60px;
+    font-size: 11px;
+    letter-spacing: 0.3px;
+    padding: 8px 4px;
+  }
+
+  .clue-dialog-card {
+    padding: 24px;
+    gap: 14px;
+  }
+
+  .clue-text {
+    font-size: clamp(26px, 6vw, 44px) !important;
+    padding: 16px 8px;
+  }
+
+  .clue-dialog-card.showing-answer .clue-text {
+    font-size: clamp(20px, 4.5vw, 30px) !important;
+  }
+
+  .clue-response {
+    font-size: clamp(24px, 6vw, 40px) !important;
+    padding: 18px 12px;
+  }
+}
+
+/* Phone: all columns stay on screen — no sideways scrolling */
+@media (max-width: 600px) {
+  .board-wrap {
+    padding: 4px;
+    border-radius: 10px;
+  }
+
+  .cell {
+    min-height: 58px;
+  }
+
+  .cell-header {
+    min-height: 52px;
+    font-size: 9px;
+    letter-spacing: 0;
+    padding: 6px 2px;
+  }
+
+  .clue-btn {
+    font-size: 14px;
+  }
+
+  .clue-btn:disabled::after {
+    font-size: 16px;
+  }
+
+  .clue-dialog-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .clue-dialog-backdrop {
+    padding: 8px;
+  }
+}
+
+/* Respect users who ask for less motion */
+@media (prefers-reduced-motion: reduce) {
+  .clue-dialog-card {
+    animation: none;
+  }
+
+  .clue-btn,
+  .clue-text,
+  .clue-response,
+  .team-chip {
+    transition: none;
+  }
+
+  .clue-btn:not(:disabled):hover,
+  .team-chip.selected,
+  .team-chip:hover {
+    transform: none;
+  }
+}

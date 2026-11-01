@@ -369,17 +369,17 @@ export function ClueDialog({
           <div className="flex gap-3 justify-center">
             <button
               onClick={() => onMarkCorrect(activeTeamId)}
-              className="px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold text-lg rounded-lg transition-all"
+              className="flex-1 sm:flex-none flex flex-col sm:flex-row items-center justify-center sm:gap-2 px-4 sm:px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-bold text-base sm:text-lg rounded-lg transition-all"
             >
-              <Check className="w-5 h-5 mr-2 inline" />
-              Correct (+${value})
+              <span className="inline-flex items-center gap-2 whitespace-nowrap"><Check className="w-5 h-5" />Correct</span>
+              <span className="whitespace-nowrap">(+${value})</span>
             </button>
             <button
               onClick={() => onMarkIncorrect(activeTeamId)}
-              className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold text-lg rounded-lg transition-all"
+              className="flex-1 sm:flex-none flex flex-col sm:flex-row items-center justify-center sm:gap-2 px-4 sm:px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold text-base sm:text-lg rounded-lg transition-all"
             >
-              <XIcon className="w-5 h-5 mr-2 inline" />
-              Incorrect (-${value})
+              <span className="inline-flex items-center gap-2 whitespace-nowrap"><XIcon className="w-5 h-5" />Incorrect</span>
+              <span className="whitespace-nowrap">(-${value})</span>
             </button>
           </div>
         )}
