@@ -77,6 +77,11 @@ export function applyClueResult(
   };
 }
 
+/** Close a clue as used without scoring or logging anyone ("nobody got it"). */
+export function markClueUsed(state: GameState, clueId: string): GameState {
+  return { ...state, used: { ...state.used, [clueId]: true } };
+}
+
 export interface FinalOutcome {
   teamId: string;
   wager: number;

@@ -9,6 +9,7 @@ import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
 import { ThinkTimer } from '@/components/clue/ThinkTimer';
 import { TeamTiles } from '@/components/clue/TeamTiles';
+import { nextTeamId, useGameRules } from '@/lib/gameRules';
 import { formatMoney } from '@/components/clue/format';
 import { DailyDoubleSplash } from '@/components/clue/DailyDoubleSplash';
 import { WagerPanel } from '@/components/clue/WagerPanel';
@@ -36,6 +37,8 @@ interface ClueDialogProps {
   /** Highest clue value on the board; caps wagers at max(team score, this). */
   boardMaxValue?: number;
   onSetActiveTeam: (teamId: string) => void;
+  /** "Nobody got it": mark the clue used without scoring anyone. */
+  onSkipClue?: () => void;
   onSwitchToSnake?: () => void;
   snakeGameResult?: { wasCorrect: boolean | null; teamId: string | null } | null;
 }
@@ -80,6 +83,7 @@ export function ClueDialog({
   onMarkCorrect,
   onMarkIncorrect,
   onSetActiveTeam,
+  onSkipClue,
   onSwitchToSnake,
   snakeGameResult,
   dailyDouble = false,
@@ -109,6 +113,9 @@ export function ClueDialog({
   const [settling, setSettling] = useState(false);
   const settleTimer = useRef<number | undefined>(undefined);
   const [timerSecs, setTimerSecs] = useState(loadTimerSecs);
+  const rules = useGameRules();
+  // Whose pick opened this clue; in 'rotate' mode the pick passes to the team after them.
+  const [openerId, setOpenerId] = useState(activeTeamId);
 
   // --- Daily Double state --------------------------------------------------
   // splash -> wager (active team) -> play (clue revealed, wagering team scores).
@@ -129,6 +136,7 @@ export function ClueDialog({
       setLockedWager(null);
       setLockedTeamId(null);
       setDdOutcome(null);
+      setOpenerId(activeTeamId);
     }
   }
   const ddPre = dd && ddPhase !== 'play';
@@ -137,9 +145,9 @@ export function ClueDialog({
   const cap = wagerCap(wagerTeam?.score ?? 0, boardMaxValue);
 
   // Latest props for deferred callbacks
-  const latest = useRef({ onMarkCorrect, onMarkIncorrect, onSetActiveTeam, onClose });
+  const latest = useRef({ onMarkCorrect, onMarkIncorrect, onSetActiveTeam, onSkipClue, onClose, rules, teams, openerId });
   useEffect(() => {
-    latest.current = { onMarkCorrect, onMarkIncorrect, onSetActiveTeam, onClose };
+    latest.current = { onMarkCorrect, onMarkIncorrect, onSetActiveTeam, onSkipClue, onClose, rules, teams, openerId };
   });
 
   const hasSnakeResult = !dailyDouble && !!snakeGameResult && snakeGameResult.wasCorrect !== null;
@@ -290,11 +298,11 @@ export function ClueDialog({
         const cb = latest.current;
         // The parent closes the dialog on the first score callback but applies
         // each update functionally, so misses first then the winner all land.
-        missed.forEach((id) => cb.onMarkIncorrect(id));
-        if (winnerId) {
-          cb.onSetActiveTeam(winnerId);
-          cb.onMarkCorrect(winnerId);
-        }
+        missed.forEach((id) => cb.onMarkIncorrect(id, cb.rules.wrongAnswerPenalty ? undefined : 0));
+        // Rotate: the pick always passes to the next team. Winner: the correct team picks again.
+        const next = cb.rules.turnMode === 'rotate' ? nextTeamId(cb.teams, cb.openerId) : winnerId;
+        if (next) cb.onSetActiveTeam(next);
+        if (winnerId) cb.onMarkCorrect(winnerId);
       }, SETTLE_MS);
     },
     [],
@@ -322,9 +330,9 @@ export function ClueDialog({
       const next = [...missedIds, teamId];
       setMissedIds(next);
       playSfx('incorrect');
-      if (next.length >= teams.length) settle(next, null);
+      if (next.length >= teams.length || !rules.allowSteal) settle(next, null);
     },
-    [settling, missedIds, teams.length, settle],
+    [settling, missedIds, teams.length, settle, rules.allowSteal],
   );
 
   const skipSplash = useCallback(() => setDdPhase((p) => (p === 'splash' ? 'wager' : p)), []);
@@ -353,12 +361,32 @@ export function ClueDialog({
       window.clearTimeout(settleTimer.current);
       settleTimer.current = window.setTimeout(() => {
         const cb = latest.current;
+        if (cb.rules.turnMode === 'rotate') {
+          const next = nextTeamId(cb.teams, cb.openerId);
+          if (next) cb.onSetActiveTeam(next);
+        }
         if (correct) cb.onMarkCorrect(teamId, amount);
         else cb.onMarkIncorrect(teamId, amount);
       }, SETTLE_MS);
     },
     [settling, lockedWager, lockedTeamId],
   );
+
+  /** Nobody got it: used with no score change, then the pick rotates (or stays) per the rules. */
+  const skipClue = useCallback(() => {
+    if (settling || !showResponseRef.current || missedIds.length > 0 || !latest.current.onSkipClue) return;
+    playSfx('select');
+    setSettling(true);
+    window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(() => {
+      const cb = latest.current;
+      if (cb.rules.turnMode === 'rotate') {
+        const next = nextTeamId(cb.teams, cb.openerId);
+        if (next) cb.onSetActiveTeam(next);
+      }
+      cb.onSkipClue?.();
+    }, SETTLE_MS);
+  }, [settling, missedIds.length]);
 
   const closeWithMisses = useCallback(() => {
     if (settling || missedIds.length === 0) return;
@@ -409,6 +437,12 @@ export function ClueDialog({
         return;
       }
 
+      if (/^(?:Digit|Numpad)0$/.test(e.code) && showResponseRef.current && !dd) {
+        e.preventDefault();
+        skipClue();
+        return;
+      }
+
       const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
       if (digit && showResponseRef.current) {
         const team = teams[Number(digit[1]) - 1];
@@ -452,7 +486,7 @@ export function ClueDialog({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showResponse, clueIcons, answerIcons, currentClueIconIndex, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble]);
+  }, [isOpen, showResponse, clueIcons, answerIcons, currentClueIconIndex, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue]);
 
   // Keep Tab inside the dialog
   const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -746,7 +780,7 @@ export function ClueDialog({
             {!dd && mustConfirmSteal && !settling && (
               <div className="cs-steal-bar" role="status">
                 <p>
-                  {missedIds.map(teamName).join(', ')} missed ({formatMoney(-value)}).
+                  {missedIds.map(teamName).join(', ')} missed{rules.wrongAnswerPenalty ? ` (${formatMoney(-value)})` : ''}.
                   {stealId && (
                     <>
                       {' '}
@@ -769,11 +803,19 @@ export function ClueDialog({
                 stealId={stealId}
                 wonId={wonId}
                 locked={settling}
+                penalty={rules.wrongAnswerPenalty}
                 onAward={awardTeam}
                 onDeduct={deductTeam}
               />
             ) : (
               <p className="cs-no-teams">No teams yet. Close the clue and add a team to keep score.</p>
+            )}
+
+            {!dd && onSkipClue && teams.length > 0 && showResponse && missedIds.length === 0 && !settling && (
+              <button type="button" className="cs-skip" onClick={skipClue}>
+                Nobody got it
+                <kbd>0</kbd>
+              </button>
             )}
           </div>
         </section>
@@ -808,6 +850,7 @@ export function ClueDialog({
           <>
             <span><kbd>1</kbd>–<kbd>9</kbd> award team</span>
             <span><kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>9</kbd> wrong answer</span>
+            {onSkipClue && <span><kbd>0</kbd> nobody got it</span>}
             <span><kbd>Esc</kbd> close without scoring</span>
           </>
         )}

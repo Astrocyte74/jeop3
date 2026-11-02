@@ -31,6 +31,17 @@ await build({
 });
 const fd = await import(pathToFileURL(draftOut).href);
 
+const rulesOut = join(dir, 'gameRules.mjs');
+await build({
+  entryPoints: ['src/lib/gameRules.ts'],
+  outfile: rulesOut,
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  logLevel: 'silent',
+});
+const gr = await import(pathToFileURL(rulesOut).href);
+
 const clue = (value, extra = {}) => ({ value, clue: `clue ${value}`, response: `answer ${value}`, ...extra });
 const column = (title, extra = {}) => ({ title, clues: [200, 400, 600, 800, 1000].map((v) => clue(v, extra[v] ?? {})) });
 const board = (cats = 5, extra = {}) => ({
@@ -257,4 +268,24 @@ test('classifyFinal: a complete draft is trimmed and keeps AI provenance/verific
 test('classifyFinal: a manual draft stays free of metadata keys', () => {
   const result = fd.classifyFinal({ category: 'A', clue: 'B', response: 'C' });
   assert.deepEqual(result, { kind: 'complete', value: { category: 'A', clue: 'B', response: 'C' } });
+});
+
+test('markClueUsed closes a clue without touching scores or the log', () => {
+  const s = gs.markClueUsed(fresh(), '1:2');
+  assert.equal(s.used['1:2'], true);
+  assert.deepEqual(s.teams.map((t) => t.score), [0, 0]);
+  assert.deepEqual(s.log, []);
+});
+
+test('nextTeamId rotates in board order, wraps, and handles unknown ids and no teams', () => {
+  const t = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  assert.equal(gr.nextTeamId(t, 'a'), 'b');
+  assert.equal(gr.nextTeamId(t, 'c'), 'a');
+  assert.equal(gr.nextTeamId(t, 'zzz'), 'a');
+  assert.equal(gr.nextTeamId([{ id: 'solo' }], 'solo'), 'solo');
+  assert.equal(gr.nextTeamId([], 'a'), null);
+});
+
+test('default rules take turns, keep penalties and allow steals', () => {
+  assert.deepEqual(gr.DEFAULT_RULES, { turnMode: 'rotate', wrongAnswerPenalty: true, allowSteal: true });
 });

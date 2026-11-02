@@ -15,6 +15,8 @@ interface TeamTilesProps {
   /** Team that just won the clue (celebration lock). */
   wonId: string | null;
   locked: boolean;
+  /** Wrong answers cost points (default). When false, a miss shows as 'Miss' with no deduction. */
+  penalty?: boolean;
   onAward: (teamId: string) => void;
   onDeduct: (teamId: string) => void;
 }
@@ -28,6 +30,7 @@ export function TeamTiles({
   stealId,
   wonId,
   locked,
+  penalty = true,
   onAward,
   onDeduct,
 }: TeamTilesProps) {
@@ -73,7 +76,7 @@ export function TeamTiles({
                 <span className="cs-tile-score">{formatMoney(team.score)}</span>
               </span>
               <span className="cs-tile-delta" aria-hidden="true">
-                {missed ? `−$${value}` : `+$${value}`}
+                {missed ? (penalty ? `−$${value}` : 'Miss') : `+$${value}`}
               </span>
             </button>
             <button
@@ -85,9 +88,11 @@ export function TeamTiles({
               aria-label={
                 missed
                   ? `Undo deduction for ${team.name}`
-                  : `Deduct ${formatMoney(value)} from ${team.name}${i < 9 ? ` (Shift+${i + 1})` : ''}`
+                  : penalty
+                    ? `Deduct ${formatMoney(value)} from ${team.name}${i < 9 ? ` (Shift+${i + 1})` : ''}`
+                    : `Mark ${team.name} as missed${i < 9 ? ` (Shift+${i + 1})` : ''}`
               }
-              title={missed ? 'Undo' : `Wrong answer: −$${value}`}
+              title={missed ? 'Undo' : penalty ? `Wrong answer: −$${value}` : 'Wrong answer'}
             >
               <Minus className="w-6 h-6" strokeWidth={3} />
             </button>

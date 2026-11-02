@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { MainMenu } from '@/components/MainMenu';
 import { GameBoard } from '@/components/GameBoard';
 import { ClueDialog } from '@/components/ClueDialog';
@@ -11,7 +11,7 @@ import type { Game, GameState } from '@/lib/storage';
 import { loadGameState, saveGameState, setSelectedGameId, saveCustomGames, loadCustomGames } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
 import { iconMatcher } from '@/lib/iconMatcher';
-import { applyClueResult, applyFinalResults, boardMaxValue, createInitialState, type FinalOutcome } from '@/lib/gameState';
+import { applyClueResult, applyFinalResults, boardMaxValue, createInitialState, markClueUsed, type FinalOutcome } from '@/lib/gameState';
 import { type GameMode } from '@/components/GameModeMenu';
 
 type AppMode = 'menu' | 'playing' | 'editing' | 'ai-preview-editing';
@@ -27,6 +27,7 @@ interface ClueData {
 
 export function App() {
   const [mode, setMode] = useState<AppMode>('menu');
+  const [finalOpen, setFinalOpen] = useState(false);
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
   // Library game being edited from the menu (no play session, so `gameId` is unset)
@@ -94,6 +95,40 @@ export function App() {
       }
     }
   }, [gameId, currentGame]);
+
+  // Undo history: snapshots from just before each clue was settled (in memory only, so the saved
+  // game format is unchanged). Keyed by game so switching games starts a fresh history.
+  const [undo, setUndo] = useState<{ gameId: string | null; stack: GameState[] }>({ gameId: null, stack: [] });
+  const undoStack = useMemo(() => (undo.gameId === gameId ? undo.stack : []), [undo, gameId]);
+  const prevStateRef = useRef<GameState | null>(null);
+  useEffect(() => {
+    const prev = prevStateRef.current;
+    if (prev && gameState && Object.keys(gameState.used).length > Object.keys(prev.used).length) {
+      setUndo((u) => ({ gameId, stack: [...(u.gameId === gameId ? u.stack : []).slice(-19), prev] }));
+    }
+    prevStateRef.current = gameState;
+  }, [gameState, gameId]);
+  const handleUndo = useCallback(() => {
+    if (undoStack.length === 0) return;
+    const restored = undoStack[undoStack.length - 1];
+    prevStateRef.current = restored; // don't re-push the state we're returning to
+    setGameState(restored);
+    setUndo({ gameId, stack: undoStack.slice(0, -1) });
+  }, [undoStack, gameId]);
+
+  // Ctrl/Cmd+Z on the board undoes the last clue (never while a clue, snake or final is open)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      if (mode !== 'playing' || clueDialog.isOpen || triviaSnake.isOpen || finalOpen) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      handleUndo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mode, clueDialog.isOpen, triviaSnake.isOpen, finalOpen, handleUndo]);
 
   // Save game state whenever it changes
   useEffect(() => {
@@ -233,6 +268,14 @@ export function App() {
     setClueDialog({ isOpen: false, clueId: '' });
     setSnakeGameResult(null); // Reset after marking
   }, [gameState, currentGame, clueDialog]);
+
+  const handleSkipClue = useCallback(() => {
+    if (!clueDialog.isOpen) return;
+    const clueId = clueDialog.clueId;
+    setGameState((prev) => (prev ? markClueUsed(prev, clueId) : prev));
+    setClueDialog({ isOpen: false, clueId: '' });
+    setSnakeGameResult(null);
+  }, [clueDialog]);
 
   const handleSetActiveTeam = useCallback((teamId: string) => {
     setGameState((prev) => {
@@ -419,7 +462,6 @@ export function App() {
 
   const currentClue = getCurrentClue();
 
-  const [finalOpen, setFinalOpen] = useState(false);
   const handleStartFinal = useCallback(() => setFinalOpen(true), []);
   const handleFinalComplete = useCallback((outcomes: FinalOutcome[]) => {
     setGameState((prev) => (prev ? applyFinalResults(prev, outcomes) : prev));
@@ -487,6 +529,8 @@ export function App() {
             onToggleAIPreviewEditor={handleToggleAIPreviewEditor}
             finalAvailable={!!currentGame.finalJeopardy && !gameState.final?.done}
             onStartFinal={handleStartFinal}
+            canUndo={undoStack.length > 0}
+            onUndo={handleUndo}
             onSetActiveTeam={handleSetActiveTeam}
             onResetBoard={handleResetBoard}
             onUpdateTeamName={handleUpdateTeamName}
@@ -511,6 +555,7 @@ export function App() {
               onMarkCorrect={handleMarkCorrect}
               onMarkIncorrect={handleMarkIncorrect}
               onSetActiveTeam={handleSetActiveTeam}
+              onSkipClue={handleSkipClue}
               onSwitchToSnake={handleSwitchToSnake}
               snakeGameResult={snakeGameResult}
               dailyDouble={!!gameState.dailyDoubles?.includes(clueDialog.clueId)}

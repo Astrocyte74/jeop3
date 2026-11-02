@@ -12,8 +12,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { type GameMode } from '@/components/GameModeMenu';
 import { TTSSubmenu } from '@/components/tts/TTSSettings';
+import { GameRulesMenu } from '@/components/GameRulesMenu';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy, Eye } from 'lucide-react';
+import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy, Eye, Undo2 } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -40,6 +41,9 @@ interface GameBoardProps {
   /** The game has a Final Jeopardy clue that hasn't been played yet. */
   finalAvailable?: boolean;
   onStartFinal?: () => void;
+  /** Undo the last settled clue (restores scores, used tiles and whose pick it was). */
+  canUndo?: boolean;
+  onUndo?: () => void;
   onSetActiveTeam: (teamId: string) => void;
   onResetBoard?: () => void;
   onUpdateTeamName?: (teamId: string, name: string) => void;
@@ -57,6 +61,8 @@ export function GameBoard({
   onToggleAIPreviewEditor,
   finalAvailable = false,
   onStartFinal,
+  canUndo = false,
+  onUndo,
   onSetActiveTeam,
   onResetBoard,
   onUpdateTeamName,
@@ -414,6 +420,19 @@ export function GameBoard({
             Final Jeopardy
           </Button>
         )}
+        {onUndo && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-slate-700 bg-slate-900/50"
+            onClick={onUndo}
+            disabled={!canUndo}
+            aria-label="Undo last clue"
+            title="Undo last clue (Ctrl/Cmd+Z)"
+          >
+            <Undo2 className="w-5 h-5" />
+          </Button>
+        )}
         {/* Home button */}
         <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit} aria-label="Back to main menu">
           <Home className="w-5 h-5" />
@@ -486,6 +505,8 @@ export function GameBoard({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
+
+            <GameRulesMenu />
 
             {/* Settings Submenu */}
             <DropdownMenuSub>

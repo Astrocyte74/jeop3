@@ -7,6 +7,7 @@ import { TTSDirectSettings } from '@/components/tts/TTSSettings';
 import { themes, type ThemeKey, type IconSize } from '@/lib/themes';
 import { lobbyVars } from './gameInfo';
 import { isSfxMuted, setSfxMuted, playSfx } from '@/lib/sfx';
+import { setGameRules, useGameRules, type TurnMode } from '@/lib/gameRules';
 
 const ICON_SIZES: Array<{ size: IconSize; note: string }> = [
   { size: '128', note: 'Fastest' },
@@ -35,6 +36,7 @@ function SectionTitle({ children, hint }: { children: string; hint?: string }) {
 export function TableSettings({ currentTheme, onThemeChange, iconSize, onIconSizeChange }: TableSettingsProps) {
   const [open, setOpen] = useState(false);
   const [muted, setMuted] = useState(() => isSfxMuted());
+  const rules = useGameRules();
 
   const toggleSound = () => {
     const next = !muted;
@@ -111,6 +113,54 @@ export function TableSettings({ currentTheme, onThemeChange, iconSize, onIconSiz
                   </button>
                 );
               })}
+            </div>
+          </section>
+
+          <section className="mb-7">
+            <SectionTitle hint="How turns and points work. Applies to every board; change it any time from the game's settings.">
+              Game rules
+            </SectionTitle>
+            <div role="radiogroup" aria-label="Who picks next" className="mb-3 grid gap-2 sm:grid-cols-2">
+              {([
+                ['rotate', 'Take turns', 'The pick passes to the next team after every clue. Best for a class.'],
+                ['winner', 'Winner picks', 'Answer correctly and you choose again, like the TV show.'],
+              ] as Array<[TurnMode, string, string]>).map(([mode, title, note]) => {
+                const on = rules.turnMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setGameRules({ turnMode: mode })}
+                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${on ? 'border-[var(--lb-accent)] bg-white/10' : 'border-white/12 bg-black/20 hover:bg-white/5'}`}
+                  >
+                    <span className="flex items-center gap-2 text-sm font-semibold">
+                      {on && <Check className="size-4 text-[var(--lb-accent)]" />}
+                      {title}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-white/60">{note}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {([
+                ['wrongAnswerPenalty', 'Wrong answers lose points', rules.wrongAnswerPenalty],
+                ['allowSteal', 'Other teams can steal', rules.allowSteal],
+              ] as const).map(([key, label, on]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="switch"
+                  aria-checked={on}
+                  onClick={() => setGameRules({ [key]: !on })}
+                  className="flex items-center justify-between rounded-xl border border-white/12 bg-black/20 px-4 py-3 text-left text-sm transition-colors hover:bg-white/5"
+                >
+                  {label}
+                  <span className={`lobby-switch ${on ? 'is-on' : ''}`} aria-hidden="true" />
+                </button>
+              ))}
             </div>
           </section>
 
