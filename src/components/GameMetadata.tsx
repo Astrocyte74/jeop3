@@ -56,7 +56,7 @@ export function GameMetadata({ metadata, defaultOpen = false, collapsible = true
   const shouldShow = collapsible ? isOpen : true;
 
   return (
-    <div className="border-l border-slate-700/50">
+    <div className={collapsible ? 'border-l border-slate-700/50' : ''}>
       {collapsible && (
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -71,27 +71,27 @@ export function GameMetadata({ metadata, defaultOpen = false, collapsible = true
       )}
 
       {shouldShow && (
-        <div className="space-y-3 pl-6 pb-3 text-sm">
+        <div className={collapsible ? 'space-y-3 pl-6 pb-3 text-sm' : 'space-y-5 text-sm'}>
           {/* Creation Info */}
           {(metadata.generatedAt || metadata.modelUsed || metadata.generationTimeMs) && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Creation</p>
+              <p className="text-sm font-semibold text-white/90">Creation</p>
               {metadata.generatedAt && (
                 <div className="flex items-center gap-2 text-slate-300">
-                  <Clock className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs">{formatDate(metadata.generatedAt)}</span>
+                  <Clock className="w-4 h-4 text-[var(--theme-accent,#ffcc00)]" />
+                  <span className="text-sm">{formatDate(metadata.generatedAt)}</span>
                 </div>
               )}
               {metadata.modelUsed && (
                 <div className="flex items-center gap-2 text-slate-300">
-                  <Cpu className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs">{formatModelName(metadata.modelUsed)}</span>
+                  <Cpu className="w-4 h-4 text-[var(--theme-accent,#ffcc00)]" />
+                  <span className="text-sm">{formatModelName(metadata.modelUsed)}</span>
                 </div>
               )}
               {metadata.generationTimeMs && (
                 <div className="flex items-center gap-2 text-slate-300">
-                  <span className="text-xs text-slate-500">Generated in</span>
-                  <span className="text-xs">{formatTime(metadata.generationTimeMs)}</span>
+                  <span className="text-sm text-slate-500">Generated in</span>
+                  <span className="text-sm">{formatTime(metadata.generationTimeMs)}</span>
                 </div>
               )}
             </div>
@@ -100,17 +100,17 @@ export function GameMetadata({ metadata, defaultOpen = false, collapsible = true
           {/* Source/Mode Info */}
           {(metadata.sourceMode || metadata.difficulty) && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Source</p>
+              <p className="text-sm font-semibold text-white/90">Source</p>
               {metadata.sourceMode && (
                 <div className="flex items-center gap-2 text-slate-300">
-                  <Layers className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs">{getSourceModeLabel()}</span>
+                  <Layers className="w-4 h-4 text-[var(--theme-accent,#ffcc00)]" />
+                  <span className="text-sm">{getSourceModeLabel()}</span>
                 </div>
               )}
               {metadata.difficulty && (
                 <div className="flex items-center gap-2 text-slate-300">
-                  <span className="text-xs text-slate-500">Difficulty:</span>
-                  <span className="text-xs capitalize">{metadata.difficulty}</span>
+                  <span className="text-sm text-slate-500">Difficulty:</span>
+                  <span className="text-sm capitalize">{metadata.difficulty}</span>
                 </div>
               )}
             </div>
@@ -119,21 +119,21 @@ export function GameMetadata({ metadata, defaultOpen = false, collapsible = true
           {/* Custom Sources or Source Material */}
           {(metadata.customSources?.length || metadata.sourceMaterial) && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Sources</p>
+              <p className="text-sm font-semibold text-white/90">Sources</p>
               {metadata.customSources?.map((source, idx) => (
                 <div key={idx} className="flex items-start gap-2 text-slate-300">
                   {source.type === 'url' ? (
-                    <Globe className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
+                    <Globe className="w-4 h-4 text-[var(--theme-accent,#ffcc00)] mt-0.5 flex-shrink-0" />
                   ) : (
-                    <FileText className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
+                    <FileText className="w-4 h-4 text-[var(--theme-accent,#ffcc00)] mt-0.5 flex-shrink-0" />
                   )}
-                  <span className="text-xs break-all">{source.content}</span>
+                  <span className="text-sm break-all">{source.content}</span>
                 </div>
               ))}
               {metadata.sourceMaterial && (
                 <div className="flex items-start gap-2 text-slate-300">
-                  <FileText className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
-                  <span className="text-xs text-slate-400 line-clamp-2">{metadata.sourceMaterial}</span>
+                  <FileText className="w-4 h-4 text-[var(--theme-accent,#ffcc00)] mt-0.5 flex-shrink-0" />
+                  <span className="text-sm text-slate-400 line-clamp-2">{metadata.sourceMaterial}</span>
                 </div>
               )}
             </div>

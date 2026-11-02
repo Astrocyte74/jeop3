@@ -1,0 +1,309 @@
+/* ==================== LOBBY (home screen) ====================
+   Theme colours arrive as --lb-* custom properties set by MainMenu / TableSettings. */
+
+.lobby-root {
+  position: relative;
+  min-height: 100vh;
+  color: #fff;
+  background:
+    radial-gradient(1100px 650px at 12% -8%, color-mix(in srgb, var(--lb-primary) 60%, transparent), transparent 62%),
+    radial-gradient(900px 600px at 100% 105%, color-mix(in srgb, var(--lb-accent) 16%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--lb-bg0), var(--lb-bg1) 55%, var(--lb-bg0));
+  transition: background 0.5s ease;
+}
+
+/* The board's grid lines, fading out from the top-left like a lit panel */
+.lobby-root::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 132px 88px;
+  -webkit-mask-image: radial-gradient(ellipse 80% 70% at 22% 14%, #000, transparent 75%);
+  mask-image: radial-gradient(ellipse 80% 70% at 22% 14%, #000, transparent 75%);
+}
+
+.lobby-display {
+  font-family: var(--font-board);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.lobby-panel {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 20px;
+  padding: 1.25rem;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.lobby-hero {
+  position: relative;
+  overflow: hidden;
+}
+
+.lobby-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* ---------- logotype ---------- */
+.lobby-logo {
+  font-family: var(--font-board);
+  font-weight: 400;
+  font-size: clamp(1.7rem, 2.3vw, 3rem);
+}
+
+.lobby-logo-tile {
+  display: grid;
+  place-items: center;
+  font-size: 1.2em;
+  width: 1.2em;
+  height: 1.55em;
+  border-radius: 7px;
+  color: var(--lb-accent);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--lb-accent) 80%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--lb-primary) 78%, #fff 6%), var(--lb-secondary));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 26px -4px color-mix(in srgb, var(--lb-accent) 40%, transparent),
+    0 8px 18px -8px rgba(0, 0, 0, 0.8);
+  animation: lobbyTileOn 0.9s steps(1, end) both;
+}
+
+@keyframes lobbyTileOn {
+  0% { opacity: 0.12; filter: brightness(0.35); }
+  22% { opacity: 1; filter: brightness(1.7); }
+  36% { opacity: 0.35; filter: brightness(0.5); }
+  52% { opacity: 1; filter: brightness(1.35); }
+  70% { opacity: 0.8; filter: brightness(0.9); }
+  100% { opacity: 1; filter: brightness(1); }
+}
+
+/* ---------- primary action ---------- */
+.lobby-play {
+  height: 4.5rem;
+  gap: 0.75rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--lb-accent) 70%, #fff 30%);
+  font-family: var(--font-board);
+  font-size: 2rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lb-on-accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lb-accent) 78%, #fff 22%), var(--lb-accent));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 12px 36px -10px color-mix(in srgb, var(--lb-accent) 75%, transparent),
+    0 0 70px -18px color-mix(in srgb, var(--lb-accent) 60%, transparent);
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease;
+}
+.lobby-play:hover:not(:disabled) {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+.lobby-play:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.lobby-play:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+/* ---------- mini board ---------- */
+.lobby-miniboard {
+  --tile-a: hsl(var(--hue) 68% 38%);
+  --tile-b: hsl(var(--hue) 72% 22%);
+  display: grid;
+  gap: 4px;
+}
+.lobby-miniboard-hero {
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: hsl(var(--hue) 45% 7%);
+  box-shadow: 0 0 60px -14px hsl(var(--hue) 85% 55% / 0.5), inset 0 0 30px hsl(var(--hue) 70% 30% / 0.18);
+}
+.lobby-mini-head,
+.lobby-mini-tile {
+  border-radius: 4px;
+  background: linear-gradient(160deg, var(--tile-a), var(--tile-b));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+.lobby-mini-head {
+  font-family: var(--font-board);
+  text-transform: uppercase;
+  text-align: center;
+  color: #fff;
+}
+.lobby-mini-head > span {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  padding: 0 3px;
+}
+.lobby-miniboard-hero .lobby-mini-head {
+  height: 3.1rem;
+  font-size: 0.68rem;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  background: linear-gradient(160deg, hsl(var(--hue) 75% 44%), hsl(var(--hue) 78% 26%));
+}
+.lobby-miniboard-hero .lobby-mini-tile {
+  height: 1.5rem;
+  font-family: var(--font-board);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--lb-gold);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--lb-gold) 65%, transparent);
+}
+.lobby-mini-tile.is-used {
+  background: hsl(var(--hue) 30% 12% / 0.55);
+  box-shadow: none;
+  opacity: 0.55;
+}
+.lobby-miniboard-hero .lobby-mini-head,
+.lobby-miniboard-hero .lobby-mini-tile {
+  animation: lobbyTileIn 0.4s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes lobbyTileIn {
+  from { opacity: 0; transform: scale(0.82); filter: brightness(1.8); }
+  to { opacity: 1; transform: scale(1); filter: brightness(1); }
+}
+.lobby-miniboard-cover { gap: 3px; width: 100%; }
+.lobby-miniboard-cover .lobby-mini-head { height: 0.7rem; background: linear-gradient(160deg, hsl(var(--hue) 78% 48%), hsl(var(--hue) 78% 30%)); }
+.lobby-miniboard-cover .lobby-mini-tile { height: 0.85rem; border-radius: 3px; }
+.lobby-miniboard-cover .lobby-mini-tile:not(.is-used) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 8px hsl(var(--hue) 90% 60% / 0.25); }
+
+/* ---------- game cards ---------- */
+.lobby-card {
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.lobby-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.lobby-card.is-selected {
+  border-color: var(--lb-accent);
+  box-shadow:
+    0 0 0 1px var(--lb-accent),
+    0 16px 44px -14px color-mix(in srgb, var(--lb-accent) 55%, transparent);
+}
+.lobby-card-btn {
+  height: 100%;
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.lobby-card-btn:focus-visible {
+  outline: 3px solid var(--lb-accent);
+  outline-offset: -3px;
+  border-radius: 18px;
+}
+.lobby-card-cover {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 6.25rem;
+  padding: 0.85rem 0.9rem;
+  background:
+    radial-gradient(120% 140% at 20% 0%, hsl(var(--hue) 70% 32% / 0.55), transparent 70%),
+    hsl(var(--hue) 45% 9%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.lobby-card-new {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 18px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.8);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.lobby-card-new:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--lb-accent);
+  color: #fff;
+}
+.lobby-card-new:focus-visible { outline: 3px solid var(--lb-accent); outline-offset: 2px; }
+.lobby-card-new:disabled { opacity: 0.5; }
+
+/* ---------- table settings ---------- */
+.lobby-settings {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    radial-gradient(700px 300px at 0% 0%, color-mix(in srgb, var(--lb-primary) 50%, transparent), transparent 70%),
+    linear-gradient(170deg, color-mix(in srgb, var(--lb-bg1) 85%, #0b0d18), var(--lb-bg0));
+  box-shadow: 0 40px 100px -20px rgba(0, 0, 0, 0.85);
+}
+.lobby-theme-thumb {
+  padding: 6px;
+  border-radius: 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.2);
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  outline: none;
+}
+.lobby-theme-thumb:hover { background: rgba(255, 255, 255, 0.06); }
+.lobby-theme-thumb:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.lobby-theme-thumb.is-active {
+  border-color: var(--t-accent);
+  box-shadow: 0 0 0 1px var(--t-accent), 0 10px 30px -10px var(--t-accent);
+}
+.lobby-switch {
+  position: relative;
+  width: 2.75rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  transition: background 0.2s ease;
+}
+.lobby-switch::after {
+  content: '';
+  position: absolute;
+  top: 0.19rem;
+  left: 0.19rem;
+  width: 1.17rem;
+  height: 1.17rem;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+}
+.lobby-switch.is-on { background: var(--lb-accent); }
+.lobby-switch.is-on::after { transform: translateX(1.2rem); background: var(--lb-on-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-logo-tile,
+  .lobby-miniboard-hero .lobby-mini-head,
+  .lobby-miniboard-hero .lobby-mini-tile {
+    animation: none;
+  }
+  .lobby-card,
+  .lobby-play,
+  .lobby-theme-thumb {
+    transition: none;
+  }
+}

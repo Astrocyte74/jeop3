@@ -35,6 +35,8 @@ import { validators } from '@/lib/ai/prompts';
 import type { AIContext } from '@/lib/ai/types';
 import { useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getCostEstimate, initializePricing } from '@/lib/ai/stats';
+import { GenerationTheatre, type TheatreColumn } from '@/components/wizard/GenerationTheatre';
+import { WizardMotion } from '@/components/wizard/WizardMotion';
 
 // Custom source type for per-category sources
 export interface CustomSource {
@@ -92,6 +94,12 @@ interface NewGameWizardProps {
   progress?: GenerationProgress | null;
   error?: string | null;
   onRetry?: () => void;
+  /**
+   * Optional. If the parent can abort an in-flight generation, wire it here and the
+   * building view offers a real "Cancel build". Without it, the building view's
+   * button only closes the wizard (the build keeps running and opens the preview).
+   */
+  onCancelGeneration?: () => void;
 }
 
 const difficultyOptions = [
@@ -272,7 +280,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, progress, error, onRetry }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, progress, error, onRetry, onCancelGeneration }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
@@ -304,6 +312,11 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [successMessage, setSuccessMessage] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
   const [isFetching, setIsFetching] = useState(false);
+
+  // True once Generate was pressed in this open session; with `runId` it keys the
+  // building view so every attempt starts a fresh clock + stage track.
+  const [submitted, setSubmitted] = useState(false);
+  const [runId, setRunId] = useState(0);
 
   // Draft category names for the liveboard preview, keyed by draft-unit cache key
   // (see buildDraftUnit below). Kept for the whole session — identical requests
@@ -363,6 +376,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       return `🤖 ${modelName}`;
     } else if (provider === 'ollama') {
       return `🦙 ${modelName}`;
+    } else if (provider === 'openai') {
+      return `🧠 ${modelName}`;
     }
     return modelName;
   };
@@ -652,7 +667,26 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       sourceMode: 'custom',
       customSources: customSourcesWithDrafts,
     };
+    setSubmitted(true);
+    setRunId((n) => n + 1);
     onComplete(data);
+  };
+
+  // Failure view -> "Try again": clear the parent's error, then re-run with the same sources.
+  const handleRetryGeneration = () => {
+    onRetry?.();
+    handleComplete();
+  };
+
+  // Failure view -> "Back to editing": clear the error and return to the form.
+  const handleBackToEdit = () => {
+    onRetry?.();
+    setSubmitted(false);
+  };
+
+  const handleCancelBuild = () => {
+    onCancelGeneration?.();
+    handleClose();
   };
 
   const handleClose = () => {
@@ -675,6 +709,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const resetWizard = () => {
     setCurrentStep('liveboard');
     setCreationMode('ai');
+    setSubmitted(false);
     setCustomSources([]);
     setTheme('');
     setDifficulty('normal');
@@ -943,6 +978,23 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     `${titleTopics[0]}, ${titleTopics[1]} & More`;
   const previewTitle = theme.trim() || joinedTopics || 'Your New Game';
 
+  // ==================== Building view (generation theatre) ====================
+  // Shown while generating, and kept up on failure so the error is visible (the
+  // old layout only rendered `error` during loading, i.e. never in practice).
+  const building = creationMode === 'ai' && currentStep === 'liveboard' && (isLoading || (submitted && !!error));
+  const theatreColumns: TheatreColumn[] = customSources.flatMap((s, si) => {
+    const names = draftNames[draftUnitForSource(s).key];
+    return Array.from({ length: s.categoryCount }, (_, i) => ({
+      key: `${s.id}-${i}`,
+      title: names?.[i],
+      label: sourceLabel(s),
+      sourceIndex: si,
+    }));
+  });
+  const totalCategories = getTotalCategoryCount();
+  const modelShortName = (aiModel.includes(':') ? aiModel.split(':').slice(1).join(':') : aiModel).split('/').pop() || aiModel;
+  const buildSummary = `${totalCategories} ${totalCategories === 1 ? 'category' : 'categories'} · ${difficulty} · ${modelShortName}`;
+
   return (
     <AlertDialog open={open} onOpenChange={(open) => !open && handleClose()}>
       <AlertDialogContent className={`${currentStep === 'composer' ? 'data-[size=default]:sm:max-w-2xl' : ''} ${currentStep === 'liveboard' ? 'data-[size=default]:sm:max-w-2xl data-[size=default]:lg:max-w-[1180px] lg:h-[min(880px,94vh)]' : ''} max-h-[95vh] gap-4 flex flex-col`}>
@@ -963,7 +1015,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 <AlertDialogDescription>
                   {currentStep === 'choose-mode' && 'Choose how you want to create your game'}
                   {currentStep === 'composer' && 'Add sources, pick a style, and generate'}
-                  {currentStep === 'liveboard' && 'Watch your board take shape as you build'}
+                  {currentStep === 'liveboard' && (building ? (isLoading ? 'Hang tight while the board is written and checked' : 'Something went wrong while building') : 'Watch your board take shape as you build')}
                   {currentStep === 'choose-source' && 'What type of content do you have?'}
                   {currentStep === 'add-content' && 'Enter your content'}
                   {currentStep === 'review-sources' && `Review your ${customSources.length} source${customSources.length > 1 ? 's' : ''}`}
@@ -974,7 +1026,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
             {/* AI Model Selector */}
             <div className="flex items-center gap-2">
-            {creationMode === 'ai' && (
+            {creationMode === 'ai' && !building && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1035,6 +1087,44 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                           })}
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
+
+                      {/* OpenAI section (direct API; only present when the server has a key) */}
+                      {availableModels.some(m => m.provider === 'openai') && (
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>
+                            <span className="text-purple-400 mr-2">🧠</span>
+                            <span>OpenAI</span>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                            {availableModels.filter(m => m.provider === 'openai').map((model) => {
+                              const stats = getModelStats(model.id);
+                              const costEstimate = getCostEstimate(model.id);
+                              return (
+                                <DropdownMenuItem
+                                  key={model.id}
+                                  onClick={() => handleAIModelChange(model.id)}
+                                  className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="truncate">{model.name}</span>
+                                      {aiModel === model.id && (
+                                        <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                      )}
+                                    </div>
+                                    <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                      {stats && (
+                                        <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                      )}
+                                      <span className="text-green-400">💰 {costEstimate}</span>
+                                    </div>
+                                  </div>
+                                </DropdownMenuItem>
+                              );
+                            })}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )}
 
                       {/* Ollama section */}
                       <DropdownMenuSub>
@@ -1099,83 +1189,26 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           </div>
         )}
 
-        {/* Loading State */}
-        {isLoading ? (
-          <div className="py-10 flex flex-col items-center justify-center">
-            {progress && progress.sourceTotal > 1 ? (
-              <>
-                <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-purple-500 border-t-transparent mb-3"></div>
-                <p className="text-base font-medium text-slate-200 mb-1">
-                  Source {progress.sourceIndex + 1} of {progress.sourceTotal}: {progress.sourceLabels[progress.sourceIndex] || `Source ${progress.sourceIndex + 1}`}
-                </p>
-                <p className="text-sm text-purple-300/90 mb-5">{progress.stage}</p>
-
-                {/* Per-source progress table. One row per source; the active row
-                    shows the current stage, completed rows show a check,
-                    pending rows are dimmed. Lets the user see WHAT is generating
-                    (the topic name) and how far through the game they are. */}
-                <div className="w-full max-w-md rounded-lg border border-slate-700/70 divide-y divide-slate-700/50 overflow-hidden">
-                  {progress.sourceLabels.map((label, i) => {
-                    const isActive = i === progress.sourceIndex;
-                    const isDone = i < progress.sourceIndex;
-                    return (
-                      <div
-                        key={i}
-                        className={`flex items-center gap-3 px-3 py-2 text-sm ${
-                          isActive ? 'bg-purple-500/10' : isDone ? 'bg-slate-800/40' : 'bg-slate-900/40 opacity-50'
-                        }`}
-                      >
-                        <span className="flex-shrink-0 w-5 flex justify-center">
-                          {isDone ? (
-                            <Check className="w-4 h-4 text-emerald-400" />
-                          ) : isActive ? (
-                            <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                          ) : (
-                            <span className="w-2 h-2 rounded-full bg-slate-600" />
-                          )}
-                        </span>
-                        <span className={`flex-1 truncate ${isActive ? 'text-slate-100 font-medium' : isDone ? 'text-slate-300' : 'text-slate-500'}`}>
-                          {label}
-                        </span>
-                        <span className={`text-xs flex-shrink-0 ${isActive ? 'text-purple-300/80' : isDone ? 'text-emerald-400/70' : 'text-slate-600'}`}>
-                          {isDone ? 'Done' : isActive ? 'Working…' : 'Pending'}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-slate-500 mt-4">Creating categories and questions with AI</p>
-              </>
-            ) : (
-              <>
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-500 border-t-transparent mb-4"></div>
-                <p className="text-lg font-medium text-slate-200 mb-2">{loadingStage || 'Generating your game...'}</p>
-                <p className="text-sm text-slate-400">Creating categories and questions with AI</p>
-              </>
-            )}
-            {error && (
-              <div className="mt-6 flex flex-col items-center gap-3 max-w-sm">
-                <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 p-3 rounded-lg w-full">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                  <span>{error}</span>
-                </div>
-                {onRetry && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={onRetry}
-                    className="border-purple-500 text-purple-400 hover:bg-purple-500/10"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Retry
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
+        <WizardMotion />
+        {/* Building view: live board assembling (or the failure state). */}
+        {building ? (
+          <GenerationTheatre
+            key={runId}
+            gameTitle={previewTitle}
+            columns={theatreColumns}
+            sourceLabels={progress?.sourceLabels ?? customSources.map(sourceLabel)}
+            stage={loadingStage}
+            progress={progress}
+            error={isLoading ? null : error}
+            summary={buildSummary}
+            cancelLabel={onCancelGeneration ? 'Cancel build' : 'Close'}
+            cancelHint={onCancelGeneration ? undefined : 'Closing this window will not stop the build. The board keeps generating and opens for review when it is ready.'}
+            onCancel={handleCancelBuild}
+            onRetry={handleRetryGeneration}
+            onBackToEdit={handleBackToEdit}
+          />
         ) : (
-          <div className={`overflow-y-auto flex-1 -mx-6 px-6 py-4 ${currentStep === 'liveboard' ? 'lg:overflow-y-hidden' : ''}`}>
+          <div className={`wiz-enter overflow-y-auto flex-1 -mx-6 px-6 py-4 ${currentStep === 'liveboard' ? 'lg:overflow-y-hidden' : ''}`}>
             {/* ==================== STEP 1: CHOOSE MODE ==================== */}
             {currentStep === 'choose-mode' && (
               <div className="space-y-3" role="radiogroup" aria-label="Choose game creation mode">
@@ -1275,7 +1308,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               <div className={`space-y-6 ${currentStep === 'liveboard' ? 'lg:overflow-y-auto lg:min-h-0 lg:pr-2 lg:-mr-2' : ''}`}>
                 {/* ==================== SPAN EDITOR (columns first) ==================== */}
                 {(getRemainingCategories() > 0 || editingSourceId) ? (
-                <>
+                <div key={editingSourceId ?? 'compose'} className="wiz-enter space-y-6">
                 {/* Which columns this content will fill — the starting point */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -1424,7 +1457,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   <Plus className="w-4 h-4 mr-1.5" /> Add to {spanRangeLabel.toLowerCase()}
                 </Button>
                 )}
-                </>
+                </div>
                 ) : (
                   <div className="flex items-center gap-2.5 rounded-xl border border-green-600/40 bg-green-500/10 p-3 text-sm text-green-300">
                     <Check className="w-4 h-4 flex-shrink-0" />
@@ -1516,9 +1549,16 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     <h2 className="font-board text-3xl xl:text-4xl uppercase tracking-wide text-yellow-400 [text-shadow:0_2px_10px_rgba(0,0,0,0.65)]">
                       {previewTitle}
                     </h2>
-                    <p className="text-xs text-slate-500 mt-2 capitalize">
-                      {difficulty} difficulty · {plannedColumnCount * 5} clues · {6 - plannedColumnCount} column{6 - plannedColumnCount === 1 ? '' : 's'} open
-                    </p>
+                    {plannedColumnCount === 0 ? (
+                      /* In normal flow, above the grid — never overlaps the cells */
+                      <p className="mt-2.5 inline-block rounded-full border border-yellow-500/30 bg-yellow-500/10 px-4 py-1.5 text-xs text-yellow-100/90">
+                        Start with <span className="font-semibold text-yellow-300">Column 1</span>: add a topic, pasted text or a URL
+                      </p>
+                    ) : (
+                      <p className="text-xs text-slate-500 mt-2 capitalize">
+                        {difficulty} difficulty · {plannedColumnCount * 5} clues · {6 - plannedColumnCount} column{6 - plannedColumnCount === 1 ? '' : 's'} open
+                      </p>
+                    )}
                   </div>
 
                   <div className="relative flex gap-1.5 w-full max-w-[760px] mt-6">
@@ -1562,7 +1602,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                               <div
                                 key={`head-${col.key}`}
                                 onClick={() => { if (!editingSourceId && span.state === 'added' && spanSource) enterEditMode(spanSource.id); }}
-                                className={`relative group h-[70px] rounded-md flex items-center justify-center text-center px-1.5 py-2 ${
+                                className={`relative group h-[70px] rounded-md flex items-center justify-center text-center px-1.5 py-2 ${col.state === 'added' ? 'wiz-pop' : ''} ${
                                   span.state === 'added' && spanSource ? 'cursor-pointer hover:ring-2 hover:ring-yellow-400/50' : ''
                                 } ${spanSource && editingSourceId === spanSource.id ? 'ring-2 ring-yellow-400' : ''} ${
                                   col.state === 'added'
@@ -1632,13 +1672,6 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         </div>
                       );
                     })}
-                    {plannedColumnCount === 0 && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <p className="text-sm text-slate-400 bg-slate-950/85 border border-slate-800 rounded-xl px-5 py-3 max-w-[280px] text-center">
-                          ← Start with <span className="text-yellow-400 font-semibold">Column 1</span>: give it a topic, pasted content, or a URL
-                        </p>
-                      </div>
-                    )}
                   </div>
 
                   <p className="relative text-[11px] text-slate-600 mt-5 text-center max-w-md">
@@ -2061,7 +2094,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
         )}
 
         {/* Footer */}
-        <AlertDialogFooter className="gap-2">
+        {!building && (
+        <AlertDialogFooter className="gap-2 sm:items-center">
           {/* Demoted creation modes — AI is the primary path */}
           {currentStep === 'liveboard' && (
             <DropdownMenu>
@@ -2134,18 +2168,25 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             </Button>
           )}
           {(currentStep === 'composer' || currentStep === 'liveboard') && creationMode === 'ai' && (
-            <Button
-              type="button"
-              onClick={handleComplete}
-              disabled={isLoading || customSources.length === 0 || isFetching}
-              title={customSources.length === 0 ? 'Add a topic, pasted text or URL to a column first' : undefined}
-              className="flex-1 bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black font-bold shadow-lg shadow-yellow-500/20"
-            >
-              <Wand2 className="w-4 h-4 mr-2" />
-              {customSources.length === 0
-                ? 'Add a topic to a column to generate'
-                : `Generate Game · ${getTotalCategoryCount()} ${getTotalCategoryCount() === 1 ? 'category' : 'categories'}`}
-            </Button>
+            <>
+              {/* Spacer pushes the summary + primary action to the right edge */}
+              <div className="hidden sm:block flex-1" />
+              <span className={`hidden sm:block text-xs mr-1 ${customSources.length === 0 ? 'text-yellow-500/80' : 'text-slate-500'}`}>
+                {customSources.length === 0
+                  ? 'Add a topic to a column to begin'
+                  : `${getTotalCategoryCount()} ${getTotalCategoryCount() === 1 ? 'category' : 'categories'} · ${getTotalCategoryCount() * 5} clues · ${difficulty}`}
+              </span>
+              <Button
+                type="button"
+                onClick={handleComplete}
+                disabled={isLoading || customSources.length === 0 || isFetching}
+                title={customSources.length === 0 ? 'Add a topic, pasted text or URL to a column first' : undefined}
+                className="h-11 px-7 text-[15px] font-semibold bg-yellow-400 text-slate-950 hover:bg-yellow-300 shadow-lg shadow-yellow-500/25 transition-all enabled:hover:-translate-y-px enabled:active:translate-y-0 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:opacity-100"
+              >
+                <Wand2 className="w-4 h-4 mr-2" />
+                Generate game
+              </Button>
+            </>
           )}
           {currentStep !== 'choose-mode' && currentStep !== 'composer' && currentStep !== 'liveboard' && creationMode === 'ai' && (
             <Button
@@ -2158,6 +2199,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             </Button>
           )}
         </AlertDialogFooter>
+        )}
       </AlertDialogContent>
     </AlertDialog>
   );

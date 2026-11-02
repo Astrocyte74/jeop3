@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth, useUser, SignInButton, SignedIn, SignedOut, enableDevAuthBypass } from '@/lib/auth';
+import { useAuth, useUser, SignInButton, SignedOut, enableDevAuthBypass } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,10 +31,20 @@ import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializ
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
 import { GameMetadata } from '@/components/GameMetadata';
-import type { AIPromptType, AIDifficulty } from '@/lib/ai/types';
+import type { AIPromptType, AIDifficulty, Clue as AIClue, AICategory } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Gamepad2, Users, Sparkles, Palette, Dice1, Play, Edit, MoreVertical, Trash2, Image, Download, Plus, LogIn, LogOut, RotateCcw, ArrowUpDown, Info, Wand2 } from 'lucide-react';
-import { TTSDirectSettings } from '@/components/tts/TTSSettings';
+import { Sparkles, Plus } from 'lucide-react';
+import './lobby/lobby.css';
+import { LobbyLogo } from './lobby/LobbyLogo';
+import { GameHero } from './lobby/GameHero';
+import { GameCard } from './lobby/GameCard';
+import { GameCardMenu } from './lobby/GameCardMenu';
+import { NewGameCard } from './lobby/NewGameCard';
+import { TeamRoster } from './lobby/TeamRoster';
+import { TableSettings } from './lobby/TableSettings';
+import { AccountMenu } from './lobby/AccountMenu';
+import { LibraryToolbar, type GameSort, type StatusFilter } from './lobby/LibraryToolbar';
+import { summarizeGame, lobbyVars } from './lobby/gameInfo';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
@@ -50,14 +58,14 @@ interface GeneratedGameData {
   categories: Array<{
     title: string;
     contentTopic?: string;
-    clues: Array<{ value: number; clue: string; response: string }>;
+    clues: AIClue[];
     sourceMaterial?: string; // Store source material for this specific category
     sourceUrl?: string; // Store source URL if applicable
   }>;
   /** Judged-but-unpicked clues retained per category, so "regenerate clue" can
    *  swap in a known-good alternative instead of a fresh AI call. Absent for
    *  single-source non-pipeline generation. */
-  alternatives?: Array<{ title: string; clues: Array<{ clue: string; response: string; provenance: 'answer_first'; score: { specificity: number; sourceSupport: number; clarity: number; jeopardyStyle: number; duplicateRisk: number; difficulty: number } }> }>;
+  alternatives?: import('@/lib/ai/board').ContentSpanResult['alternatives'];
   titles: Array<{ title: string; subtitle: string }>;
   suggestedTeamNames: string[];
   theme: string;
@@ -90,7 +98,7 @@ const RESUME_WIZARD_KEY = 'jeop3:resumeWizard';
 
 export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   // Clerk auth
-  const { isSignedIn, signOut } = useAuth();
+  const { isSignedIn } = useAuth();
   const { user } = useUser();
   const isLocalDev = typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -109,7 +117,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [gamesLoading, setGamesLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-  const [gameSort, setGameSort] = useState<'newest' | 'oldest' | 'recentlyPlayed' | 'mostPlayed' | 'inProgress' | 'notStarted' | 'completed'>('newest');
+  const [gameSort, setGameSort] = useState<GameSort>('newest');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [teams, setTeams] = useState<Team[]>([
     { id: '1', name: 'Team 1', score: 0 },
     { id: '2', name: 'Team 2', score: 0 },
@@ -132,6 +141,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [regeneratedItems, setRegeneratedItems] = useState<Set<string>>(new Set());
   const [isWizardGenerating, setIsWizardGenerating] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
+  const wizardRunRef = useRef(0);
   const [wizardStage, setWizardStage] = useState<string>('');
   // Per-source progress for multi-source generation. Null for single-source
   // games (which keep the legacy single-line stage display).
@@ -585,10 +595,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const categories = game.categories.map(cat => ({
       title: cat.title,
       contentTopic: cat.title, // Use title as content topic
-      clues: cat.clues.map(clue => ({
-        value: clue.value,
-        clue: clue.clue,
-        response: clue.response,
+      clues: cat.clues.map(clue => ({ ...clue,
       })),
     }));
 
@@ -770,12 +777,17 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     setRegeneratedItems(new Set());
     setWizardError(null); // Clear any previous errors
     setWizardProgress(null); // Cleared until the multi-source loop populates it
+    const runId = ++wizardRunRef.current;
+    const isStale = () => runId !== wizardRunRef.current;
+    const setRunError = (message: string) => {
+      if (!isStale()) setWizardError(message);
+    };
     setIsWizardGenerating(true);
 
     try {
       let categoriesList: Array<{
         title: string;
-        clues: Array<{ value: number; clue: string; response: string }>;
+        clues: AIClue[];
       }> = [];
       let categoriesMetadata: any = undefined;
       // Accumulate judged-but-unpicked alternatives across spans for the
@@ -865,12 +877,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
           console.log('[MainMenu] Generating from source:', { type: source.type, categoryCount: source.categoryCount, answerFirst: hasContent });
           try {
-            let spanCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }>; [k: string]: any }>;
+            let spanCategories: Array<{ title: string; clues: AIClue[]; [k: string]: any }>;
 
             if (hasContent && sourceMaterial) {
               // A+ answer-first pipeline (board.ts): extract specific answers -> filter ->
               // clues for FIXED answers; patch thin-source gaps from a single-pass fallback,
-              // so the good clues are kept and the board is always complete.
+              // then independently verify all clues before accepting a complete board.
               const span = await generateContentSpan(aiGenerate as any, {
                 referenceMaterial: sourceMaterial,
                 theme: source.topic || theme || 'random',
@@ -888,53 +900,45 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               // Topic (no content): route through the answer-first pipeline too,
               // via a synthesized grounding fact-sheet (topic-mode parity). This
               // gives topics the same extract → clues → judge → select curation
-              // that content gets. Falls back to single-pass on failure so the
-              // board is never empty.
-              try {
-                const span = await generateTopicSpan(aiGenerate as any, {
-                  topic: source.topic || 'random',
-                  titles: source.suggestedTitles,
-                  count: source.categoryCount,
-                  difficulty: difficulty || 'normal',
-                  existingAnswers,
-                  // Server endpoints don't enforce Clerk auth today (no auth
-                  // middleware on the AI server). Threading the token here is
-                  // forward-compatible if that changes.
-                  authToken: null,
-                  onStage: (stage: string) => updateProgress(stage),
-                });
-                // Stamp per-category source-type provenance (retrieved vs
-                // ai_synthesized) onto the category objects so the preview UI
-                // can label grounding honestly.
-                const sourcesByTitle = new Map(
-                  (span.categorySources || []).map(cs => [cs.title.toLowerCase(), cs])
-                );
-                spanCategories = span.categories.map((cat: any) => {
-                  const cs = sourcesByTitle.get((cat.title || '').toLowerCase());
-                  return cs ? { ...cat, sourceType: cs.sourceType, sourceUrl: cs.url } : cat;
-                });
-                if (span.alternatives) alternativesList.push(...span.alternatives);
-              } catch (topicErr) {
-                console.warn('[MainMenu] Topic pipeline failed, falling back to single-pass:', topicErr);
-                const sourceResult = await aiGenerate('categories-generate', {
-                  theme: source.topic || 'random',
-                  count: source.categoryCount,
-                  suggestedCategoryTitles: source.suggestedTitles,
-                  existingAnswers,
-                } as any, difficulty);
-                if (!sourceResult || typeof sourceResult !== 'object' || !('categories' in sourceResult)) {
-                  console.error('[MainMenu] Invalid categories result for source:', source);
-                  failedSources.push({ source, error: 'Invalid response format from AI' });
-                  continue;
-                }
-                spanCategories = ((sourceResult as any).categories || [])
-                  .slice(0, source.categoryCount)
-                  .map((cat: any) => ({ ...cat, sourceMaterial, sourceUrl }));
-              }
+              // that content gets. Verification failures remain visible in the wizard.
+              const span = await generateTopicSpan(aiGenerate as any, {
+                topic: source.topic || 'random',
+                titles: source.suggestedTitles,
+                count: source.categoryCount,
+                difficulty: difficulty || 'normal',
+                existingAnswers,
+                // Server endpoints don't enforce Clerk auth today (no auth
+                // middleware on the AI server). Threading the token here is
+                // forward-compatible if that changes.
+                authToken: null,
+                onStage: (stage: string) => updateProgress(stage),
+              });
+              // Stamp per-category source-type provenance (retrieved vs
+              // ai_synthesized) onto the category objects so the preview UI
+              // can label grounding honestly.
+              const sourcesByTitle = new Map(
+                (span.categorySources || []).map(cs => [cs.title.toLowerCase(), cs])
+              );
+              spanCategories = span.categories.map((cat: any) => {
+                const cs = sourcesByTitle.get((cat.title || '').toLowerCase());
+                return cs ? { ...cat, sourceType: cs.sourceType, sourceUrl: cs.url } : cat;
+              });
+              if (span.alternatives) alternativesList.push(...span.alternatives);
             }
 
             if (!spanCategories || spanCategories.length === 0) {
               failedSources.push({ source, error: 'No categories generated' });
+              continue;
+            }
+            // Category titles alone aren't a result: if every AI call after the
+            // titles failed (server hiccup, expired sign-in token…) the pipeline
+            // still returns the skeleton. Treat that as a failure so the wizard
+            // reports it instead of previewing an empty board as a success.
+            const generatedClueCount = spanCategories.reduce(
+              (n: number, c: any) => n + (Array.isArray(c?.clues) ? c.clues.length : 0), 0
+            );
+            if (generatedClueCount === 0) {
+              failedSources.push({ source, error: 'No clues were generated (the AI service may have been unavailable)' });
               continue;
             }
             categoriesList.push(...spanCategories);
@@ -956,26 +960,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             }
             return `"${f.source.topic || f.source.url || 'source'}"`;
           }).join(', ');
-          if (categoriesList.length === 0) {
-            // Complete failure
-            setWizardError(`Failed to generate categories from ${sourceNames}. Please try again.`);
-            setIsWizardGenerating(false);
-            return;
-          } else {
-            // Partial success - log warning but continue with what we have
-            console.group('⚠️ [MainMenu] Partial Generation Failure');
-            console.warn(`Some sources failed to generate categories. Generated ${categoriesList.length} categories from successful sources.`);
-            console.table(failedSources.map(f => ({
-              Type: f.source.type,
-              Source: f.source.type === 'paste' ? `Pasted content (${f.source.content?.length || 0} chars)` : f.source.topic || f.source.url,
-              Error: f.error
-            })));
-            console.warn('Continuing with ' + categoriesList.length + ' categories. User will see results in preview.');
-            console.groupEnd();
-
-            // Add a warning message to the wizard to inform user
-            setWizardError(`⚠️ Some sources failed to generate categories. Generated ${categoriesList.length} categories from successful sources. You can proceed or adjust your sources and try again.`);
-          }
+          setRunError(`Could not complete the requested board from ${sourceNames}. ${failedSources.map(f => f.error).join(' ')}`);
+          if (!isStale()) setIsWizardGenerating(false);
+          return;
         }
       } else {
         // Original single-source logic
@@ -1007,14 +994,14 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
         if (!categoriesResult || typeof categoriesResult !== 'object' || !('categories' in categoriesResult)) {
           console.error('[MainMenu] Invalid categories result:', categoriesResult);
-          setWizardError('Failed to generate categories. The AI returned an invalid response. Please try again.');
-          setIsWizardGenerating(false);
+          setRunError('Failed to generate categories. The AI returned an invalid response. Please try again.');
+          if (!isStale()) setIsWizardGenerating(false);
           return; // Keep wizard open
         }
 
         const allCategories = (categoriesResult as any).categories as Array<{
           title: string;
-          clues: Array<{ value: number; clue: string; response: string }>;
+          clues: AIClue[];
         }>;
 
         // Validate we got 6 categories as requested
@@ -1027,8 +1014,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         // Validate we have at least some categories
         if (sliceCategories.length === 0) {
           console.error('[MainMenu] No categories generated from AI');
-          setWizardError('Failed to generate any categories. Please try again with a different topic or content.');
-          setIsWizardGenerating(false);
+          setRunError('Failed to generate any categories. Please try again with a different topic or content.');
+          if (!isStale()) setIsWizardGenerating(false);
           return; // Keep wizard open
         }
 
@@ -1116,17 +1103,19 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       }
 
       // Build game structure
-      const gameCategories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> = [];
+      const gameCategories: Array<{ title: string; clues: AIClue[] }> = [];
       for (const cat of categoriesList) {
-        const categoryClues: Array<{ value: number; clue: string; response: string }> = [];
+        const categoryClues: AIClue[] = [];
         for (const clue of cat.clues) {
           categoryClues.push({
+            ...clue,
             value: clue.value,
             clue: clue.clue,
             response: clue.response,
           });
         }
         gameCategories.push({
+          ...cat,
           title: cat.title,
           clues: categoryClues,
         });
@@ -1181,6 +1170,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         metadata: enhancedMetadata,
       });
 
+      // Cancelled while generating: drop the late result
+      if (isStale()) return;
+
       // Success! Hide wizard and show preview dialog
       setIsWizardGenerating(false);
       setWizardHidden(true);
@@ -1192,13 +1184,22 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     } catch (error) {
       console.error('[MainMenu] AI generation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate game. Please try again.';
-      setWizardError(errorMessage);
-      setIsWizardGenerating(false);
+      setRunError(errorMessage);
+      if (!isStale()) setIsWizardGenerating(false);
       // Keep wizard open on error
     }
   };
 
   // Retry handler for wizard errors
+  const handleWizardCancel = useCallback(() => {
+    // The AI pipeline has no abort signal yet: invalidate the run so its result is
+    // ignored when it lands, and return the wizard to the form.
+    wizardRunRef.current += 1;
+    setIsWizardGenerating(false);
+    setWizardProgress(null);
+    setWizardError(null);
+  }, []);
+
   const handleWizardRetry = useCallback(() => {
     setWizardError(null);
     // The user can retry by clicking Generate Game again
@@ -1252,11 +1253,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       suggestedTeamNames: generatedGameData.suggestedTeamNames,
       metadata: generatedGameData.metadata,
       categories: categoriesToApply.map(cat => ({
+        ...cat,
         title: cat.title,
-        clues: cat.clues.map(clue => ({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
+        clues: cat.clues.map(clue => ({ ...clue,
           completed: false,
         })),
       })),
@@ -1356,7 +1355,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
     const categoriesList = ((result as any).categories as Array<{
       title: string;
-      clues: Array<{ value: number; clue: string; response: string }>;
+      clues: AIClue[];
     }>).map(cat => ({
       ...cat,
       sourceMaterial: generatedGameData.categories.find(c => c.title === cat.title)?.sourceMaterial,
@@ -1393,8 +1392,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       : generatedGameData.suggestedTeamNames;
 
     const gameCategories: Category[] = categoriesList.map(cat => ({
+      ...cat,
       title: cat.title,
-      clues: cat.clues.map(clue => ({ value: clue.value, clue: clue.clue, response: clue.response })),
+      clues: cat.clues.map(clue => ({ ...clue })),
     }));
 
     const newGame: Game = {
@@ -1457,11 +1457,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const updatedGame: Game = {
           ...generatedGameData.game,
           categories: updatedCategories.map(cat => ({
+            ...cat,
             title: cat.title,
-            clues: cat.clues.map(clue => ({
-              value: clue.value,
-              clue: clue.clue,
-              response: clue.response,
+            clues: cat.clues.map(clue => ({ ...clue,
             })),
           })),
         };
@@ -1529,11 +1527,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const updatedGame: Game = {
           ...generatedGameData.game,
           categories: updatedCategories.map(cat => ({
+            ...cat,
             title: cat.title,
-            clues: cat.clues.map(clue => ({
-              value: clue.value,
-              clue: clue.clue,
-              response: clue.response,
+            clues: cat.clues.map(clue => ({ ...clue,
             })),
           })),
         };
@@ -1764,10 +1760,10 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       //   - topic category (has sourceType, no material) → generateTopicSpan
       //   - scratch/random (no source) → fall back to category-replace-all
       const sourceMaterial = category.sourceMaterial || generatedGameData.referenceMaterial;
-      const isTopicCat = !sourceMaterial && (category as any).sourceType;
-      let newCat: { title: string; clues: Array<{ value: number; clue: string; response: string }> } | null = null;
+      const isTopicCat = (category as any).sourceType;
+      let newCat: AICategory | null = null;
 
-      if (sourceMaterial) {
+      if (sourceMaterial && !(category as any).sourceType) {
         const span = await generateContentSpan(aiGenerate as any, {
           referenceMaterial: sourceMaterial,
           theme,
@@ -1778,7 +1774,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           sourceMaterial,
           sourceUrl: category.sourceUrl,
         });
-        newCat = span.categories[0] ? { title: span.categories[0].title, clues: span.categories[0].clues } : null;
+        newCat = span.categories[0] || null;
         // Refresh this category's alternatives from the fresh pipeline run.
         if (span.alternatives?.length) {
           const others = (generatedGameData.alternatives || []).filter(a => a.title.toLowerCase() !== category.title.toLowerCase());
@@ -1786,13 +1782,13 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         }
       } else if (isTopicCat) {
         const span = await generateTopicSpan(aiGenerate as any, {
-          topic: contentTopic,
+          topic: theme,
           titles: [category.title],
           count: 1,
           difficulty: generatedGameData.difficulty,
           existingAnswers,
         });
-        newCat = span.categories[0] ? { title: span.categories[0].title, clues: span.categories[0].clues } : null;
+        newCat = span.categories[0] || null;
         if (span.alternatives?.length) {
           const others = (generatedGameData.alternatives || []).filter(a => a.title.toLowerCase() !== category.title.toLowerCase());
           setGeneratedGameData(prev => prev ? { ...prev, alternatives: [...others, ...span.alternatives!] } : prev);
@@ -1813,21 +1809,16 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       if (newCat && newCat.clues?.length) {
         const updatedCategories = [...generatedGameData.categories];
         updatedCategories[catIndex] = {
+          ...category,
           ...newCat,
-          // Preserve source provenance for the regenerated category.
-          sourceMaterial: category.sourceMaterial,
-          sourceUrl: category.sourceUrl,
-          ...( (category as any).sourceType ? { sourceType: (category as any).sourceType } : {} ),
         } as typeof category;
 
         const updatedGame: Game = {
           ...generatedGameData.game,
           categories: updatedCategories.map(cat => ({
+            ...cat,
             title: cat.title,
-            clues: cat.clues.map(clue => ({
-              value: clue.value,
-              clue: clue.clue,
-              response: clue.response,
+            clues: cat.clues.map(clue => ({ ...clue,
               completed: false,
             })),
           })),
@@ -1874,7 +1865,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       );
 
       if (result && typeof result === 'object' && 'categories' in result) {
-        const catData = result as { categories: Array<{ title: string; clues: Array<{ value: number; clue: string; response: string }> }> };
+        const catData = result as { categories: Array<{ title: string; clues: AIClue[] }> };
         if (catData.categories && catData.categories.length > 0) {
           const newCat = catData.categories[0];
           const updatedCategories = [...generatedGameData.categories];
@@ -1887,11 +1878,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           const updatedGame: Game = {
             ...generatedGameData.game,
             categories: updatedCategories.map(cat => ({
+              ...cat,
               title: cat.title,
-              clues: cat.clues.map(clue => ({
-                value: clue.value,
-                clue: clue.clue,
-                response: clue.response,
+              clues: cat.clues.map(clue => ({ ...clue,
                 completed: false,
               })),
             })),
@@ -1957,8 +1946,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const updatedGame: Game = {
           ...generatedGameData.game,
           categories: updatedCategories.map(cat => ({
+            ...cat,
             title: cat.title,
-            clues: cat.clues.map(cl => ({ value: cl.value, clue: cl.clue, response: cl.response })),
+            clues: cat.clues.map(cl => ({ ...cl })),
           })),
         };
 
@@ -2012,11 +2002,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         const updatedGame: Game = {
           ...generatedGameData.game,
           categories: updatedCategories.map(cat => ({
+            ...cat,
             title: cat.title,
-            clues: cat.clues.map(clue => ({
-              value: clue.value,
-              clue: clue.clue,
-              response: clue.response,
+            clues: cat.clues.map(clue => ({ ...clue,
             })),
           })),
         };
@@ -2153,11 +2141,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const updatedGame: Game = {
       ...generatedGameData.game,
       categories: updatedCategories.map(cat => ({
+        ...cat,
         title: cat.title,
-        clues: cat.clues.map(clue => ({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
+        clues: cat.clues.map(clue => ({ ...clue,
         })),
       })),
     };
@@ -2190,11 +2176,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const updatedGame: Game = {
       ...generatedGameData.game,
       categories: updatedCategories.map(cat => ({
+        ...cat,
         title: cat.title,
-        clues: cat.clues.map(clue => ({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
+        clues: cat.clues.map(clue => ({ ...clue,
         })),
       })),
     };
@@ -2227,11 +2211,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     const updatedGame: Game = {
       ...generatedGameData.game,
       categories: updatedCategories.map(cat => ({
+        ...cat,
         title: cat.title,
-        clues: cat.clues.map(clue => ({
-          value: clue.value,
-          clue: clue.clue,
-          response: clue.response,
+        clues: cat.clues.map(clue => ({ ...clue,
         })),
       })),
     };
@@ -2287,613 +2269,297 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   const currentThemeData = themes[currentTheme];
 
+  const customGamesNow = loadCustomGames();
+  const fullGameFor = (game: GameMeta): Game =>
+    customGamesNow.find((g) => g.id === game.id)?.game ||
+    ({ id: game.id, title: game.title, subtitle: game.subtitle || '', categories: [], rows: 5 } as Game);
+
+  // Presentation-only derived data for the lobby (progress rings, hero preview, filter chips)
+  const summaryById = new Map(games.map((g) => [g.id, summarizeGame(g)]));
+  const statusCounts: Record<StatusFilter, number> = { all: sortedGames.length, inProgress: 0, new: 0, done: 0 };
+  for (const g of sortedGames) {
+    const st = summaryById.get(g.id)?.status;
+    if (st) statusCounts[st]++;
+  }
+  const shelfGames = sortedGames.filter(
+    (g) => statusFilter === 'all' || summaryById.get(g.id)?.status === statusFilter,
+  );
+  const selectedSummary = selectedGameId ? summaryById.get(selectedGameId) ?? null : null;
+
+  const handleCreateClick = () => {
+    if (!isSignedIn) {
+      signInIntent.current = 'create';
+      setShowSignInPrompt(true);
+    } else {
+      setShowWizard(true);
+    }
+  };
+
   return (
-    <div
-      className="min-h-screen p-6 transition-all duration-500"
-      style={{
-        background: `linear-gradient(135deg, ${currentThemeData.bgStart} 0%, ${currentThemeData.bgMid} 50%, ${currentThemeData.bgEnd} 100%)`,
-      }}
-    >
-      {/* Animated background effects */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse"
-             style={{ background: `${currentThemeData.accent}20` }} />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full blur-3xl animate-pulse delay-1000"
-             style={{ background: `${currentThemeData.primary}20` }} />
-      </div>
+    <div className="lobby-root px-5 py-6 xl:px-10" style={lobbyVars(currentThemeData)}>
+      <div className="relative mx-auto grid max-w-[1920px] gap-8 lg:grid-cols-[clamp(24rem,30vw,40rem)_minmax(0,1fr)]">
+        {/* Stage: logo, selected game, teams */}
+        <aside className="lobby-scroll -mx-2 flex flex-col gap-4 px-2 pb-2 pt-1 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
+          <LobbyLogo />
+          <GameHero
+            game={selectedSummary}
+            loading={gamesLoading}
+            onPlay={handleStartGame}
+            onCreate={handleCreateClick}
+            createDisabled={aiLoading}
+          />
+          <TeamRoster
+            teams={teams}
+            loading={gamesLoading}
+            aiAvailable={Boolean(aiAvailable)}
+            onRename={handleUpdateTeamName}
+            onRemove={handleRemoveTeam}
+            onAdd={handleAddTeam}
+            onGenerateAll={handleAIGenerateAllTeamNames}
+            onGenerateName={handleAIGenerateTeamName}
+            onEnhanceName={handleAIEnhanceTeamName}
+          />
+        </aside>
 
-      <div className="relative max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="text-center mb-8 relative">
-          {/* Auth button - top right */}
-          <div className="absolute top-0 right-0">
-            <SignedIn>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <span className="w-6 h-6 rounded-full bg-yellow-500/20 text-yellow-500 flex items-center justify-center text-xs font-medium">
-                      {user?.firstName?.charAt(0) || 'U'}
-                    </span>
-                    <span className="hidden sm:inline">{user?.firstName || 'User'}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <div className="px-3 py-2 text-sm border-b border-slate-700">
-                    <div className="font-medium">{user?.fullName || 'User'}</div>
-                    <div className="text-xs text-slate-400">{user?.emailAddresses[0]?.emailAddress}</div>
-                  </div>
-                  <DropdownMenuItem onClick={() => signOut()} className="text-red-400 focus:text-red-300">
-                    <LogOut className="w-4 h-4 mr-2" />
-                    <span>Sign Out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SignedIn>
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="outline" size="sm" className="gap-2 border-yellow-500/50 text-yellow-500 hover:bg-yellow-500/10">
-                  <LogIn className="w-4 h-4" />
-                  <span>Sign In</span>
+        {/* Library shelf */}
+        <main className="flex min-w-0 flex-col gap-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-3">
+              <h2 className="lobby-display m-0 text-[2rem] leading-none">Game library</h2>
+              <span className="text-sm text-white/55">
+                {gamesLoading ? '…' : `${sortedGames.length} ${sortedGames.length === 1 ? 'game' : 'games'}`}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+            {/* AI Model dropdown menu - hidden by default, shown with Cmd/Ctrl+Shift+S */}
+            {showAIModelSelector && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 border-white/25 bg-transparent text-white hover:bg-white/10"
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  AI Model
                 </Button>
-              </SignInButton>
-            </SignedOut>
-          </div>
-
-          <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-200 mb-2">
-            JEOPARDY
-          </h1>
-          <p className="text-slate-400 text-lg">The Ultimate Quiz Experience</p>
-        </header>
-
-        {/* Main content grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Games panel */}
-          <div className="lg:col-span-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Gamepad2 className="w-5 h-5 text-yellow-500" />
-                <h2 className="text-lg font-semibold">Select Game</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs min-w-[3.5rem] justify-center">
-                  {gamesLoading ? '…' : `${sortedGames.length} ${sortedGames.length === 1 ? 'game' : 'games'}`}
-                </Badge>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-slate-400 hover:text-slate-300 hover:bg-slate-700">
-                      <ArrowUpDown className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                {availableModels.length === 0 ? (
+                  <DropdownMenuItem disabled>
+                    <span className="text-slate-500 text-xs">No models available</span>
+                  </DropdownMenuItem>
+                ) : (
+                  <>
+                    {/* Performance stats header */}
                     <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
-                      Sort by
+                      Performance based on your history
                     </div>
-                    <DropdownMenuItem onClick={() => setGameSort('newest')} className={gameSort === 'newest' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">Newest First</span>
-                      {gameSort === 'newest' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGameSort('oldest')} className={gameSort === 'oldest' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">Oldest First</span>
-                      {gameSort === 'oldest' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGameSort('recentlyPlayed')} className={gameSort === 'recentlyPlayed' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">Recently Played</span>
-                      {gameSort === 'recentlyPlayed' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGameSort('mostPlayed')} className={gameSort === 'mostPlayed' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">Most Played</span>
-                      {gameSort === 'mostPlayed' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGameSort('inProgress')} className={gameSort === 'inProgress' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">In Progress First</span>
-                      {gameSort === 'inProgress' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGameSort('notStarted')} className={gameSort === 'notStarted' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">Not Started First</span>
-                      {gameSort === 'notStarted' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setGameSort('completed')} className={gameSort === 'completed' ? 'bg-yellow-500/10' : ''}>
-                      <span className="flex-1">% Completed</span>
-                      {gameSort === 'completed' && <span className="ml-auto text-xs text-yellow-500">✓</span>}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
 
-            <Input
-              placeholder="Search games..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="mb-4 bg-slate-800/50 border-slate-700"
-            />
-
-            <div key={gameStateRefreshKey} className="space-y-2 max-h-80 overflow-y-auto pr-2" aria-busy={gamesLoading}>
-              {gamesLoading && (
-                <>
-                  <div className="h-[62px] rounded-lg border border-slate-700/50 bg-slate-800/40 animate-pulse" />
-                  <div className="h-[62px] rounded-lg border border-slate-700/50 bg-slate-800/30 animate-pulse" />
-                </>
-              )}
-              {sortedGames.map((game) => {
-                const gameData = loadCustomGames().find(g => g.id === game.id);
-                const savedState = loadGameState(game.id);
-                const inProgress = savedState && savedState.used && Object.keys(savedState.used).length > 0;
-                return (
-                  <div
-                    key={game.id}
-                    className={`relative group`}
-                  >
-                    <button
-                      onClick={() => {
-                        setSelectedGameId(game.id);
-                      }}
-                      className={`w-full text-left p-3 rounded-lg border transition-all pr-10 ${
-                        selectedGameId === game.id
-                          ? 'bg-yellow-500/20 border-yellow-500/50'
-                          : 'bg-slate-800/30 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/50'
-                      }`}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{game.title}</div>
-                          {game.subtitle && (
-                            <div className="text-xs text-slate-400 mt-1 truncate">{game.subtitle}</div>
-                          )}
-                        </div>
-                        {inProgress && (
-                          <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/50 flex-shrink-0 self-start">
-                            In Progress
-                          </Badge>
-                        )}
-                      </div>
-                    </button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800/80 hover:bg-slate-700"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedGameId(game.id);
-                          }}
-                        >
-                          <MoreVertical className="w-4 h-4 text-slate-400" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48">
-                        {/* Play - main action */}
-                        <DropdownMenuItem onClick={() => {
-                          const fullGame = gameData?.game || {
-                            id: game.id,
-                            title: game.title,
-                            subtitle: game.subtitle || '',
-                            categories: [],
-                            rows: 5,
-                          };
-                          recordGamePlay(game.id);
-                          onSelectGame(game.id, fullGame, teams);
-                        }}>
-                          <Play className="w-4 h-4 mr-2 text-green-400" />
-                          <span>Play Game</span>
-                        </DropdownMenuItem>
-
-                        {/* Edit section */}
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger>
-                            <Edit className="w-4 h-4 mr-2 text-blue-400" />
-                            <span>Edit</span>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuSubContent>
-                            <DropdownMenuItem onClick={() => {
-                              const fullGame = gameData?.game || {
-                                id: game.id,
-                                title: game.title,
-                                subtitle: game.subtitle || '',
-                                categories: [],
-                                rows: 5,
-                              };
-                              handleEditWithAIPreview(fullGame);
-                            }}>
-                              <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                              <span>AI Editor</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => {
-                              const fullGame = gameData?.game || {
-                                id: game.id,
-                                title: game.title,
-                                subtitle: game.subtitle || '',
-                                categories: [],
-                                rows: 5,
-                              };
-                              onOpenEditor(fullGame);
-                            }}>
-                              <Wand2 className="w-4 h-4 mr-2 text-blue-400" />
-                              <span>Board Editor</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuSubContent>
-                        </DropdownMenuSub>
-
-                        <DropdownMenuSeparator />
-
-                        {/* Info */}
-                        {gameData?.game?.metadata && (
-                          <DropdownMenuItem onClick={() => setGameInfoMetadata(gameData?.game?.metadata)}>
-                            <Info className="w-4 h-4 mr-2 text-blue-400" />
-                            <span>Game Info</span>
-                          </DropdownMenuItem>
-                        )}
-
-                        <DropdownMenuSeparator />
-
-                        {/* Utilities */}
-                        <DropdownMenuItem onClick={() => handleExportGame(game)}>
-                          <Download className="w-4 h-4 mr-2 text-green-400" />
-                          <span>Export</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleResetGame(game.id)}>
-                          <RotateCcw className="w-4 h-4 mr-2 text-orange-400" />
-                          <span>Reset Progress</span>
-                        </DropdownMenuItem>
-
-                        {/* Danger zone */}
-                        {game.source === 'custom' && (
-                          <>
-                            <DropdownMenuSeparator />
+                    {/* OpenRouter section */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span className="text-blue-400 mr-2">🤖</span>
+                        <span>OpenRouter</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                        {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
+                          const stats = getModelStats(model.id);
+                          const costEstimate = getCostEstimate(model.id);
+                          return (
                             <DropdownMenuItem
-                              onClick={() => handleDeleteGame(game.id)}
-                              className="text-red-400 focus:text-red-300"
+                              key={model.id}
+                              onClick={() => handleAIModelChange(model.id)}
+                              className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
                             >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              <span>Delete Game</span>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate">{model.name}</span>
+                                  {aiModel === model.id && (
+                                    <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                  {stats && (
+                                    <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                  )}
+                                  <span className="text-green-400">💰 {costEstimate}</span>
+                                </div>
+                              </div>
                             </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                );
-              })}
-            </div>
+                          );
+                        })}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
 
-            <div className="flex flex-col gap-2 mt-4">
+                    {/* Ollama section */}
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger>
+                        <span className="text-green-400 mr-2">🦙</span>
+                        <span>Ollama</span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
+                        {availableModels.filter(m => m.provider === 'ollama').map((model) => {
+                          const stats = getModelStats(model.id);
+                          return (
+                            <DropdownMenuItem
+                              key={model.id}
+                              onClick={() => handleAIModelChange(model.id)}
+                              className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="truncate">{model.name}</span>
+                                  {aiModel === model.id && (
+                                    <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
+                                  )}
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
+                                  {stats && (
+                                    <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
+                                  )}
+                                  <span className="text-green-400">🆓 Free</span>
+                                </div>
+                              </div>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator />
+
+                    {/* Current selection with stats */}
+                    <DropdownMenuItem disabled className="focus:bg-transparent">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs text-slate-500">
+                          Selected: {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None'}
+                        </div>
+                        {(() => {
+                          const stats = aiModel ? getModelStats(aiModel) : null;
+                          const fastestModel = getModelsBySpeed()[0];
+                          const costEstimate = aiModel ? getCostEstimate(aiModel) : null;
+                          const isOllama = availableModels.find(m => m.id === aiModel)?.provider === 'ollama';
+                          return (
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              {stats && (
+                                <span className="text-xs text-slate-600">
+                                  Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
+                                </span>
+                              )}
+                              {fastestModel && fastestModel.modelId === aiModel && (
+                                <span className="text-xs text-green-500">⚡ Fastest</span>
+                              )}
+                              {costEstimate && !isOllama && (
+                                <span className="text-xs text-green-500">💰 {costEstimate}</span>
+                              )}
+                              {isOllama && (
+                                <span className="text-xs text-green-500">🆓 Free</span>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            )}
+
               <Button
-                variant="default"
-                className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 text-white border-0"
+                variant="outline"
+                size="sm"
+                className="h-10 gap-2 border-white/25 bg-transparent px-3 text-white hover:bg-white/10"
                 disabled={aiLoading}
-                onClick={() => {
-                  if (!isSignedIn) {
-                    signInIntent.current = 'create';
-                    setShowSignInPrompt(true);
-                  } else {
-                    setShowWizard(true);
-                  }
-                }}
+                onClick={handleCreateClick}
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="size-4" />
                 Create Game
               </Button>
+              <TableSettings
+                currentTheme={currentTheme}
+                onThemeChange={handleThemeChange}
+                iconSize={iconSize}
+                onIconSizeChange={handleIconSizeChange}
+              />
+              <AccountMenu />
             </div>
           </div>
 
-          {/* Center panel - Start game */}
-          <div className="lg:col-span-1 flex flex-col items-center justify-center">
-            <Button
-              onClick={handleStartGame}
-              disabled={!selectedGameId}
-              size="lg"
-              className="w-full max-w-xs h-32 text-xl font-bold bg-gradient-to-br from-yellow-500 to-yellow-600 hover:from-yellow-400 hover:to-yellow-500 text-black shadow-lg shadow-yellow-500/20"
-            >
-              START GAME
-            </Button>
+          <LibraryToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            sort={gameSort}
+            onSortChange={setGameSort}
+            filter={statusFilter}
+            onFilterChange={setStatusFilter}
+            counts={statusCounts}
+          />
 
-            <div className="mt-6 flex gap-2">
-              {/* TTS Settings - only in local development */}
-              {import.meta.env.DEV && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-slate-700"
-                      title="Text-to-Speech Settings"
-                    >
-                      <Gamepad2 className="w-4 h-4 mr-2" />
-                      TTS Settings
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <TTSDirectSettings />
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-
-              {/* Theme dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-700"
-                  >
-                    <Palette className="w-4 h-4 mr-2" />
-                    Theme
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {Object.entries(themes).map(([key, theme]) => (
-                    <DropdownMenuItem
-                      key={key}
-                      onClick={() => handleThemeChange(key as ThemeKey)}
-                      className={currentTheme === key ? 'bg-yellow-500/10' : ''}
-                    >
-                      <div
-                        className="w-4 h-4 rounded mr-2 flex-shrink-0"
-                        style={{
-                          background: `linear-gradient(135deg, ${theme.primary}, ${theme.secondary})`,
-                        }}
-                      />
-                      <span className="flex-1">{theme.name}</span>
-                      {currentTheme === key && (
-                        <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Icon Size dropdown */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-700"
-                  >
-                    <Image className="w-4 h-4 mr-2" />
-                    Icon Size
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {(['128', '256', '512', '1024'] as IconSize[]).map((size) => (
-                    <DropdownMenuItem
-                      key={size}
-                      onClick={() => handleIconSizeChange(size)}
-                      className={iconSize === size ? 'bg-yellow-500/10' : ''}
-                    >
-                      <span className="mr-2 font-mono text-xs text-slate-400">{size}</span>
-                      <span className="flex-1">pixels</span>
-                      {iconSize === size && (
-                        <span className="ml-auto text-xs text-yellow-500 flex-shrink-0">✓</span>
-                      )}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* AI Model dropdown menu - hidden by default, shown with Cmd/Ctrl+Shift+S */}
-              {showAIModelSelector && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="border-slate-700"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    AI Model
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  {availableModels.length === 0 ? (
-                    <DropdownMenuItem disabled>
-                      <span className="text-slate-500 text-xs">No models available</span>
-                    </DropdownMenuItem>
-                  ) : (
-                    <>
-                      {/* Performance stats header */}
-                      <div className="px-3 py-2 text-xs text-slate-500 border-b border-slate-700">
-                        Performance based on your history
-                      </div>
-
-                      {/* OpenRouter section */}
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <span className="text-blue-400 mr-2">🤖</span>
-                          <span>OpenRouter</span>
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
-                          {availableModels.filter(m => m.provider === 'openrouter').map((model) => {
-                            const stats = getModelStats(model.id);
-                            const costEstimate = getCostEstimate(model.id);
-                            return (
-                              <DropdownMenuItem
-                                key={model.id}
-                                onClick={() => handleAIModelChange(model.id)}
-                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="truncate">{model.name}</span>
-                                    {aiModel === model.id && (
-                                      <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                    {stats && (
-                                      <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
-                                    )}
-                                    <span className="text-green-400">💰 {costEstimate}</span>
-                                  </div>
-                                </div>
-                              </DropdownMenuItem>
-                            );
-                          })}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-
-                      {/* Ollama section */}
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <span className="text-green-400 mr-2">🦙</span>
-                          <span>Ollama</span>
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-56">
-                          {availableModels.filter(m => m.provider === 'ollama').map((model) => {
-                            const stats = getModelStats(model.id);
-                            return (
-                              <DropdownMenuItem
-                                key={model.id}
-                                onClick={() => handleAIModelChange(model.id)}
-                                className={aiModel === model.id ? 'bg-yellow-500/10' : ''}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <span className="truncate">{model.name}</span>
-                                    {aiModel === model.id && (
-                                      <span className="text-xs text-yellow-500 flex-shrink-0">✓</span>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                    {stats && (
-                                      <span>{formatTime(stats.averageTimeMs)} avg • {stats.count} use{stats.count > 1 ? 's' : ''}</span>
-                                    )}
-                                    <span className="text-green-400">🆓 Free</span>
-                                  </div>
-                                </div>
-                              </DropdownMenuItem>
-                            );
-                          })}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-
-                      <DropdownMenuSeparator />
-
-                      {/* Current selection with stats */}
-                      <DropdownMenuItem disabled className="focus:bg-transparent">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs text-slate-500">
-                            Selected: {availableModels.find(m => m.id === aiModel)?.provider === 'ollama' ? '🦙' : '🤖'} {availableModels.find(m => m.id === aiModel)?.name || 'None'}
-                          </div>
-                          {(() => {
-                            const stats = aiModel ? getModelStats(aiModel) : null;
-                            const fastestModel = getModelsBySpeed()[0];
-                            const costEstimate = aiModel ? getCostEstimate(aiModel) : null;
-                            const isOllama = availableModels.find(m => m.id === aiModel)?.provider === 'ollama';
-                            return (
-                              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                {stats && (
-                                  <span className="text-xs text-slate-600">
-                                    Avg: {formatTime(stats.averageTimeMs)} • {stats.count} generated
-                                  </span>
-                                )}
-                                {fastestModel && fastestModel.modelId === aiModel && (
-                                  <span className="text-xs text-green-500">⚡ Fastest</span>
-                                )}
-                                {costEstimate && !isOllama && (
-                                  <span className="text-xs text-green-500">💰 {costEstimate}</span>
-                                )}
-                                {isOllama && (
-                                  <span className="text-xs text-green-500">🆓 Free</span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              )}
-            </div>
-          </div>
-
-          {/* Teams panel */}
           <div
+            key={gameStateRefreshKey}
+            className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))]"
             aria-busy={gamesLoading}
-            className={`lg:col-span-1 bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-xl p-6 transition-opacity duration-300 ${gamesLoading ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-yellow-500" />
-                <h2 className="text-lg font-semibold">Teams</h2>
-              </div>
-              {aiAvailable && (
-                <div className="flex gap-1">
-                  <Button
-                    onClick={handleAIGenerateAllTeamNames}
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-yellow-500 hover:text-yellow-400 hover:bg-yellow-500/10"
-                    title="Generate names for all teams"
-                  >
-                    <Dice1 className="w-3 h-3 mr-1" />
-                    Generate All
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-              {teams.map((team, index) => (
-                <div key={team.id} className="flex items-center gap-2">
-                  <Input
-                    value={team.name}
-                    onChange={(e) => handleUpdateTeamName(team.id, e.target.value)}
-                    className="bg-slate-800/50 border-slate-700 flex-1"
-                  />
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-slate-400 hover:text-slate-300 hover:bg-slate-700"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48">
-                      {aiAvailable && (
-                        <>
-                          <DropdownMenuItem onClick={() => handleAIGenerateTeamName(index)}>
-                            <Dice1 className="w-4 h-4 mr-2 text-yellow-400" />
-                            <span>Generate Random Name</span>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleAIEnhanceTeamName(index)}>
-                            <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                            <span>Enhance Name</span>
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                      {teams.length > 1 && (
-                        <DropdownMenuItem onClick={() => handleRemoveTeam(team.id)} className="text-red-400 focus:text-red-300">
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          <span>Remove Team</span>
-                        </DropdownMenuItem>
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              ))}
-            </div>
-
-            <Button
-              onClick={handleAddTeam}
-              variant="outline"
-              className="w-full mt-4 border-slate-700"
-              disabled={teams.length >= 4}
-            >
-              + Add Team ({teams.length}/4)
-            </Button>
+            {gamesLoading ? (
+              <>
+                {[0, 1, 2, 3].map((i) => (
+                  <div key={i} className="h-[13.5rem] animate-pulse rounded-[18px] border border-white/10 bg-white/5" />
+                ))}
+              </>
+            ) : (
+              <>
+                <NewGameCard onClick={handleCreateClick} disabled={aiLoading} />
+                {shelfGames.map((game) => {
+                  const gameData = customGamesNow.find((g) => g.id === game.id);
+                  const summary = summaryById.get(game.id);
+                  if (!summary) return null;
+                  return (
+                    <GameCard
+                      key={game.id}
+                      game={summary}
+                      selected={selectedGameId === game.id}
+                      onSelect={() => setSelectedGameId(game.id)}
+                      menu={
+                        <GameCardMenu
+                          onOpen={() => setSelectedGameId(game.id)}
+                          onPlay={() => {
+                            recordGamePlay(game.id);
+                            onSelectGame(game.id, fullGameFor(game), teams);
+                          }}
+                          onEditAI={() => handleEditWithAIPreview(fullGameFor(game))}
+                          onEditBoard={() => onOpenEditor(fullGameFor(game))}
+                          onInfo={gameData?.game?.metadata ? () => setGameInfoMetadata(gameData?.game?.metadata) : undefined}
+                          onExport={() => handleExportGame(game)}
+                          onReset={() => handleResetGame(game.id)}
+                          onDelete={game.source === 'custom' ? () => handleDeleteGame(game.id) : undefined}
+                        />
+                      }
+                    />
+                  );
+                })}
+                {shelfGames.length === 0 && games.length > 0 && (
+                  <div className="col-span-full flex flex-col items-start gap-2 rounded-2xl border border-dashed border-white/15 p-6 text-sm text-white/65">
+                    <span>No games match{searchQuery ? ` "${searchQuery}"` : ' this filter'}.</span>
+                    <button
+                      type="button"
+                      className="text-[var(--lb-accent)] underline underline-offset-4"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setStatusFilter('all');
+                      }}
+                    >
+                      Clear search and filters
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-        </div>
 
-        {/* Footer */}
-        <footer className="mt-8 text-center text-sm text-slate-500">
-          Jeop3 v3.1 • Built with React + shadcn/ui
-        </footer>
+          <footer className="mt-4 text-sm text-white/40">Jeop3 v3.1 • Built with React + shadcn/ui</footer>
+        </main>
       </div>
 
       {/* New Game Wizard */}
@@ -2911,6 +2577,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         progress={wizardProgress}
         error={wizardError}
         onRetry={handleWizardRetry}
+        onCancelGeneration={handleWizardCancel}
       />
 
       {/* Hidden file input for import */}

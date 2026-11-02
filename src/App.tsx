@@ -315,8 +315,11 @@ export function App() {
   }, []);
 
   const handleToggleEditor = useCallback(() => {
-    setMode((prev) => prev === 'editing' ? 'playing' : 'editing');
-  }, []);
+    // Leaving the editor returns to the game only if one is in progress. When
+    // the editor was opened from the main menu there is no gameState, and
+    // 'playing' renders nothing — a blank dead-end — so go back to the menu.
+    setMode((prev) => prev === 'editing' ? (gameState ? 'playing' : 'menu') : 'editing');
+  }, [gameState]);
 
   const handleToggleAIPreviewEditor = useCallback(() => {
     // Need to pass the current game data to MainMenu for AI preview editing
@@ -359,8 +362,10 @@ export function App() {
       );
       saveCustomGames(updatedGames);
     }
-    setMode('playing');
-  }, [gameId]);
+    // Saving from an editor opened off the main menu has no game in progress
+    // to return to — 'playing' would render nothing, so go back to the menu.
+    setMode(gameState ? 'playing' : 'menu');
+  }, [gameId, gameState]);
 
   const handleAIPreviewSave = useCallback((updatedGame: Game) => {
     setCurrentGame(updatedGame);
@@ -374,8 +379,10 @@ export function App() {
       );
       saveCustomGames(updatedGames);
     }
-    setMode('playing');
-  }, [gameId]);
+    // Saving from an editor opened off the main menu has no game in progress
+    // to return to — 'playing' would render nothing, so go back to the menu.
+    setMode(gameState ? 'playing' : 'menu');
+  }, [gameId, gameState]);
 
   // Get current clue data for dialog
   const getCurrentClue = useCallback((): ClueData | null => {
