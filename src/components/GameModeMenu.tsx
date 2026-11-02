@@ -1,41 +1,52 @@
-import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Gamepad2 } from 'lucide-react';
+import { useState, useRef, useEffect, type ComponentType } from 'react';
+import { ChevronDown, Gamepad2, Check, ScrollText, Worm, HelpCircle, Sparkles } from 'lucide-react';
 
 export type GameMode = 'regular' | 'snake' | 'trivia' | 'coming-soon';
+
+type IconType = ComponentType<{ className?: string; style?: React.CSSProperties }>;
 
 interface GameModeOption {
   id: GameMode;
   label: string;
-  icon: string;
+  tag?: string;
+  Icon: IconType;
   description: string;
+  accent: string;
   disabled?: boolean;
 }
 
 const GAME_MODES: GameModeOption[] = [
   {
     id: 'regular',
-    label: 'Regular Mode',
-    icon: '📝',
-    description: 'Classic Jeopardy-style clue display',
+    label: 'Regular',
+    Icon: ScrollText,
+    description: 'Read the clue, call out the response.',
+    accent: '#ffcc00',
   },
   {
     id: 'snake',
-    label: 'Snake Mode',
-    icon: '🐍',
-    description: 'Navigate the snake to eat the correct answer',
+    label: 'Trivia Snake',
+    tag: 'Bonus round',
+    Icon: Worm,
+    description: 'Steer the snake to the apple with the right answer.',
+    accent: '#39ff88',
   },
   {
     id: 'trivia',
-    label: 'Trivia Mode',
-    icon: '❓',
-    description: 'Coming soon - Multiple choice trivia',
+    label: 'Multiple choice',
+    tag: 'Soon',
+    Icon: HelpCircle,
+    description: 'Pick from lettered options.',
+    accent: '#94a3b8',
     disabled: true,
   },
   {
     id: 'coming-soon',
-    label: 'More Games...',
-    icon: '🎮',
-    description: 'More mini-games coming soon!',
+    label: 'More games',
+    tag: 'Soon',
+    Icon: Sparkles,
+    description: 'More mini-games are on the way.',
+    accent: '#94a3b8',
     disabled: true,
   },
 ];
@@ -60,18 +71,23 @@ export function GameModeMenu({
   const isControlled = currentMode !== undefined && onModeChange !== undefined;
 
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKey, true);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKey, true);
     };
   }, [isOpen]);
 
@@ -93,78 +109,98 @@ export function GameModeMenu({
     }
   };
 
-  // Get display info for current mode (only for controlled mode)
-  const getCurrentModeInfo = () => {
-    if (!isControlled || !currentMode) return null;
-    return GAME_MODES.find(m => m.id === currentMode) || GAME_MODES[0];
-  };
-
-  const currentModeInfo = getCurrentModeInfo();
+  const currentModeInfo = isControlled
+    ? GAME_MODES.find((m) => m.id === currentMode) || GAME_MODES[0]
+    : null;
+  const snakeActive = isControlled && currentMode === 'snake';
+  const TriggerIcon = currentModeInfo?.Icon ?? Gamepad2;
 
   return (
     <div className="relative" ref={menuRef}>
-      {/* Main Button */}
+      {/* Trigger */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
-          isControlled && currentMode === 'snake'
-            ? 'bg-green-600 hover:bg-green-500 text-white'
-            : isControlled && currentMode === 'regular'
-            ? 'bg-slate-700 hover:bg-slate-600 text-white'
-            : 'bg-green-600 hover:bg-green-500 text-white'
-        }`}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold text-white transition-all hover:brightness-125 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#39ff88]"
+        style={
+          snakeActive
+            ? {
+                background: 'rgba(57,255,136,0.12)',
+                borderColor: 'rgba(57,255,136,0.55)',
+                boxShadow: '0 0 18px rgba(57,255,136,0.22)',
+              }
+            : { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.18)' }
+        }
         title={isControlled ? `Current: ${currentModeInfo?.label || 'Game Mode'}` : 'Select Game Mode'}
       >
-        {isControlled && currentModeInfo ? (
-          <>
-            <span className="text-lg">{currentModeInfo.icon}</span>
-            <span className="hidden sm:inline">{currentModeInfo.label}</span>
-          </>
-        ) : (
-          <>
-            <Gamepad2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Game Mode</span>
-          </>
-        )}
-        <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <TriggerIcon className="h-4 w-4" style={snakeActive ? { color: '#39ff88' } : undefined} />
+        <span className="hidden sm:inline">{currentModeInfo ? currentModeInfo.label : 'Game mode'}</span>
+        <ChevronDown className={`h-4 w-4 opacity-70 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Menu */}
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 w-64 bg-slate-800 rounded-lg shadow-xl border border-slate-700 z-50 overflow-hidden">
-          <div className="p-2">
-            {GAME_MODES.map((mode) => (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-2xl p-2 shadow-2xl"
+          style={{
+            background: '#0f0a24',
+            border: '1px solid rgba(140,112,255,0.45)',
+            boxShadow: '0 18px 50px rgba(0,0,0,0.6), 0 0 30px rgba(140,112,255,0.18)',
+          }}
+        >
+          {GAME_MODES.map((mode, i) => {
+            const selected = isControlled && currentMode === mode.id && !mode.disabled;
+            const primary = i < 2;
+            return (
               <button
                 key={mode.id}
+                role="menuitemradio"
+                aria-checked={selected}
                 onClick={() => handleModeSelect(mode)}
                 disabled={mode.disabled}
-                className={`
-                  w-full flex items-start gap-3 p-3 rounded-lg transition-all text-left
-                  ${mode.disabled
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-slate-700 cursor-pointer'
-                  }
-                  ${isControlled && currentMode === mode.id && !mode.disabled
-                    ? 'bg-slate-700'
-                    : ''
-                  }
-                `}
+                className={`flex w-full items-center gap-3 rounded-xl text-left transition-all ${
+                  primary ? 'mb-1.5 p-3.5' : 'p-2.5'
+                } ${mode.disabled ? 'cursor-not-allowed opacity-45' : 'cursor-pointer hover:brightness-125'}`}
+                style={
+                  primary
+                    ? {
+                        background: selected ? `${mode.accent}1f` : 'rgba(255,255,255,0.04)',
+                        border: `2px solid ${selected ? mode.accent : 'rgba(255,255,255,0.08)'}`,
+                        boxShadow: selected ? `0 0 20px ${mode.accent}38` : undefined,
+                      }
+                    : { border: '2px solid transparent' }
+                }
               >
-                <span className="text-2xl">{mode.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white text-sm">{mode.label}</div>
-                  <div className="text-xs text-slate-400 mt-0.5">{mode.description}</div>
-                </div>
-                {isControlled && currentMode === mode.id && (
-                  <div className="text-green-400">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
+                <span
+                  className={`grid shrink-0 place-items-center rounded-lg ${primary ? 'h-11 w-11' : 'h-8 w-8'}`}
+                  style={{ background: `${mode.accent}22`, color: mode.accent }}
+                >
+                  <mode.Icon className={primary ? 'h-6 w-6' : 'h-4 w-4'} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className={`font-bold text-white ${primary ? 'text-[15px]' : 'text-sm'}`}>{mode.label}</span>
+                    {mode.tag && (
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                        style={
+                          mode.disabled
+                            ? { background: 'rgba(255,255,255,0.1)', color: '#94a3b8' }
+                            : { background: 'rgba(244,63,158,0.18)', color: '#ff7fc2' }
+                        }
+                      >
+                        {mode.tag}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-xs leading-snug text-slate-400">{mode.description}</span>
+                </span>
+                {selected && <Check className="h-5 w-5 shrink-0" style={{ color: mode.accent }} />}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
     </div>
