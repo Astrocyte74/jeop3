@@ -5,10 +5,13 @@
  * Main game board works standalone - only Editor needs this server.
  */
 
+const { callCodex, subscriptionAvailable, assertLocalSubscription } = require('./codex.cjs');
+const { requestSignal, timedSignal, retryDelay } = require('./cancellation.cjs');
 const express = require('express');
 const cors = require('cors');
 const { chooseVerifier, verificationPrompt, parseVerdicts } = require('./verification.cjs');
-require('dotenv').config({ override: true });
+require('dotenv').config({ path: require('node:path').join(__dirname, '.env') });
+const codexAvailable = subscriptionAvailable();
 
 const app = express();
 const PORT = process.env.PORT || 7476;
@@ -49,6 +52,7 @@ function getAvailableModels() {
   return {
     openrouter: openrouterModels,
     ollama: ollamaModels,
+    codex: codexAvailable ? (process.env.CODEX_MODELS || 'gpt-6.1-terra,gpt-6-luna').split(',').map(m => m.trim()).filter(Boolean) : [],
     openai: openaiModels
   };
 }
@@ -58,55 +62,40 @@ function getAllModels() {
   const models = getAvailableModels();
   const all = [];
 
-  models.openrouter.forEach(m => all.push({ id: `or:${m}`, name: m, provider: 'openrouter' }));
+  models.codex.forEach(m => all.push({ id: `codex:${m}`, name: `${m} · Subscription`, provider: 'codex' }));
+  models.openrouter.forEach(m => all.push({ id: `or:${m}`, name: `${m} · OpenRouter API`, provider: 'openrouter' }));
   models.ollama.forEach(m => all.push({ id: `ollama:${m}`, name: m, provider: 'ollama' }));
-  models.openai.forEach(m => all.push({ id: `openai:${m}`, name: m, provider: 'openai' }));
+  models.openai.forEach(m => all.push({ id: `openai:${m}`, name: `${m} · OpenAI API`, provider: 'openai' }));
 
   return all;
 }
 
 // Select model based on options (provider, model, etc.)
 function selectModel(options = {}) {
-  const { provider = 'openrouter', model } = options;
   const models = getAvailableModels();
+  const id = options.model || process.env.AI_DEFAULT_MODEL || getAllModels()[0]?.id;
+  const [prefix, ...rest] = (id || '').split(':');
+  const provider = prefix === 'or' ? 'openrouter' : prefix;
+  const name = rest.join(':');
+  if (!name || !models[provider]?.includes(name)) throw new Error(`Model not enabled: ${id || '(none)'}`);
+  return { provider, model: name };
+}
 
-  // If specific model requested, parse provider:model format
-  if (model) {
-    const parts = model.split(':');
-    const modelProvider = parts[0];
-    // Join the rest with ':' in case the model name contains colons (e.g., gemma3:12b)
-    const modelName = parts.slice(1).join(':');
-
-    if (modelProvider === 'or' || modelProvider === 'openrouter') {
-      return { provider: 'openrouter', model: modelName || models.openrouter[0] };
-    } else if (modelProvider === 'ollama') {
-      return { provider: 'ollama', model: modelName || models.ollama[0] };
-    } else if (modelProvider === 'openai') {
-      // Only allow models explicitly listed in OPENAI_MODELS, so the key can't be
-      // pointed at arbitrary (expensive) models by a crafted request.
-      const openaiModel = modelName || models.openai[0];
-      if (!openaiModel || !models.openai.includes(openaiModel)) {
-        throw new Error(`OpenAI model not enabled: ${openaiModel || '(none)'}. Set OPENAI_PLATFORM_API_KEY and OPENAI_MODELS.`);
-      }
-      return { provider: 'openai', model: openaiModel };
-    }
+async function callProvider(selected, prompt, type, effort, signal, req) {
+  signal?.throwIfAborted();
+  if (selected.provider === 'codex') {
+    assertLocalSubscription(req);
+    return callCodex(selected.model, prompt, type, effort || 'low', signal);
   }
-
-  // Default to first available model from requested provider
-  if (provider === 'ollama' && models.ollama.length > 0) {
-    return { provider: 'ollama', model: models.ollama[0] };
-  }
-
-  // Fall back to OpenRouter
-  if (models.openrouter.length === 0) {
-    throw new Error('No models configured in OR_MODELS or OLLAMA_MODELS');
-  }
-
-  return { provider: 'openrouter', model: models.openrouter[0] };
+  if (selected.provider === 'openai') return callOpenAI(selected.model, prompt, type, effort, signal);
+  if (selected.provider === 'ollama') return callOllama(selected.model, prompt, type, undefined, signal);
+  return callOpenRouter(selected.model, prompt, type, effort, signal);
 }
 
 // Whitelist of allowed prompt types
 const ALLOWED_PROMPT_TYPES = new Set([
+  'final-jeopardy',
+  'review-board',
   'game-title',
   'categories-generate',
   'categories-generate-from-content',
@@ -134,10 +123,12 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     models: getAllModels(),
+    defaultModel: process.env.AI_DEFAULT_MODEL || getAllModels()[0]?.id,
     providers: {
       openrouter: getAvailableModels().openrouter,
       ollama: getAvailableModels().ollama,
-      openai: getAvailableModels().openai
+      openai: getAvailableModels().openai,
+      codex: getAvailableModels().codex
     },
     rpm_limit: RPM_LIMIT,
     port: PORT,
@@ -155,6 +146,7 @@ app.get('/ai-config.js', (req, res) => {
 
 // Main AI generation endpoint
 app.post('/api/ai/generate', async (req, res) => {
+  const signal = requestSignal(req, res);
   const clientIp = req.ip || req.connection.remoteAddress;
 
   // Rate limit check
@@ -193,16 +185,10 @@ app.post('/api/ai/generate', async (req, res) => {
     // Select provider and model
     const selectedModel = selectModel({ model });
 
-    // Call appropriate provider
-    let result, usage;
     const startTime = Date.now();
-    if (selectedModel.provider === 'ollama') {
-      ({ content: result, usage } = await callOllama(selectedModel.model, prompt, promptType));
-    } else if (selectedModel.provider === 'openai') {
-      ({ content: result, usage } = await callOpenAI(selectedModel.model, prompt, promptType, reasoningEffort));
-    } else {
-      ({ content: result, usage } = await callOpenRouter(selectedModel.model, prompt, promptType));
-    }
+    console.log(`[${new Date().toISOString()}] AI Start: ${selectedModel.provider}:${selectedModel.model} | Type: ${promptType}`);
+    const { content: result, usage } = await callProvider(selectedModel, prompt, promptType, reasoningEffort, signal, req);
+    signal.throwIfAborted();
     const duration = Date.now() - startTime;
 
     // Log successful generation (with token usage for cost tracking)
@@ -210,6 +196,7 @@ app.post('/api/ai/generate', async (req, res) => {
 
     res.json({ result, model: `${selectedModel.provider}:${selectedModel.model}`, usage });
   } catch (error) {
+    if (signal.aborted) return;
     const timestamp = new Date().toISOString();
     console.error(`[${timestamp}] AI generation error:`, error.message);
     console.error(`[${timestamp}] Model: ${model || 'default'}, Type: ${promptType}`);
@@ -222,20 +209,26 @@ app.post('/api/ai/generate', async (req, res) => {
 
 // Final factual gate. Routing stays server-side and never silently uses the generator.
 app.post('/api/ai/verify', async (req, res) => {
+  const signal = requestSignal(req, res);
   if (!checkRateLimit(req.ip)) return res.status(429).json({ error: 'Rate limit exceeded' });
   try {
     const { topic, items, generatorModel, verifierModel } = req.body;
     const generator = selectModel({ model: generatorModel });
     const generatorId = `${generator.provider}:${generator.model}`;
-    const verifierId = chooseVerifier(generatorId, verifierModel || process.env.AI_VERIFIER_MODEL, getAllModels());
+    const configured = verifierModel || process.env.AI_VERIFIER_MODEL;
+    const preferred = configured || (generator.provider === 'codex' && generator.model !== 'gpt-6.1-terra' ? 'codex:gpt-6.1-terra' : undefined);
+    const verifierId = chooseVerifier(generatorId, preferred, getAllModels());
     const selected = selectModel({ model: verifierId });
     const prompt = verificationPrompt(topic, items);
     const started = Date.now();
-    const call = selected.provider === 'openai' ? callOpenAI : selected.provider === 'ollama' ? callOllama : callOpenRouter;
-    const { content, usage } = await call(selected.model, prompt, 'verify-clues');
+    console.log(`[${new Date().toISOString()}] AI Start: ${verifierId} | Type: verify-clues`);
+    const { content, usage } = await callProvider(selected, prompt, 'verify-clues', 'low', signal, req);
+    signal.throwIfAborted();
+    console.log(`[${new Date().toISOString()}] AI Success: ${verifierId} | Type: verify-clues | Time: ${Date.now() - started}ms`);
     const verdicts = parseVerdicts(content, items);
     res.json({ verdicts, model: `${selected.provider}:${selected.model}`, usage, durationMs: Date.now() - started });
   } catch (error) {
+    if (signal.aborted) return;
     res.status(502).json({ error: `Verification failed: ${error.message}` });
   }
 });
@@ -255,6 +248,7 @@ const MAX_ARTICLE_CHARS = 8000; // matches the judge's source window (prompts.ts
  * No API key required; upstream rate limits can still reject requests.
  */
 app.post('/api/search-wikipedia', async (req, res) => {
+  const signal = requestSignal(req, res);
   const clientIp = req.ip || req.connection.remoteAddress;
   if (!checkRateLimit(clientIp)) {
     return res.status(429).json({ error: 'Rate limit exceeded', message: `Maximum ${RPM_LIMIT} requests per minute` });
@@ -265,7 +259,7 @@ app.post('/api/search-wikipedia', async (req, res) => {
   }
   try {
     const url = `${WIKI_API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&srnamespace=0&format=json&origin=*`;
-    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    const r = await fetch(url, { signal: timedSignal(signal, 15000) });
     if (!r.ok) throw new Error(`Wikipedia search HTTP ${r.status}`);
     const data = await r.json();
     const results = (data?.query?.search || []).map(hit => ({
@@ -274,6 +268,7 @@ app.post('/api/search-wikipedia', async (req, res) => {
     }));
     res.json({ results });
   } catch (error) {
+    if (signal.aborted) return;
     console.error(`[${new Date().toISOString()}] search-wiki error:`, error.message);
     res.status(500).json({ error: 'Wikipedia search failed', message: error.message, results: [] });
   }
@@ -291,6 +286,7 @@ app.post('/api/search-wikipedia', async (req, res) => {
  * URL-mode in the wizard calls (was returning 404).
  */
 app.post('/api/fetch-article', async (req, res) => {
+  const signal = requestSignal(req, res);
   const clientIp = req.ip || req.connection.remoteAddress;
   if (!checkRateLimit(clientIp)) {
     return res.status(429).json({ error: 'Rate limit exceeded', message: `Maximum ${RPM_LIMIT} requests per minute` });
@@ -319,7 +315,7 @@ app.post('/api/fetch-article', async (req, res) => {
     // redirects=1 resolves redirect pages (e.g. "Julio-Claudians" →
     // "Julio-Claudian dynasty") so the extract comes back populated.
     const apiUrl = `${apiBase}?action=query&prop=extracts&explaintext=true&exsectionformat=plain&redirects=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
-    const r = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
+    const r = await fetch(apiUrl, { signal: timedSignal(signal, 15000) });
     if (!r.ok) throw new Error(`Wikipedia extracts HTTP ${r.status}`);
     const data = await r.json();
     const pages = data?.query?.pages || {};
@@ -332,6 +328,7 @@ app.post('/api/fetch-article', async (req, res) => {
     const text = truncated ? extract.slice(0, MAX_ARTICLE_CHARS) : extract;
     res.json({ text, truncated });
   } catch (error) {
+    if (signal.aborted) return;
     console.error(`[${new Date().toISOString()}] fetch-article error:`, error.message);
     res.status(500).json({ error: 'Article fetch failed', message: error.message });
   }
@@ -344,6 +341,8 @@ function getMaxTokens(promptType) {
     'categories-generate-from-content': 8000, // Full game generated from source material
     'extract-board-answers': 4000, // Answer candidates + facts per category
     'clues-from-answers': 8000, // Full board of clues for fixed answers
+    'final-jeopardy': 2000,
+    'review-board': 4000,
     'verify-clues': 8000,
     'judge-clues': 4000, // Score every clue/answer pair
     'topic-fact-sheet': 4000, // Grounding fact-sheet for topic-mode parity
@@ -361,7 +360,7 @@ function getMaxTokens(promptType) {
 }
 
 // Call OpenRouter API
-async function callOpenRouter(model, prompt, promptType) {
+async function callOpenRouter(model, prompt, promptType, reasoningEffort, signal) {
   const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
@@ -370,7 +369,7 @@ async function callOpenRouter(model, prompt, promptType) {
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
-    signal: AbortSignal.timeout(120000),
+    signal: timedSignal(signal),
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -382,8 +381,7 @@ async function callOpenRouter(model, prompt, promptType) {
         { role: 'system', content: prompt.system },
         { role: 'user', content: prompt.user },
       ],
-      temperature: 0.7,
-      max_tokens: getMaxTokens(promptType),
+      ...(model.startsWith('inception/mercury') ? { reasoning: { effort: reasoningEffort || 'low' }, provider: { require_parameters: true }, max_tokens: Math.max(16384, getMaxTokens(promptType) * 2) } : { temperature: 0.7, max_tokens: getMaxTokens(promptType) }),
     }),
   });
 
@@ -393,6 +391,7 @@ async function callOpenRouter(model, prompt, promptType) {
   }
 
   const data = await response.json();
+  if (data.choices?.[0]?.finish_reason !== 'stop') throw new Error('Incomplete OpenRouter response');
   const content = data.choices?.[0]?.message?.content;
 
   if (!content) {
@@ -405,7 +404,7 @@ async function callOpenRouter(model, prompt, promptType) {
 // Call the OpenAI API directly. GPT-5+/6 models differ from OpenRouter-proxied
 // chat models: they take max_completion_tokens (max_tokens is rejected) and only
 // support the default temperature, so neither is sent the OpenRouter way.
-async function callOpenAI(model, prompt, promptType, reasoningEffort) {
+async function callOpenAI(model, prompt, promptType, reasoningEffort, signal) {
   const apiKey = process.env.OPENAI_PLATFORM_API_KEY;
 
   if (!apiKey) {
@@ -435,11 +434,12 @@ async function callOpenAI(model, prompt, promptType, reasoningEffort) {
   const MAX_ATTEMPTS = 2;
   let data;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    signal?.throwIfAborted();
     let response;
     try {
       response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        signal: AbortSignal.timeout(120000),
+        signal: timedSignal(signal),
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
@@ -447,10 +447,11 @@ async function callOpenAI(model, prompt, promptType, reasoningEffort) {
         body: JSON.stringify(body),
       });
     } catch (err) {
+      signal?.throwIfAborted();
       const cause = err.cause?.code || err.cause?.message || err.message;
       console.warn(`[${new Date().toISOString()}] OpenAI network error (attempt ${attempt}/${MAX_ATTEMPTS}, ${promptType}): ${cause}`);
       if (attempt < MAX_ATTEMPTS) {
-        await new Promise(r => setTimeout(r, 1500));
+        await retryDelay(signal);
         continue;
       }
       throw new Error(`OpenAI request failed: ${cause}`);
@@ -461,7 +462,7 @@ async function callOpenAI(model, prompt, promptType, reasoningEffort) {
       const transient = response.status === 429 || response.status >= 500;
       if (transient && attempt < MAX_ATTEMPTS) {
         console.warn(`[${new Date().toISOString()}] OpenAI ${response.status} (attempt ${attempt}/${MAX_ATTEMPTS}, ${promptType}), retrying`);
-        await new Promise(r => setTimeout(r, 1500));
+        await retryDelay(signal);
         continue;
       }
       throw new Error(`OpenAI error: ${response.status} ${error}`);
@@ -472,6 +473,7 @@ async function callOpenAI(model, prompt, promptType, reasoningEffort) {
   }
 
   const choice = data.choices?.[0];
+  if (choice?.finish_reason !== 'stop') throw new Error('Incomplete OpenAI response');
   const content = choice?.message?.content;
 
   if (!content) {
@@ -482,12 +484,13 @@ async function callOpenAI(model, prompt, promptType, reasoningEffort) {
 }
 
 // Call Ollama API
-async function callOllama(model, prompt, promptType) {
+async function callOllama(model, prompt, promptType, _effort, signal) {
   const baseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434/api/chat';
 
   try {
     const response = await fetch(baseUrl, {
       method: 'POST',
+      signal: timedSignal(signal),
       headers: {
         'Content-Type': 'application/json',
       },
@@ -527,9 +530,10 @@ async function callOllama(model, prompt, promptType) {
 }
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, process.env.CODEX_ENABLED === 'true' ? '127.0.0.1' : (process.env.HOST || '127.0.0.1'), () => {
   const models = getAvailableModels();
   console.log(`\n🪄 Jeop3 AI Server running on http://localhost:${PORT}`);
+  console.log(`🎟️ Subscription: ${models.codex.join(', ') || 'unavailable'}`);
   console.log(`🤖 OpenRouter: ${models.openrouter.length > 0 ? models.openrouter.join(', ') : 'none'}`);
   console.log(`🦙 Ollama: ${models.ollama.length > 0 ? models.ollama.join(', ') : 'none'}`);
   console.log(`🧠 OpenAI: ${models.openai.length > 0 ? models.openai.join(', ') : 'none'}`);

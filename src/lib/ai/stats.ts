@@ -263,6 +263,7 @@ export function formatCost(dollars: number): string {
  * Get a human-readable cost estimate (e.g., "~140 games/$1", "0.72¢ per game")
  */
 export function getCostEstimate(modelId: string): string {
+  if (modelId.startsWith('codex:')) return 'Subscription · uses plan limits';
   const costPerGame = getCostPerGame(modelId);
 
   if (!costPerGame) {

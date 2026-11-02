@@ -1,6 +1,6 @@
 // Shared by the HTTP endpoint and offline contract tests.
 function modelIdentity(id) {
-  return id.replace(/^openrouter:/, 'or:').replace(/^or:openai\//, 'openai:');
+  return id.replace(/^codex:/, 'openai:').replace(/^openrouter:/, 'or:').replace(/^or:openai\//, 'openai:');
 }
 function chooseVerifier(generator, requested, available) {
   const enabled = available.map(m => m.id);
