@@ -271,7 +271,7 @@ ${titles
           ? `Cover exactly these ${count} category angles, in this order — one fact-sheet section per title:\n${titles.map((t: string, i: number) => `${i + 1}. ${t}`).join('\n')}`
           : `Propose ${count} distinct category angles covering "${topic}" (people, places, events, works, dates, numbers).`}
 
-For EACH section, list 10 to 14 SPECIFIC, NAMED facts that would make good Jeopardy answers — real proper names, exact dates, specific places, named works, specific numbers WITH units. Each fact must be a complete sentence verifiable from general knowledge.
+For EACH section, list up to 14 SPECIFIC, NAMED facts (fewer is preferable to guessing) that would make good Jeopardy answers — real proper names, exact dates, specific places, named works, specific numbers WITH units. Each fact must be a complete sentence verifiable from general knowledge.
 FORBIDDEN (too generic — never write a fact whose subject is just a bare concept): "size", "speed", "atmosphere", "orbit", "temperature", "the sun", "planet", "surface", "rotation", "distance", "gravity", "year", "day". Each fact must point at a SPECIFIC named thing.
 Within a section, every fact must target a DIFFERENT specific entity (no near-duplicates). Across sections, no entity should repeat.
 
@@ -349,6 +349,7 @@ ${JSON.stringify(board, null, 2)}
 
 Rules:
 - Each clue is a Jeopardy-style statement that POINTS TO its answer without naming or revealing it, grounded in the provided fact.
+- Every factual detail must be explicitly supported by the supplied fact. Do not add dates, names, motives, superlatives or narrative embellishments from memory.
 - A clue must never contain its own answer or an obvious stem/synonym of it.
 - Do NOT assign dollar values or rank difficulty — a separate judge does that afterward. Just write the strongest clue you can for each answer.
 
@@ -370,7 +371,7 @@ Return JSON only:
       system: `You are a Jeopardy clue judge. Score each clue/answer pair. Always respond with valid JSON only — no prose, no code fences.`,
       user: (() => {
         const board = context.answerBoard || [];
-        const ref = (context.referenceMaterial || '').slice(0, 8000);
+        const ref = (context.referenceMaterial || '').slice(0, 48000);
         return `Score each clue/answer pair below. Use the SOURCE to assess factual support, and score difficulty RELATIVE to the other clues in the SAME category.
 
 Source:
@@ -381,7 +382,7 @@ ${JSON.stringify(board, null, 2)}
 
 For EACH clue/answer pair, return integer scores 1-5 (5 = best):
 - specificity: is the answer a specific entity (a name / place / year / specific term), not a generic concept?
-- sourceSupport: is the clue+answer grounded in the source above?
+- sourceSupport: is EVERY factual assertion in the clue+answer explicitly supported by the source above? Any unsupported embellishment scores at most 2. This checks textual support, not independent truth.
 - clarity: is the clue clear, unambiguous, not awkward?
 - jeopardyStyle: does it read like real Jeopardy — points to the answer without revealing it?
 - duplicateRisk: does this answer near-duplicate ANOTHER answer in this same category? (1 = unique, 5 = essentially the same as another)

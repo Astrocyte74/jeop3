@@ -1938,6 +1938,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           clue: candidate.clue,
           response: candidate.response,
           provenance: 'answer_first' as const,
+          verification: candidate.verification,
         };
         const updatedCategories = [...generatedGameData.categories];
         updatedCategories[catIndex] = { ...category, clues: [...category.clues] };

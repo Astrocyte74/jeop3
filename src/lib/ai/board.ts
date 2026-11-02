@@ -10,13 +10,15 @@
  *      jeopardy-style, duplicate-risk, difficulty)
  *   5. select the best 5 per category, ordered by JUDGED difficulty -> $200-$1000
  *   6. if a category is still short, patch the gaps from a single-pass fallback
- *      (keep the good clues, never ship a partial board)
+ *      (keep the good clues, then independently verify every candidate)
+ *   7. remove false/uncertain/off-topic pairs; use checked runner-ups or fail
  *
  * Each clue is tagged provenance: "answer_first" (judged/selected) | "fallback".
  */
 import { filterAnswerBoard, nearDupKey } from './answers';
 import { retrieveExemplars } from './exemplars';
 import { searchAndFetchCategorySource } from './service';
+import { verifyCategories, type Verifier } from './verification';
 import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
 
 type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty) => Promise<any>;
@@ -30,6 +32,9 @@ export interface ContentSpanInput {
   existingAnswers?: string[];
   sourceMaterial?: string;
   sourceUrl?: string;
+  categoryGrounding?: AICategory[];
+  /** false is for controlled offline evaluation only; production defaults to verification. */
+  verify?: Verifier | false;
   /** Called before each pipeline step so the UI can show staged progress. */
   onStage?: (stage: string) => void;
 }
@@ -71,6 +76,7 @@ export interface AlternativeClue {
   clue: string;
   response: string;
   provenance: 'answer_first';
+  verification?: Clue['verification'];
   score: Score;
 }
 const overall = (s: Score): number => s.specificity + s.sourceSupport + s.clarity + s.jeopardyStyle - s.duplicateRisk;
@@ -133,7 +139,7 @@ function fillCategory(title: string, pipelineClues: Clue[], fallbackClues: Clue[
     const nk = nearDupKey(fc.response);
     if (spanNear.has(nk) || spanNear.has(norm(fc.response))) continue;
     spanNear.add(nk); spanNear.add(norm(fc.response));
-    let v = fc.value ?? VALUES.find(x => !usedVals.has(x)) ?? VALUES[0];
+    let v = VALUES.includes(fc.value) ? fc.value : VALUES.find(x => !usedVals.has(x)) ?? VALUES[0];
     if (usedVals.has(v)) { const nv = VALUES.find(x => !usedVals.has(x)); if (nv !== undefined) v = nv; }
     usedVals.add(v);
     chosen.push({ ...fc, value: v, provenance: 'fallback' });
@@ -179,9 +185,9 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
           { answerBoard: clueCats, referenceMaterial, theme } as AIContext, difficulty
         );
         const judgeCats = (judgeRes?.categories || []) as Array<{ title: string; scored: any[] }>;
-        judged = clueCats.map((cc, i) => {
+        judged = clueCats.map(cc => {
           const scores = new Map<string, Score>();
-          for (const s of (judgeCats[i]?.scored || [])) {
+          for (const s of (judgeCats.find(jc => norm(jc.title) === norm(cc.title))?.scored || [])) {
             if (s?.answer) scores.set(norm(s.answer), {
               specificity: +s.specificity, sourceSupport: +s.sourceSupport, clarity: +s.clarity,
               jeopardyStyle: +s.jeopardyStyle, duplicateRisk: +s.duplicateRisk, difficulty: +s.difficulty,
@@ -198,7 +204,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   // 5. pick best 5/category by judge scores (assigns $200-$1000 by difficulty)
   const alternativesByTitle: Array<{ title: string; clues: AlternativeClue[] }> = [];
   let pickedPerCat: Clue[][] = catTitles.map((t, i) => {
-    const jc = judged.find(c => norm(c.title) === norm(t)) || judged[i];
+    const jc = judged.find(c => norm(c.title) === norm(t)) || (!titles?.length ? judged[i] : undefined);
     if (!jc) return [];
     const { picked, alternatives } = pickBestFive(jc.clues, jc.scores, spanNear);
     if (alternatives.length) alternativesByTitle.push({ title: t, clues: alternatives });
@@ -224,15 +230,53 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     }
     pickedPerCat = catTitles.map((t, i) => {
       if (pickedPerCat[i].length >= 5) return pickedPerCat[i];
-      const res = fillCategory(t, pickedPerCat[i], (singleCats[i]?.clues || []) as Clue[], spanNear);
+      const res = fillCategory(t, pickedPerCat[i], ((titles?.length ? singleCats.find(c => norm(c.title) === norm(t)) : singleCats[i])?.clues || []) as Clue[], spanNear);
       if (res.usedFallback) patched = true;
       return res.category.clues;
     });
   }
 
-  const categories: AICategory[] = catTitles.map((title, i) => ({ title, clues: pickedPerCat[i] }) as AICategory);
+  let categories: AICategory[] = withSource(catTitles.map((title, i) => ({ title, clues: pickedPerCat[i] })), sourceMaterial, sourceUrl);
+  categories = categories.map(cat => {
+    const grounding = opts.categoryGrounding?.find(g => norm(g.title) === norm(cat.title));
+    return grounding ? { ...grounding, ...cat, sourceMaterial: grounding.sourceMaterial, sourceUrl: grounding.sourceUrl, sourceType: grounding.sourceType } : cat;
+  });
+  if (opts.verify !== false) {
+    onStage?.('Independently checking facts and topic…');
+    // Include runner-ups in the same check, so replacing a rejected clue cannot
+    // bypass the factual gate. No unchecked fallback runs after this point.
+    const candidates = categories.map(cat => ({ ...cat, clues: [
+      ...cat.clues,
+      ...(alternativesByTitle.find(a => a.title === cat.title)?.clues || []).map(cl => ({ ...cl, value: 0 })),
+    ] }));
+    const checked = await verifyCategories(candidates, theme || 'random', opts.verify);
+    const used = new Set(existingAnswers.map(nearDupKey));
+    alternativesByTitle.length = 0;
+    categories = checked.categories.map(cat => {
+      const local = new Set<string>();
+      const accepted = cat.clues.filter(cl => {
+        const key = nearDupKey(cl.response);
+        if (used.has(key) || local.has(key)) return false;
+        local.add(key);
+        return true;
+      });
+      const selected = accepted.slice(0, 5);
+      selected.forEach(cl => used.add(nearDupKey(cl.response)));
+      const occupied = new Set(selected.filter(cl => VALUES.includes(cl.value)).map(cl => cl.value));
+      const slots = VALUES.filter(v => !occupied.has(v));
+      const clues = selected.map(cl => ({ ...cl, value: cl.value || slots.shift()! })).sort((a, b) => a.value - b.value);
+      const remaining = accepted.slice(5).filter(cl => 'score' in cl) as unknown as AlternativeClue[];
+      if (remaining.length) alternativesByTitle.push({ title: cat.title, clues: remaining });
+      return { ...cat, clues };
+    });
+    alternativesByTitle.forEach(a => { a.clues = a.clues.filter(cl => !used.has(nearDupKey(cl.response))); });
+    const incomplete = categories.filter(cat => cat.clues.length !== 5);
+    if (incomplete.length || categories.length !== count) {
+      throw new Error(`Independent fact check could not complete the board: ${incomplete.map(c => `${c.title} (${c.clues.length}/5)`).join(', ')}. Add richer source material or try again.`);
+    }
+  }
   return {
-    categories: withSource(categories, sourceMaterial, sourceUrl),
+    categories,
     patched,
     alternatives: alternativesByTitle.length ? alternativesByTitle : undefined,
   };
@@ -244,6 +288,7 @@ export interface TopicSpanInput {
   count: number;
   difficulty: AIDifficulty;
   existingAnswers?: string[];
+  verify?: Verifier | false;
   /** Clerk token for the /search-wikipedia + /fetch-article endpoints. */
   authToken?: string | null;
   /** Called before each pipeline step so the UI can show staged progress. */
@@ -322,7 +367,7 @@ export async function generateTopicSpan(
     } catch { synthSections = []; }
     for (let i = 0; i < needFactSheet.length; i++) {
       const title = needFactSheet[i];
-      const sec = synthSections[i];
+      const sec = synthSections.find(s => norm(s.title) === norm(title));
       const facts = sec?.facts || [];
       // Only accept the model's facts when it marked itself confident. A
       // low-confidence section (or one with no facts) is left out rather
@@ -332,15 +377,12 @@ export async function generateTopicSpan(
         sections.push({ title, body: facts.map(f => `- ${f}`).join('\n') });
         synthesizedTitles.add(title);
       }
-      // else: leave the category absent from `sections`. If every category
-      // ends up absent, the bail check below fires and the caller's
-      // last-resort single-pass runs instead of shipping invented facts.
+      // Missing grounding causes a visible failure below, without an unchecked retry.
     }
   }
 
   // Finalize per-category provenance. Categories with no confident grounding
-  // are omitted — they'll surface downstream as fallback/patched clues via
-  // the pipeline's gap-fill, which is honest (not falsely "synthesized").
+  // are omitted and cause generation to stop below.
   for (const title of catTitles) {
     if (retrievedByTitle.has(title)) {
       categorySources.push({ title, sourceType: 'retrieved', url: retrievedByTitle.get(title)!.url });
@@ -350,13 +392,10 @@ export async function generateTopicSpan(
     // else: no entry — category has no grounding source.
   }
 
-  // 3. If no category ended up with usable grounding — retrieval missed
-  //    everywhere AND the fact-sheet was non-confident/empty everywhere — bail
-  //    so the caller's last-resort single-pass runs rather than producing a
-  //    board from fabricated sources.
-  if (!sections.some(s => s.body && s.body.length > 50)) {
-    throw new Error('topic grounding failed (no Wikipedia results, fact-sheet not confident)');
-  }
+  // 3. Every requested category needs material. Never stretch one article
+  // across missing categories when the fact sheet was empty.
+  const missing = catTitles.filter(t => !sections.some(s => s.title === t && s.body.length > 50));
+  if (missing.length) throw new Error(`No usable source material for: ${missing.join(', ')}. Add sources or try different categories.`);
 
   // 4. Concat into one sectioned reference string the existing pipeline mines
   //    exactly like pasted content, and hand off to the unchanged pipeline.
@@ -368,7 +407,12 @@ export async function generateTopicSpan(
     count,
     difficulty,
     existingAnswers,
-    // No sourceMaterial/sourceUrl: topics have no original paste/URL to attach.
+    categoryGrounding: catTitles.map(title => ({
+      title, contentTopic: topic, clues: [], sourceMaterial: sections.find(s => s.title === title)?.body,
+      sourceType: retrievedByTitle.has(title) ? 'retrieved' : 'ai_synthesized',
+      sourceUrl: retrievedByTitle.get(title)?.url,
+    })),
+    verify: opts.verify,
     onStage,
   });
   return { ...result, categorySources };

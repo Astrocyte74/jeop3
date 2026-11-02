@@ -1,3 +1,4 @@
+import type { ClueVerification } from './ai/types';
 // Types defined inline to avoid module resolution issues
 export type Clue = {
   value: number;
@@ -7,6 +8,7 @@ export type Clue = {
    *  Optional — older games won't have it. Persists with the game so tinting
    *  survives reloads. Used by the Board Editor for cell tinting + AI badges. */
   provenance?: string;
+  verification?: ClueVerification;
 };
 
 export type Category = {

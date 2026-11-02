@@ -43,6 +43,15 @@ export const VALUE_GUIDANCE: Record<number, string> = {
   1000: "Deep cuts / less obvious information"
 };
 
+export interface ClueVerification {
+  model: string;
+  checkedAt: string;
+  reason: string;
+  clue: string;
+  response: string;
+  category: string;
+}
+
 // Clue data structure
 export interface Clue {
   value: number;
@@ -50,6 +59,7 @@ export interface Clue {
   response: string;
   /** "answer_first" (locked-answer pipeline) or "fallback" (patched from single-pass). */
   provenance?: string;
+  verification?: ClueVerification;
 }
 
 // Category data structure (with optional contentTopic for AI)

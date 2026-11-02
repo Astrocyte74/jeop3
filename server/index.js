@@ -7,6 +7,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const { chooseVerifier, verificationPrompt, parseVerdicts } = require('./verification.cjs');
 require('dotenv').config({ override: true });
 
 const app = express();
@@ -40,10 +41,15 @@ function checkRateLimit(ip) {
 function getAvailableModels() {
   const openrouterModels = (process.env.OR_MODELS || '').split(',').map(m => m.trim()).filter(m => m);
   const ollamaModels = (process.env.OLLAMA_MODELS || '').split(',').map(m => m.trim()).filter(m => m);
+  // Direct OpenAI API (e.g. gpt-6-luna). Only listed when its key is configured.
+  const openaiModels = process.env.OPENAI_PLATFORM_API_KEY
+    ? (process.env.OPENAI_MODELS || '').split(',').map(m => m.trim()).filter(m => m)
+    : [];
 
   return {
     openrouter: openrouterModels,
-    ollama: ollamaModels
+    ollama: ollamaModels,
+    openai: openaiModels
   };
 }
 
@@ -54,6 +60,7 @@ function getAllModels() {
 
   models.openrouter.forEach(m => all.push({ id: `or:${m}`, name: m, provider: 'openrouter' }));
   models.ollama.forEach(m => all.push({ id: `ollama:${m}`, name: m, provider: 'ollama' }));
+  models.openai.forEach(m => all.push({ id: `openai:${m}`, name: m, provider: 'openai' }));
 
   return all;
 }
@@ -74,6 +81,14 @@ function selectModel(options = {}) {
       return { provider: 'openrouter', model: modelName || models.openrouter[0] };
     } else if (modelProvider === 'ollama') {
       return { provider: 'ollama', model: modelName || models.ollama[0] };
+    } else if (modelProvider === 'openai') {
+      // Only allow models explicitly listed in OPENAI_MODELS, so the key can't be
+      // pointed at arbitrary (expensive) models by a crafted request.
+      const openaiModel = modelName || models.openai[0];
+      if (!openaiModel || !models.openai.includes(openaiModel)) {
+        throw new Error(`OpenAI model not enabled: ${openaiModel || '(none)'}. Set OPENAI_PLATFORM_API_KEY and OPENAI_MODELS.`);
+      }
+      return { provider: 'openai', model: openaiModel };
     }
   }
 
@@ -121,7 +136,8 @@ app.get('/api/health', (req, res) => {
     models: getAllModels(),
     providers: {
       openrouter: getAvailableModels().openrouter,
-      ollama: getAvailableModels().ollama
+      ollama: getAvailableModels().ollama,
+      openai: getAvailableModels().openai
     },
     rpm_limit: RPM_LIMIT,
     port: PORT,
@@ -151,7 +167,7 @@ app.post('/api/ai/generate', async (req, res) => {
 
   // Destructure in the handler scope (not inside try) so the catch block can
   // reference these for logging — otherwise an AI error crashes the server.
-  const { promptType, prompt, model } = req.body;
+  const { promptType, prompt, model, reasoningEffort } = req.body;
 
   try {
     // Validate prompt type
@@ -170,6 +186,10 @@ app.post('/api/ai/generate', async (req, res) => {
       });
     }
 
+    if (reasoningEffort !== undefined && !['none', 'low', 'medium', 'high', 'xhigh'].includes(reasoningEffort)) {
+      return res.status(400).json({ error: 'Invalid reasoning effort' });
+    }
+
     // Select provider and model
     const selectedModel = selectModel({ model });
 
@@ -178,6 +198,8 @@ app.post('/api/ai/generate', async (req, res) => {
     const startTime = Date.now();
     if (selectedModel.provider === 'ollama') {
       ({ content: result, usage } = await callOllama(selectedModel.model, prompt, promptType));
+    } else if (selectedModel.provider === 'openai') {
+      ({ content: result, usage } = await callOpenAI(selectedModel.model, prompt, promptType, reasoningEffort));
     } else {
       ({ content: result, usage } = await callOpenRouter(selectedModel.model, prompt, promptType));
     }
@@ -198,6 +220,26 @@ app.post('/api/ai/generate', async (req, res) => {
   }
 });
 
+// Final factual gate. Routing stays server-side and never silently uses the generator.
+app.post('/api/ai/verify', async (req, res) => {
+  if (!checkRateLimit(req.ip)) return res.status(429).json({ error: 'Rate limit exceeded' });
+  try {
+    const { topic, items, generatorModel, verifierModel } = req.body;
+    const generator = selectModel({ model: generatorModel });
+    const generatorId = `${generator.provider}:${generator.model}`;
+    const verifierId = chooseVerifier(generatorId, verifierModel || process.env.AI_VERIFIER_MODEL, getAllModels());
+    const selected = selectModel({ model: verifierId });
+    const prompt = verificationPrompt(topic, items);
+    const started = Date.now();
+    const call = selected.provider === 'openai' ? callOpenAI : selected.provider === 'ollama' ? callOllama : callOpenRouter;
+    const { content, usage } = await call(selected.model, prompt, 'verify-clues');
+    const verdicts = parseVerdicts(content, items);
+    res.json({ verdicts, model: `${selected.provider}:${selected.model}`, usage, durationMs: Date.now() - started });
+  } catch (error) {
+    res.status(502).json({ error: `Verification failed: ${error.message}` });
+  }
+});
+
 // =============================================================================
 // Wikipedia retrieval — used by topic-mode parity (per-category grounding).
 // Real sources break the self-referential loop where the model invents a
@@ -209,8 +251,8 @@ const WIKI_API = 'https://en.wikipedia.org/w/api.php';
 const MAX_ARTICLE_CHARS = 8000; // matches the judge's source window (prompts.ts)
 
 /**
- * Search Wikipedia via OpenSearch. Returns ranked titles + URLs.
- * No API key required; the public API allows ~200 req/s per IP.
+ * Search Wikipedia full text. Returns ranked titles + URLs.
+ * No API key required; upstream rate limits can still reject requests.
  */
 app.post('/api/search-wikipedia', async (req, res) => {
   const clientIp = req.ip || req.connection.remoteAddress;
@@ -222,15 +264,14 @@ app.post('/api/search-wikipedia', async (req, res) => {
     return res.status(400).json({ error: 'Missing query', message: 'Expected { query: string }' });
   }
   try {
-    const url = `${WIKI_API}?action=opensearch&search=${encodeURIComponent(query)}&limit=5&namespace=0&format=json&origin=*`;
-    const r = await fetch(url);
-    if (!r.ok) throw new Error(`Wikipedia OpenSearch HTTP ${r.status}`);
+    const url = `${WIKI_API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=5&srnamespace=0&format=json&origin=*`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`Wikipedia search HTTP ${r.status}`);
     const data = await r.json();
-    // OpenSearch shape: [query, [titles], [snippets], [urls]]
-    const titles = data[1] || [];
-    const snippets = data[2] || [];
-    const urls = data[3] || [];
-    const results = titles.map((title, i) => ({ title, snippet: snippets[i] || '', url: urls[i] || '' }));
+    const results = (data?.query?.search || []).map(hit => ({
+      title: hit.title,
+      url: `https://en.wikipedia.org/wiki/${encodeURIComponent(hit.title.replace(/ /g, '_'))}`,
+    }));
     res.json({ results });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] search-wiki error:`, error.message);
@@ -278,7 +319,7 @@ app.post('/api/fetch-article', async (req, res) => {
     // redirects=1 resolves redirect pages (e.g. "Julio-Claudians" →
     // "Julio-Claudian dynasty") so the extract comes back populated.
     const apiUrl = `${apiBase}?action=query&prop=extracts&explaintext=true&exsectionformat=plain&redirects=1&titles=${encodeURIComponent(title)}&format=json&origin=*`;
-    const r = await fetch(apiUrl);
+    const r = await fetch(apiUrl, { signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error(`Wikipedia extracts HTTP ${r.status}`);
     const data = await r.json();
     const pages = data?.query?.pages || {};
@@ -303,6 +344,7 @@ function getMaxTokens(promptType) {
     'categories-generate-from-content': 8000, // Full game generated from source material
     'extract-board-answers': 4000, // Answer candidates + facts per category
     'clues-from-answers': 8000, // Full board of clues for fixed answers
+    'verify-clues': 8000,
     'judge-clues': 4000, // Score every clue/answer pair
     'topic-fact-sheet': 4000, // Grounding fact-sheet for topic-mode parity
     'category-replace-all': 4000, // Single category with 5 clues
@@ -328,6 +370,7 @@ async function callOpenRouter(model, prompt, promptType) {
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
     method: 'POST',
+    signal: AbortSignal.timeout(120000),
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
@@ -354,6 +397,85 @@ async function callOpenRouter(model, prompt, promptType) {
 
   if (!content) {
     throw new Error('No content in AI response');
+  }
+
+  return { content, usage: data.usage || null };
+}
+
+// Call the OpenAI API directly. GPT-5+/6 models differ from OpenRouter-proxied
+// chat models: they take max_completion_tokens (max_tokens is rejected) and only
+// support the default temperature, so neither is sent the OpenRouter way.
+async function callOpenAI(model, prompt, promptType, reasoningEffort) {
+  const apiKey = process.env.OPENAI_PLATFORM_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('OPENAI_PLATFORM_API_KEY not configured');
+  }
+
+  const body = {
+    model,
+    messages: [
+      { role: 'system', content: prompt.system },
+      { role: 'user', content: prompt.user },
+    ],
+    // Reasoning tokens count against this cap, so leave headroom over the
+    // visible-output budget used for the other providers.
+    max_completion_tokens: getMaxTokens(promptType) * 2,
+  };
+  // These are structured-JSON tasks whose facts come from supplied source
+  // material, so deep deliberation isn't needed. Unbounded reasoning has
+  // exhausted the whole token cap before emitting any output (finish_reason
+  // "length", empty content) and slows every step. Override via env.
+  body.reasoning_effort = reasoningEffort || process.env.OPENAI_REASONING_EFFORT || 'low';
+
+  // Long generations (full-board clue writing can run 60s+) occasionally die at
+  // the network layer with a bare "fetch failed". Surface the underlying cause
+  // and retry once on transient failures (network error, 429, 5xx) so one blip
+  // doesn't leave the board half-built.
+  const MAX_ATTEMPTS = 2;
+  let data;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let response;
+    try {
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        signal: AbortSignal.timeout(120000),
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      const cause = err.cause?.code || err.cause?.message || err.message;
+      console.warn(`[${new Date().toISOString()}] OpenAI network error (attempt ${attempt}/${MAX_ATTEMPTS}, ${promptType}): ${cause}`);
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+      throw new Error(`OpenAI request failed: ${cause}`);
+    }
+
+    if (!response.ok) {
+      const error = await response.text();
+      const transient = response.status === 429 || response.status >= 500;
+      if (transient && attempt < MAX_ATTEMPTS) {
+        console.warn(`[${new Date().toISOString()}] OpenAI ${response.status} (attempt ${attempt}/${MAX_ATTEMPTS}, ${promptType}), retrying`);
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+      throw new Error(`OpenAI error: ${response.status} ${error}`);
+    }
+
+    data = await response.json();
+    break;
+  }
+
+  const choice = data.choices?.[0];
+  const content = choice?.message?.content;
+
+  if (!content) {
+    throw new Error(`No content in OpenAI response (finish_reason: ${choice?.finish_reason ?? 'unknown'})`);
   }
 
   return { content, usage: data.usage || null };
@@ -410,6 +532,7 @@ app.listen(PORT, () => {
   console.log(`\n🪄 Jeop3 AI Server running on http://localhost:${PORT}`);
   console.log(`🤖 OpenRouter: ${models.openrouter.length > 0 ? models.openrouter.join(', ') : 'none'}`);
   console.log(`🦙 Ollama: ${models.ollama.length > 0 ? models.ollama.join(', ') : 'none'}`);
+  console.log(`🧠 OpenAI: ${models.openai.length > 0 ? models.openai.join(', ') : 'none'}`);
   console.log(`⚡ Rate limit: ${RPM_LIMIT} requests/minute`);
   console.log(`🌐 CORS: ${corsOrigin === '*' ? 'All origins' : corsOrigin}`);
   console.log(`\nPress Ctrl+C to stop\n`);

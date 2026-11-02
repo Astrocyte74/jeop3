@@ -35,6 +35,21 @@ export const MODEL_PRICING: Record<string, Partial<ModelPricing>> = {
     outputPrice: 3.00,
     avgTokensPerGame: 3024, // From benchmarks: 504 tokens/category * 6 categories
   },
+  // Direct OpenAI models (provider prefix "openai:" is stripped before lookup).
+  // gpt-6-luna: measured on a 6-category game via the server log, ~20K input +
+  // ~11K output tokens across the extract/clues/judge/fact-sheet/title/teams
+  // calls. Prices from OpenRouter's catalog (OpenAI's list price for the same).
+  'gpt-6-luna': {
+    inputPrice: 0.10,
+    outputPrice: 0.50,
+    avgTokensPerGame: 31000,
+  },
+  // gpt-6.1-terra: same pipeline token profile assumed (not separately measured).
+  'gpt-6.1-terra': {
+    inputPrice: 1.00,
+    outputPrice: 5.00,
+    avgTokensPerGame: 31000,
+  },
   'openai/gpt-4o-mini': {
     inputPrice: 0.15,
     outputPrice: 0.60,
@@ -201,7 +216,7 @@ export function clearPricingCache(): void {
  */
 export function getModelPricing(modelId: string): ModelPricing | null {
   // Strip provider prefix if present
-  const modelIdWithoutPrefix = modelId.replace(/^(or:|ollama:)/, '');
+  const modelIdWithoutPrefix = modelId.replace(/^(or:|ollama:|openai:)/, '');
 
   return getPricingFromCache(modelIdWithoutPrefix);
 }

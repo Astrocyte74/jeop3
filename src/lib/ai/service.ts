@@ -328,27 +328,20 @@ export interface CategorySource {
   url: string;
 }
 
-/**
- * Search Wikipedia for a category title, then fetch the top article's text.
- * Returns null when there's no good match or the fetch fails/thins out — the
- * caller falls back to the AI fact-sheet in that case (see generateTopicSpan).
- *
- * Relevance is checked at two layers:
- *   1. Title-level: reject parenthetical disambiguators ("Roman Gods (album)")
- *      and disambiguation pages — catches cases where the title itself signals
- *      "not the primary topic".
- *   2. Content-level: when a game topic is provided, require the article's
- *      opening summary to share at least one significant word with the topic.
- *      This catches confident-but-wrong non-disambiguated matches — e.g.
- *      "Apple" in a "Fruit" game resolving to Apple Inc. (whose lead mentions
- *      "multinational technology company", not fruit). Without this, a
- *      primary-topic mismatch has no signal to reject it.
- *
- * @param query        Category title to ground (e.g. "Julio-Claudians")
- * @param authToken    Optional Clerk auth token
- * @param contextTopic Optional game topic (e.g. "Ancient Rome") used for the
- *                     content-level relevance check.
- */
+/** Lexical relevance is only a retrieval filter; final clues still require review. */
+export function sourceMatchesTopic(topic: string | undefined, title: string, text: string): boolean {
+  if (!topic?.trim() || topic.toLowerCase() === 'random') return true;
+  const filler = new Set(['famous', 'world', 'worlds', 'best', 'greatest', 'great', 'top', 'about',
+    'around', 'history', 'historical', 'facts', 'trivia', 'general', 'knowledge', 'popular', 'common',
+    'classic', 'modern', 'from', 'with', 'that', 'this', 'their', 'things', 'and', 'the', 'of']);
+  const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const topics = words(topic).filter(w => w.length > 2 && !filler.has(w));
+  const stem = (w: string) => w === 'roman' || w === 'rome' ? 'rome' : w.replace(/ies$/, 'y').replace(/(ch|sh|x|ss)es$/, '$1').replace(/s$/, '');
+  const leadWords = words(title + ' ' + text.slice(0, 1200));
+  return !topics.length || topics.some(w => leadWords.some(l => stem(l) === stem(w) || (w === 'tech' && l === 'technology')));
+}
+
+/** Search with the actual topic, inspect multiple hits, and reject wrong senses. */
 export async function searchAndFetchCategorySource(
   query: string,
   authToken?: string | null,
@@ -357,69 +350,34 @@ export async function searchAndFetchCategorySource(
   const apiBase = getAIApiBase();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
-
-  try {
-    // 1. OpenSearch for the best article title.
-    const sr = await fetch(`${apiBase}/search-wikipedia`, {
-      method: 'POST', headers, body: JSON.stringify({ query }),
-    });
-    if (!sr.ok) return null;
-    const sdata = await sr.json();
-    const results: Array<{ title?: string; snippet?: string; url?: string }> = sdata?.results || [];
-    if (!results.length || !results[0]?.url) return null;
-    const top = results[0];
-
-    // 2. Title-level relevance guard. A parenthetical in the article title
-    //    ("Roman Gods (album)", "Mercury (planet)") means this is NOT the
-    //    primary topic — the query likely intended something else, so reject
-    //    and let the fact-sheet handle it. Disambiguation pages rejected too.
-    const topTitle = top.title || '';
-    const queryHasParen = /[()]/.test(query);
-    const hasParenDisambig = !queryHasParen && /\(/.test(topTitle);
-    const isDisambigPage = /disambiguation/i.test(topTitle) || /\(disambiguation\)/i.test(topTitle);
-    if (hasParenDisambig || isDisambigPage) return null;
-
-    // 3. Fetch the article's plain-text extract.
-    const fr = await fetch(`${apiBase}/fetch-article`, {
-      method: 'POST', headers, body: JSON.stringify({ url: top.url }),
-    });
-    if (!fr.ok) return null;
-    const fdata = await fr.json();
-    // Reject thin extracts — too short to mine for 5 specific answers.
-    if (typeof fdata?.text !== 'string' || fdata.text.length < 400) return null;
-
-    // 4. Content-level relevance guard, scoped to SHORT/AMBIGUOUS queries only.
-    //    For specific multi-word queries ("Julio-Claudians") the title-level
-    //    guards above are sufficient — the article is almost certainly about
-    //    that exact thing. The content guard only kicks in when the query is a
-    //    short, common-word title ("Apple", "Mercury", "Jupiter") that has
-    //    many senses and whose primary Wikipedia topic may be the wrong one.
-    //    In that case, require the game topic's significant words to appear in
-    //    the article's lead — so "Apple" + "Fruit" rejects Apple Inc. (whose
-    //    lead mentions "technology company", not fruit), while "Apple" +
-    //    "Tech Companies" accepts it.
-    const queryWords = query.toLowerCase()
-      .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2);
-    // Only single-common-word queries ("Apple", "Jupiter", "Mercury") get the
-    // content check — these are the ones with wrong-sense primary-topic risk.
-    // Multi-word queries ("Julio-Claudians", "Roman Gods") are specific enough
-    // that the title-level guard suffices, and content overlap is fragile
-    // (stemming/plurals) — false rejections here would send good categories to
-    // the weaker fact-sheet, which is worse than accepting the right article.
-    const isAmbiguous = queryWords.length === 1;
-    if (isAmbiguous && contextTopic && contextTopic.trim() && contextTopic.toLowerCase() !== 'random') {
-      const lead = fdata.text.slice(0, 600).toLowerCase();
-      const topicWords = contextTopic.toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ').split(/\s+/)
-        .filter(w => w.length > 3);
-      const overlaps = topicWords.some(w => lead.includes(w));
-      if (!overlaps) return null;
-    }
-
-    return { text: fdata.text, title: top.title || query, url: top.url! };
-  } catch {
-    return null; // caller falls back to fact-sheet
+  const scoped = contextTopic?.trim() && contextTopic.toLowerCase() !== 'random';
+  const queries = scoped ? [`${contextTopic} ${query}`, contextTopic!] : [query];
+  const seen = new Set<string>();
+  for (const searchQuery of queries) {
+    try {
+      const sr = await fetch(`${apiBase}/search-wikipedia`, {
+        method: 'POST', headers, body: JSON.stringify({ query: searchQuery }), signal: AbortSignal.timeout(20000),
+      });
+      if (!sr.ok) continue;
+      const sdata = await sr.json();
+      const results: Array<{ title?: string; url?: string }> = Array.isArray(sdata?.results) ? sdata.results : [];
+      for (const hit of results.slice(0, 3)) {
+        if (!hit.url || seen.has(hit.url) || /disambiguation/i.test(hit.title || '')) continue;
+        seen.add(hit.url);
+        try {
+          const fr = await fetch(`${apiBase}/fetch-article`, {
+            method: 'POST', headers, body: JSON.stringify({ url: hit.url }), signal: AbortSignal.timeout(20000),
+          });
+          if (!fr.ok) continue;
+          const data = await fr.json();
+          if (typeof data?.text !== 'string' || data.text.length < 400) continue;
+          if (!sourceMatchesTopic(contextTopic, hit.title || '', data.text)) continue;
+          return { text: data.text, title: hit.title || query, url: hit.url };
+        } catch { /* Try the next candidate. */ }
+      }
+    } catch { /* The caller can still try a fact-sheet when retrieval fails. */ }
   }
+  return null;
 }
 
 /**
