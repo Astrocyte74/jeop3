@@ -581,7 +581,6 @@ export function App() {
               currentResponse={currentSnakeData.currentResponse}
               teams={gameState.teams}
               activeTeamId={gameState.activeTeamId}
-              currentMode={getGlobalGameMode()}
               onClose={() => setTriviaSnake({ isOpen: false, categoryIndex: 0, clueIndex: 0 })}
               onGameComplete={handleSnakeGameComplete}
               onModeChange={handleGameModeChange}

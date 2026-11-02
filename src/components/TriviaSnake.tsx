@@ -15,7 +15,6 @@ interface TriviaSnakeProps {
   currentResponse: string;
   teams: Team[];
   activeTeamId: string;
-  currentMode: GameMode;
   onClose: () => void;
   onGameComplete: (wasCorrect: boolean, teamId: string) => void;
   onModeChange?: (mode: GameMode) => void;
@@ -115,7 +114,6 @@ export function TriviaSnake({
   currentResponse,
   teams,
   activeTeamId,
-  currentMode,
   onClose,
   onGameComplete,
   onModeChange,
@@ -705,7 +703,7 @@ export function TriviaSnake({
           </span>
           {onModeChange && (
             <GameModeMenu
-              currentMode={currentMode}
+              currentMode="snake"
               onModeChange={(mode) => {
                 if (mode === 'regular') {
                   onClose();
