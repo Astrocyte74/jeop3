@@ -10,8 +10,13 @@ import { useFitText } from '@/components/clue/useFitText';
 import { ThinkTimer } from '@/components/clue/ThinkTimer';
 import { TeamTiles } from '@/components/clue/TeamTiles';
 import { formatMoney } from '@/components/clue/format';
+import { DailyDoubleSplash } from '@/components/clue/DailyDoubleSplash';
+import { WagerPanel } from '@/components/clue/WagerPanel';
+import { DailyDoubleScoring } from '@/components/clue/DailyDoubleScoring';
+import { wagerCap } from '@/components/clue/wager';
 import { recentTileRect } from '@/components/clue/tileOrigin';
 import '@/components/clue/clue.css';
+import '@/components/clue/dailyDouble.css';
 
 interface ClueDialogProps {
   isOpen: boolean;
@@ -23,8 +28,13 @@ interface ClueDialogProps {
   activeTeamId: string;
   globalGameMode?: GameMode;
   onClose: () => void;
-  onMarkCorrect: (teamId: string) => void;
-  onMarkIncorrect: (teamId: string) => void;
+  /** `amount` overrides the clue value (Daily Double wagers). */
+  onMarkCorrect: (teamId: string, amount?: number) => void;
+  onMarkIncorrect: (teamId: string, amount?: number) => void;
+  /** This clue is a Daily Double: the active team wagers, only they answer, no steal. */
+  dailyDouble?: boolean;
+  /** Highest clue value on the board; caps wagers at max(team score, this). */
+  boardMaxValue?: number;
   onSetActiveTeam: (teamId: string) => void;
   onSwitchToSnake?: () => void;
   snakeGameResult?: { wasCorrect: boolean | null; teamId: string | null } | null;
@@ -51,6 +61,10 @@ function isTextField(t: EventTarget | null): boolean {
   return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
 }
 
+/** How long the DAILY DOUBLE! splash holds before the wager step opens. */
+const DD_SPLASH_MS = 2800;
+type DdPhase = 'splash' | 'wager' | 'play';
+
 const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 export function ClueDialog({
@@ -68,6 +82,8 @@ export function ClueDialog({
   onSetActiveTeam,
   onSwitchToSnake,
   snakeGameResult,
+  dailyDouble = false,
+  boardMaxValue,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
   const ttsSettings = getTTSSettings();
@@ -94,21 +110,47 @@ export function ClueDialog({
   const settleTimer = useRef<number | undefined>(undefined);
   const [timerSecs, setTimerSecs] = useState(loadTimerSecs);
 
+  // --- Daily Double state --------------------------------------------------
+  // splash -> wager (active team) -> play (clue revealed, wagering team scores).
+  // Reset synchronously when a clue opens so the hidden clue never flashes.
+  const dd = dailyDouble && teams.length > 0;
+  const openSig = isOpen ? `${categoryTitle}\u0000${clue}\u0000${response}` : '';
+  const [prevSig, setPrevSig] = useState('');
+  const [ddPhase, setDdPhase] = useState<DdPhase>('play');
+  const [wagerText, setWagerText] = useState('');
+  const [lockedWager, setLockedWager] = useState<number | null>(null);
+  const [lockedTeamId, setLockedTeamId] = useState<string | null>(null);
+  const [ddOutcome, setDdOutcome] = useState<'correct' | 'incorrect' | null>(null);
+  if (openSig !== prevSig) {
+    setPrevSig(openSig);
+    if (isOpen) {
+      setDdPhase(dd ? 'splash' : 'play');
+      setWagerText('');
+      setLockedWager(null);
+      setLockedTeamId(null);
+      setDdOutcome(null);
+    }
+  }
+  const ddPre = dd && ddPhase !== 'play';
+  const wagerTeamIdx = Math.max(0, teams.findIndex((t) => t.id === (lockedTeamId ?? activeTeamId)));
+  const wagerTeam: Team | undefined = teams[wagerTeamIdx];
+  const cap = wagerCap(wagerTeam?.score ?? 0, boardMaxValue);
+
   // Latest props for deferred callbacks
   const latest = useRef({ onMarkCorrect, onMarkIncorrect, onSetActiveTeam, onClose });
   useEffect(() => {
     latest.current = { onMarkCorrect, onMarkIncorrect, onSetActiveTeam, onClose };
   });
 
-  const hasSnakeResult = !!snakeGameResult && snakeGameResult.wasCorrect !== null;
+  const hasSnakeResult = !dailyDouble && !!snakeGameResult && snakeGameResult.wasCorrect !== null;
 
   // Auto-show response and set active team when coming from snake game
   useEffect(() => {
-    if (isOpen && snakeGameResult && snakeGameResult.wasCorrect !== null && snakeGameResult.teamId) {
+    if (isOpen && !dailyDouble && snakeGameResult && snakeGameResult.wasCorrect !== null && snakeGameResult.teamId) {
       setShowResponse(true);
       onSetActiveTeam(snakeGameResult.teamId);
     }
-  }, [isOpen, snakeGameResult, onSetActiveTeam]);
+  }, [isOpen, dailyDouble, snakeGameResult, onSetActiveTeam]);
 
   // Auto-read clue when dialog opens if enabled
   const hasTriggeredAutoReadRef = useRef(false);
@@ -120,13 +162,15 @@ export function ClueDialog({
       return;
     }
 
-    if (isOpen && ttsActuallyEnabled && ttsSettings.autoRead && !snakeGameResult && !hasTriggeredAutoReadRef.current) {
+    // Daily Doubles stay silent until the wager is locked and the clue is revealed.
+    const readable = dailyDouble ? ddPhase === 'play' : !snakeGameResult;
+    if (isOpen && ttsActuallyEnabled && ttsSettings.autoRead && readable && !hasTriggeredAutoReadRef.current) {
       console.log('[ClueDialog] Triggering auto-read');
       hasTriggeredAutoReadRef.current = true;
       // Immediate playback - no delay needed
       playClue();
     }
-  }, [isOpen, ttsActuallyEnabled, ttsSettings.autoRead, snakeGameResult, playClue]);
+  }, [isOpen, ttsActuallyEnabled, ttsSettings.autoRead, snakeGameResult, dailyDouble, ddPhase, playClue]);
 
   // Preload answer when response is shown (if not already loaded)
   useEffect(() => {
@@ -144,7 +188,7 @@ export function ClueDialog({
   useEffect(() => {
     if (isOpen) {
       // Only reset showResponse if NOT coming from snake game
-      if (!snakeGameResult || snakeGameResult.wasCorrect === null) {
+      if (dailyDouble || !snakeGameResult || snakeGameResult.wasCorrect === null) {
         setShowResponse(false);
       }
       setShowMatchedKeywords(false);
@@ -163,14 +207,29 @@ export function ClueDialog({
       const answerMatches = iconMatcher.findMatches(clue, response, categoryTitle, 5);
       setAnswerIcons(answerMatches);
     }
-  }, [isOpen, clue, response, categoryTitle, snakeGameResult]);
+  }, [isOpen, clue, response, categoryTitle, snakeGameResult, dailyDouble]);
 
   useEffect(() => () => window.clearTimeout(settleTimer.current), []);
 
-  // Takeover opening sound
+  // Takeover opening sound (Daily Doubles get the fanfare splash instead)
   useEffect(() => {
-    if (isOpen) playSfx('whoosh');
+    if (isOpen && !dd) playSfx('whoosh');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, clue]);
+
+  // Daily Double splash: fanfare, then hand over to the wager step.
+  useEffect(() => {
+    if (!isOpen || ddPhase !== 'splash') return;
+    playSfx('fanfare');
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const t = window.setTimeout(() => setDdPhase('wager'), reduced ? 1400 : DD_SPLASH_MS);
+    return () => window.clearTimeout(t);
+  }, [isOpen, ddPhase]);
+
+  // Once the wager is locked the input unmounts; keep keyboard focus on the stage.
+  useEffect(() => {
+    if (isOpen && dd && ddPhase === 'play') stageRef.current?.focus({ preventScroll: true });
+  }, [isOpen, dd, ddPhase]);
 
   // Focus: move into the dialog on open, hand it back on close; lock page scroll.
   useEffect(() => {
@@ -206,8 +265,12 @@ export function ClueDialog({
     showResponseRef.current = showResponse;
   }, [showResponse]);
 
+  // Daily Double: ignore the reveal key while the clue is still animating in.
+  const revealOkAt = useRef(0);
+
   const reveal = useCallback(() => {
     if (showResponseRef.current) return;
+    if (Date.now() < revealOkAt.current) return;
     showResponseRef.current = true;
     setShowResponse(true);
     playSfx('reveal');
@@ -264,6 +327,39 @@ export function ClueDialog({
     [settling, missedIds, teams.length, settle],
   );
 
+  const skipSplash = useCallback(() => setDdPhase((p) => (p === 'splash' ? 'wager' : p)), []);
+
+  const lockWager = useCallback(
+    (amount: number) => {
+      if (!wagerTeam) return;
+      revealOkAt.current = Date.now() + 700;
+      setLockedWager(amount);
+      setLockedTeamId(wagerTeam.id);
+      setDdPhase('play');
+      playSfx('whoosh');
+    },
+    [wagerTeam],
+  );
+
+  /** Daily Double: only the wagering team is scored, for exactly the wager. */
+  const scoreDailyDouble = useCallback(
+    (correct: boolean) => {
+      if (settling || !showResponseRef.current || lockedWager === null || !lockedTeamId) return;
+      const teamId = lockedTeamId;
+      const amount = lockedWager;
+      setDdOutcome(correct ? 'correct' : 'incorrect');
+      setSettling(true);
+      playSfx(correct ? 'fanfare' : 'incorrect');
+      window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(() => {
+        const cb = latest.current;
+        if (correct) cb.onMarkCorrect(teamId, amount);
+        else cb.onMarkIncorrect(teamId, amount);
+      }, SETTLE_MS);
+    },
+    [settling, lockedWager, lockedTeamId],
+  );
+
   const closeWithMisses = useCallback(() => {
     if (settling || missedIds.length === 0) return;
     playSfx('select');
@@ -296,6 +392,15 @@ export function ClueDialog({
         return;
       }
 
+      // Daily Double before the clue: only the splash can be skipped
+      if (dd && ddPhase !== 'play') {
+        if (ddPhase === 'splash' && (e.key === ' ' || e.code === 'Space' || e.key === 'Enter')) {
+          e.preventDefault();
+          skipSplash();
+        }
+        return;
+      }
+
       if (e.key === ' ' || e.code === 'Space') {
         if (!showResponseRef.current) {
           e.preventDefault();
@@ -307,6 +412,14 @@ export function ClueDialog({
       const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
       if (digit && showResponseRef.current) {
         const team = teams[Number(digit[1]) - 1];
+        if (dd) {
+          // Only the wagering team's key counts; no one else can score or steal.
+          if (team && team.id === lockedTeamId) {
+            e.preventDefault();
+            scoreDailyDouble(!e.shiftKey);
+          }
+          return;
+        }
         if (team) {
           e.preventDefault();
           if (e.shiftKey) deductTeam(team.id);
@@ -339,7 +452,7 @@ export function ClueDialog({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showResponse, clueIcons, answerIcons, currentClueIconIndex, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam]);
+  }, [isOpen, showResponse, clueIcons, answerIcons, currentClueIconIndex, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble]);
 
   // Keep Tab inside the dialog
   const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -367,8 +480,8 @@ export function ClueDialog({
   };
 
   // Auto-fit clue/answer type
-  useFitText(clueFitRef, clueTextRef, [isOpen, clue], { min: 22, max: 240 });
-  useFitText(answerFitRef, answerTextRef, [isOpen, response, showResponse], { min: 22, max: 200 });
+  useFitText(clueFitRef, clueTextRef, [isOpen, clue, ddPhase], { min: 22, max: 240 });
+  useFitText(answerFitRef, answerTextRef, [isOpen, response, showResponse, ddPhase], { min: 22, max: 200 });
 
   const cycleTimer = () => {
     const next = TIMER_OPTIONS[(TIMER_OPTIONS.indexOf(timerSecs) + 1) % TIMER_OPTIONS.length];
@@ -399,14 +512,19 @@ export function ClueDialog({
       tabIndex={-1}
       data-origin={originRect ? 'tile' : 'none'}
       data-reveal={showResponse}
+      data-dd={dd}
+      data-dd-phase={dd ? ddPhase : undefined}
       style={originStyle}
       onKeyDown={trapTab}
     >
       {/* Header */}
       <header className="cs-top">
-        <div className="cs-value" aria-label={`${value} dollars`}>
-          ${value}
-        </div>
+        {dd && <div className="dd-badge">Daily Double</div>}
+        {!ddPre && (
+          <div className="cs-value" aria-label={dd ? `Wager ${lockedWager ?? 0} dollars` : `${value} dollars`}>
+            ${dd ? (lockedWager ?? 0) : value}
+          </div>
+        )}
         <h2 id={titleId} className="cs-cat">
           {categoryTitle}
         </h2>
@@ -476,7 +594,30 @@ export function ClueDialog({
         </div>
       </header>
 
-      <main className="cs-main">
+      {ddPre && (
+        <main className="dd-main">
+          {ddPhase === 'splash' ? (
+            <DailyDoubleSplash categoryTitle={categoryTitle} onSkip={skipSplash} />
+          ) : (
+            wagerTeam && (
+              <WagerPanel
+                key={wagerTeam.id}
+                team={wagerTeam}
+                teamIndex={wagerTeamIdx}
+                cap={cap}
+                text={wagerText}
+                onTextChange={setWagerText}
+                onLock={lockWager}
+                onCancel={() => latest.current.onClose()}
+                onQuick={() => playSfx('select')}
+              />
+            )
+          )}
+        </main>
+      )}
+
+      {!ddPre && (
+      <main className={dd ? 'cs-main dd-clue-in' : 'cs-main'}>
         {/* Clue */}
         <section className="cs-clue-zone" aria-label="Clue">
           {activeIcon && (
@@ -591,7 +732,18 @@ export function ClueDialog({
               </div>
             )}
 
-            {mustConfirmSteal && !settling && (
+            {dd && wagerTeam && lockedWager !== null && (
+              <DailyDoubleScoring
+                team={wagerTeam}
+                teamIndex={wagerTeamIdx}
+                wager={lockedWager}
+                outcome={ddOutcome}
+                onCorrect={() => scoreDailyDouble(true)}
+                onIncorrect={() => scoreDailyDouble(false)}
+              />
+            )}
+
+            {!dd && mustConfirmSteal && !settling && (
               <div className="cs-steal-bar" role="status">
                 <p>
                   {missedIds.map(teamName).join(', ')} missed ({formatMoney(-value)}).
@@ -608,7 +760,7 @@ export function ClueDialog({
               </div>
             )}
 
-            {teams.length > 0 ? (
+            {dd ? null : teams.length > 0 ? (
               <TeamTiles
                 teams={teams}
                 value={value}
@@ -626,9 +778,28 @@ export function ClueDialog({
           </div>
         </section>
       </main>
+      )}
 
       <footer className="cs-hints" aria-hidden="true">
-        {!showResponse ? (
+        {ddPre ? (
+          ddPhase === 'splash' ? (
+            <>
+              <span><kbd>Space</kbd> skip</span>
+              <span><kbd>Esc</kbd> close</span>
+            </>
+          ) : (
+            <>
+              <span><kbd>Enter</kbd> lock in wager</span>
+              <span><kbd>Esc</kbd> close without scoring</span>
+            </>
+          )
+        ) : dd && showResponse ? (
+          <>
+            <span><kbd>{wagerTeamIdx + 1}</kbd> correct</span>
+            <span><kbd>Shift</kbd> + <kbd>{wagerTeamIdx + 1}</kbd> incorrect</span>
+            <span><kbd>Esc</kbd> close without scoring</span>
+          </>
+        ) : !showResponse ? (
           <>
             <span><kbd>Space</kbd> show answer</span>
             <span><kbd>Esc</kbd> close</span>

@@ -3,6 +3,7 @@ import { MainMenu } from '@/components/MainMenu';
 import { GameBoard } from '@/components/GameBoard';
 import { ClueDialog } from '@/components/ClueDialog';
 import { TriviaSnake } from '@/components/TriviaSnake';
+import { FinalJeopardy } from '@/components/FinalJeopardy';
 import { EditorBoard } from '@/components/EditorBoard';
 import { AIToastContainer } from '@/components/ai';
 import { useAIToast } from '@/lib/ai';
@@ -10,6 +11,7 @@ import type { Game, GameState } from '@/lib/storage';
 import { loadGameState, saveGameState, setSelectedGameId, saveCustomGames, loadCustomGames } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
 import { iconMatcher } from '@/lib/iconMatcher';
+import { applyClueResult, applyFinalResults, boardMaxValue, createInitialState, type FinalOutcome } from '@/lib/gameState';
 import { type GameMode } from '@/components/GameModeMenu';
 
 type AppMode = 'menu' | 'playing' | 'editing' | 'ai-preview-editing';
@@ -27,6 +29,8 @@ export function App() {
   const [mode, setMode] = useState<AppMode>('menu');
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
+  // Library game being edited from the menu (no play session, so `gameId` is unset)
+  const [editorGameId, setEditorGameId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [clueDialog, setClueDialog] = useState<{
     isOpen: boolean;
@@ -84,12 +88,7 @@ export function App() {
             ]
           : defaultTeams;
 
-        const initialState = {
-          used: {},
-          teams,
-          activeTeamId: '1',
-          currentRound: 1,
-        };
+        const initialState = createInitialState(currentGame, teams);
         setGameState(initialState);
         saveGameState(gameId, initialState);
       }
@@ -116,12 +115,10 @@ export function App() {
       setGameState(savedState);
     } else if (teams && teams.length > 0) {
       // Only create new state if teams are passed AND no saved state exists
-      const initialState = {
-        used: {},
-        teams: teams.map(t => ({ ...t, score: 0 })), // Reset scores to 0
-        activeTeamId: teams[0]?.id || '1',
-        currentRound: 1,
-      };
+      const initialState = createInitialState(
+        game,
+        teams.map(t => ({ ...t, score: 0 })), // Reset scores to 0
+      );
       setGameState(initialState);
       saveGameState(selectedGameId, initialState);
     }
@@ -142,7 +139,9 @@ export function App() {
     // Check global game mode
     const globalGameMode = getGlobalGameMode();
 
-    if (globalGameMode === 'snake') {
+    const isDailyDouble = !!gameState.dailyDoubles?.includes(clueId);
+
+    if (globalGameMode === 'snake' && !isDailyDouble) {
       // Global Snake mode: open TriviaSnake directly
       // Store the clue info in case user wants to switch back to Regular mode
       setTriviaSnake({
@@ -187,44 +186,48 @@ export function App() {
     // If mode is 'snake', we're already in snake mode, so nothing to do
   }, [triviaSnake]);
 
-  const handleMarkCorrect = useCallback((teamId: string) => {
+  const handleMarkCorrect = useCallback((teamId: string, amount?: number) => {
     if (!gameState || !currentGame || !clueDialog.isOpen) return;
 
     const [categoryId, clueIndex] = clueDialog.clueId.split(':').map(Number);
     const clue = currentGame.categories[categoryId]?.clues[clueIndex];
     if (!clue) return;
 
+    const clueId = clueDialog.clueId;
+    const dailyDouble = !!gameState.dailyDoubles?.includes(clueId);
     setGameState((prev) => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        used: { ...prev.used, [clueDialog.clueId]: true },
-        teams: prev.teams.map((t) =>
-          t.id === teamId ? { ...t, score: t.score + clue.value } : t
-        ),
-      };
+      return applyClueResult(prev, {
+        clueId,
+        teamId,
+        correct: true,
+        amount: amount ?? clue.value,
+        dailyDouble,
+      });
     });
 
     setClueDialog({ isOpen: false, clueId: '' });
     setSnakeGameResult(null); // Reset after marking
   }, [gameState, currentGame, clueDialog]);
 
-  const handleMarkIncorrect = useCallback((teamId: string) => {
+  const handleMarkIncorrect = useCallback((teamId: string, amount?: number) => {
     if (!gameState || !currentGame || !clueDialog.isOpen) return;
 
     const [categoryId, clueIndex] = clueDialog.clueId.split(':').map(Number);
     const clue = currentGame.categories[categoryId]?.clues[clueIndex];
     if (!clue) return;
 
+    const clueId = clueDialog.clueId;
+    const dailyDouble = !!gameState.dailyDoubles?.includes(clueId);
     setGameState((prev) => {
       if (!prev) return prev;
-      return {
-        ...prev,
-        used: { ...prev.used, [clueDialog.clueId]: true },
-        teams: prev.teams.map((t) =>
-          t.id === teamId ? { ...t, score: t.score - clue.value } : t
-        ),
-      };
+      return applyClueResult(prev, {
+        clueId,
+        teamId,
+        correct: false,
+        amount: amount ?? clue.value,
+        dailyDouble,
+      });
     });
 
     setClueDialog({ isOpen: false, clueId: '' });
@@ -335,12 +338,10 @@ export function App() {
     if (!currentGame || !gameState) return;
 
     // Reset the game state - clear used clues, reset scores
-    const resetState: GameState = {
-      used: {},
-      teams: gameState.teams.map(team => ({ ...team, score: 0 })),
-      activeTeamId: gameState.teams[0]?.id || '',
-      currentRound: 1,
-    };
+    const resetState: GameState = createInitialState(
+      currentGame,
+      gameState.teams.map(team => ({ ...team, score: 0 })),
+    );
 
     setGameState(resetState);
     if (gameId) {
@@ -348,41 +349,53 @@ export function App() {
     }
   }, [currentGame, gameState, gameId]);
 
+  /** Persist an edited game. Targets the game in play, else the library game being edited;
+   *  a brand-new game (no id yet) is added to the library. */
+  const persistEditedGame = useCallback((updatedGame: Game) => {
+    const games = loadCustomGames();
+    const targetId = gameId ?? editorGameId;
+    if (targetId) {
+      saveCustomGames(games.map(g =>
+        g.id === targetId
+          ? { ...g, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame }
+          : g
+      ));
+    } else {
+      const newId = `custom-${Date.now()}`;
+      saveCustomGames([
+        ...games,
+        {
+          id: newId,
+          title: updatedGame.title,
+          subtitle: updatedGame.subtitle || '',
+          source: 'custom',
+          game: updatedGame,
+          createdAt: new Date().toISOString(),
+          visibility: 'private',
+        },
+      ]);
+      setEditorGameId(newId);
+    }
+  }, [gameId, editorGameId]);
+
   const handleSaveGame = useCallback((updatedGame: Game) => {
     // Update the in-memory current game and persist to storage so Board
     // Editor edits survive a reload (previously only updated in-memory —
     // edits vanished on page refresh). Mirrors handleAIPreviewSave's logic.
     setCurrentGame(updatedGame);
-    if (gameId) {
-      const games = loadCustomGames();
-      const updatedGames = games.map(g =>
-        g.id === gameId
-          ? { ...g, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame }
-          : g
-      );
-      saveCustomGames(updatedGames);
-    }
+    persistEditedGame(updatedGame);
     // Saving from an editor opened off the main menu has no game in progress
     // to return to — 'playing' would render nothing, so go back to the menu.
     setMode(gameState ? 'playing' : 'menu');
-  }, [gameId, gameState]);
+  }, [persistEditedGame, gameState]);
 
   const handleAIPreviewSave = useCallback((updatedGame: Game) => {
     setCurrentGame(updatedGame);
-    if (gameId) {
-      // Update the game in the custom games list
-      const games = loadCustomGames();
-      const updatedGames = games.map(g =>
-        g.id === gameId
-          ? { ...g, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame }
-          : g
-      );
-      saveCustomGames(updatedGames);
-    }
+    persistEditedGame(updatedGame);
     // Saving from an editor opened off the main menu has no game in progress
     // to return to — 'playing' would render nothing, so go back to the menu.
     setMode(gameState ? 'playing' : 'menu');
-  }, [gameId, gameState]);
+  }, [persistEditedGame, gameState]);
 
   // Get current clue data for dialog
   const getCurrentClue = useCallback((): ClueData | null => {
@@ -405,6 +418,13 @@ export function App() {
   }, [clueDialog.isOpen, clueDialog.clueId, currentGame]);
 
   const currentClue = getCurrentClue();
+
+  const [finalOpen, setFinalOpen] = useState(false);
+  const handleStartFinal = useCallback(() => setFinalOpen(true), []);
+  const handleFinalComplete = useCallback((outcomes: FinalOutcome[]) => {
+    setGameState((prev) => (prev ? applyFinalResults(prev, outcomes) : prev));
+    setFinalOpen(false);
+  }, []);
 
   // Get current trivia snake data
   const getCurrentSnakeData = useCallback(() => {
@@ -434,7 +454,8 @@ export function App() {
       {mode === 'menu' && (
         <MainMenu
           onSelectGame={handleSelectGame}
-          onOpenEditor={(game?: Game) => {
+          onOpenEditor={(game?: Game, libraryGameId?: string) => {
+            setEditorGameId(libraryGameId ?? null);
             // Use the provided game or create a blank game for editing
             const editorGame = game || {
               title: 'New Game',
@@ -464,6 +485,8 @@ export function App() {
             onExit={handleExitToMenu}
             onToggleEditor={handleToggleEditor}
             onToggleAIPreviewEditor={handleToggleAIPreviewEditor}
+            finalAvailable={!!currentGame.finalJeopardy && !gameState.final?.done}
+            onStartFinal={handleStartFinal}
             onSetActiveTeam={handleSetActiveTeam}
             onResetBoard={handleResetBoard}
             onUpdateTeamName={handleUpdateTeamName}
@@ -490,6 +513,17 @@ export function App() {
               onSetActiveTeam={handleSetActiveTeam}
               onSwitchToSnake={handleSwitchToSnake}
               snakeGameResult={snakeGameResult}
+              dailyDouble={!!gameState.dailyDoubles?.includes(clueDialog.clueId)}
+              boardMaxValue={boardMaxValue(currentGame)}
+            />
+          )}
+          {currentGame.finalJeopardy && (
+            <FinalJeopardy
+              open={finalOpen}
+              final={currentGame.finalJeopardy}
+              teams={gameState.teams}
+              onComplete={handleFinalComplete}
+              onClose={() => setFinalOpen(false)}
             />
           )}
           {currentSnakeData && (
@@ -523,7 +557,8 @@ export function App() {
       {mode === 'ai-preview-editing' && currentGame && (
         <MainMenu
           onSelectGame={handleSelectGame}
-          onOpenEditor={(game?: Game) => {
+          onOpenEditor={(game?: Game, libraryGameId?: string) => {
+            setEditorGameId(libraryGameId ?? null);
             const editorGame = game || {
               title: 'New Game',
               subtitle: '',

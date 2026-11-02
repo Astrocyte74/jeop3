@@ -13,7 +13,7 @@ import {
 import { type GameMode } from '@/components/GameModeMenu';
 import { TTSSubmenu } from '@/components/tts/TTSSettings';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy } from 'lucide-react';
+import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy, Eye } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
@@ -37,6 +37,9 @@ interface GameBoardProps {
   onExit: () => void;
   onToggleEditor: () => void;
   onToggleAIPreviewEditor?: () => void;
+  /** The game has a Final Jeopardy clue that hasn't been played yet. */
+  finalAvailable?: boolean;
+  onStartFinal?: () => void;
   onSetActiveTeam: (teamId: string) => void;
   onResetBoard?: () => void;
   onUpdateTeamName?: (teamId: string, name: string) => void;
@@ -52,6 +55,8 @@ export function GameBoard({
   onExit,
   onToggleEditor,
   onToggleAIPreviewEditor,
+  finalAvailable = false,
+  onStartFinal,
   onSetActiveTeam,
   onResetBoard,
   onUpdateTeamName,
@@ -119,10 +124,18 @@ export function GameBoard({
 
   // Finale: shows when every clue is played; "View board" dismisses it until the board is reset
   const [finaleDismissed, setFinaleDismissed] = useState(false);
+  // With an unplayed Final Jeopardy the finale waits: the board shows a call to action instead
+  const [finalPromptDismissed, setFinalPromptDismissed] = useState(false);
+  const finalPending = allPlayed && finalAvailable && !!game.finalJeopardy && !!onStartFinal;
   useEffect(() => {
-    if (!allPlayed) setFinaleDismissed(false);
+    if (!allPlayed) {
+      setFinaleDismissed(false);
+      setFinalPromptDismissed(false);
+    }
   }, [allPlayed]);
-  const showFinale = allPlayed && !finaleDismissed;
+  const showFinale = allPlayed && !finalPending && !finaleDismissed;
+  const showFinalPrompt = finalPending && !finalPromptDismissed;
+  const reducedMotion = prefersReducedMotion();
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
@@ -348,13 +361,57 @@ export function GameBoard({
           onPlayAgain={onResetBoard}
           onBackToMenu={onExit}
           onViewBoard={() => setFinaleDismissed(true)}
+          state={state}
         />
+      )}
+      {showFinalPrompt && game.finalJeopardy && (
+        <div
+          className={`final-cta ${reducedMotion ? 'is-still' : ''}`}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Final Jeopardy"
+        >
+          <div className="finale-beams" aria-hidden="true" />
+          <div className="final-cta-inner">
+            <h2 className="final-cta-title">Final Jeopardy</h2>
+            <p className="final-cta-lead">Every clue is played. One round left, and every wager counts.</p>
+            <p className="final-cta-category" aria-label={`Category: ${game.finalJeopardy.category}`}>
+              {game.finalJeopardy.category}
+            </p>
+            <div className="final-cta-actions">
+              <Button
+                size="lg"
+                className="finale-btn finale-btn-primary"
+                onClick={onStartFinal}
+                autoFocus
+                style={{ background: 'var(--theme-gold, #ffd700)', color: '#1a1200' }}
+              >
+                Start Final Jeopardy
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="finale-btn border-white/30 bg-white/5 text-white hover:bg-white/15"
+                onClick={() => setFinalPromptDismissed(true)}
+              >
+                <Eye className="w-5 h-5" />
+                View board
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
       {/* Menu dropdown - top right, absolute positioned */}
       <div className="absolute top-4 right-4 z-10 flex gap-2">
-        {allPlayed && finaleDismissed && (
+        {allPlayed && !finalPending && finaleDismissed && (
           <Button variant="outline" size="sm" className="border-yellow-500/50 bg-slate-900/50 text-yellow-400" onClick={() => setFinaleDismissed(false)} aria-label="Show final results">
             <Trophy className="w-5 h-5" />
+          </Button>
+        )}
+        {finalPending && finalPromptDismissed && (
+          <Button variant="outline" size="sm" className="border-yellow-500/50 bg-slate-900/50 text-yellow-400" onClick={() => setFinalPromptDismissed(false)} aria-label="Show Final Jeopardy">
+            <Trophy className="w-5 h-5" />
+            Final Jeopardy
           </Button>
         )}
         {/* Home button */}

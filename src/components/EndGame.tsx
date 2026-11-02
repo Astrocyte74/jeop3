@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Crown, Eye, Home, RotateCcw } from 'lucide-react';
+import { Check, Crown, Eye, Home, RotateCcw, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { teamColor, teamInitials } from '@/lib/teamColors';
+import type { GameState } from '@/lib/storage';
+import { computeTeamStats, type TeamStats } from '@/lib/gameState';
 import { playSfx } from '@/lib/sfx';
 import { AnimatedScore, formatScore } from '@/components/board/AnimatedScore';
 import { Confetti } from '@/components/board/Confetti';
@@ -23,6 +25,8 @@ interface EndGameProps {
   onPlayAgain?: () => void;
   onBackToMenu: () => void;
   onViewBoard: () => void;
+  /** Full game state. When it carries a result log, per-team stats are shown; older saves without one hide them. */
+  state?: GameState;
 }
 
 interface Ranked extends EndGameTeam {
@@ -39,7 +43,7 @@ function joinNames(names: string[]): string {
 const BUILD_STEP_MS = 420;
 const REVEAL_PAD_MS = 650;
 
-export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAgain, onBackToMenu, onViewBoard }: EndGameProps) {
+export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAgain, onBackToMenu, onViewBoard, state }: EndGameProps) {
   const reduced = useReducedMotion();
 
   // Rank with ties sharing a place (1, 1, 3 ...)
@@ -119,15 +123,33 @@ export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAga
       : `wins with ${formatScore(topScore)}`;
   const accent = teamColor(winners[0]?.colorIndex ?? 0).main;
 
+  // Per-team stats come from the result log; saves that predate it simply show none
+  const teamStats = useMemo(() => {
+    if (!state || !state.log || state.log.length === 0) return null;
+    const byTeam = new Map<string, TeamStats>(computeTeamStats(state).map((x) => [x.teamId, x]));
+    return byTeam;
+  }, [state]);
+  const dailyDoubles = useMemo(
+    () => (state?.log ?? []).filter((r) => r.dailyDouble),
+    [state],
+  );
+  const nameOf = (id: string) => teams.find((t) => t.id === id)?.name ?? 'A team';
+
   const stats: Array<{ value: string; label: string }> = [
     { value: String(cluesPlayed), label: cluesPlayed === 1 ? 'clue played' : 'clues played' },
     { value: formatScore(pointsInPlay), label: 'on the board' },
   ];
   if (margin !== null && margin > 0) stats.push({ value: formatScore(margin), label: 'winning margin' });
+  for (const dd of dailyDoubles) {
+    stats.push({
+      value: formatScore(Math.abs(dd.delta)),
+      label: dd.correct ? `${nameOf(dd.teamId)} won the Daily Double` : `${nameOf(dd.teamId)} lost the Daily Double`,
+    });
+  }
 
   return (
     <div
-      className={`finale ${revealed ? 'is-revealed' : ''} ${reduced ? 'is-still' : ''}`}
+      className={`finale ${revealed ? 'is-revealed' : ''} ${reduced ? 'is-still' : ''} ${teamStats ? 'has-teamstats' : ''}`}
       role="dialog"
       aria-modal="true"
       aria-label="Final results"
@@ -201,6 +223,56 @@ export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAga
             );
           })}
         </div>
+
+        {teamStats && (
+          <ul className="finale-teamstats" aria-label="Team stats">
+            {podium.map((t) => {
+              const st = teamStats.get(t.id);
+              if (!st) return null;
+              const c = teamColor(t.colorIndex);
+              const wager = state?.final?.wagers[t.id];
+              const finalRight = state?.final?.results[t.id];
+              const answered = st.correct + st.incorrect;
+              return (
+                <li
+                  key={t.id}
+                  className="team-stat"
+                  style={{ ['--tc' as string]: c.main, ['--tc-soft' as string]: c.soft }}
+                  aria-label={`${t.name} stats`}
+                >
+                  <span className="team-stat-name">{t.name}</span>
+                  <div className="team-stat-record">
+                    <span className="team-stat-right" aria-label={`${st.correct} correct`}>
+                      <Check className="w-5 h-5" strokeWidth={3.2} aria-hidden="true" />
+                      {st.correct}
+                    </span>
+                    <span className="team-stat-wrong" aria-label={`${st.incorrect} incorrect`}>
+                      <X className="w-5 h-5" strokeWidth={3.2} aria-hidden="true" />
+                      {st.incorrect}
+                    </span>
+                    {st.accuracy !== null && answered > 0 && (
+                      <span className="team-stat-acc">{Math.round(st.accuracy * 100)}% accuracy</span>
+                    )}
+                  </div>
+                  {(st.dailyDoubleHit || (wager !== undefined && finalRight !== undefined)) && (
+                    <div className="team-stat-badges">
+                      {st.dailyDoubleHit && (
+                        <span className="team-stat-badge is-dd">
+                          <Star className="w-4 h-4" aria-hidden="true" /> Daily Double hit
+                        </span>
+                      )}
+                      {wager !== undefined && finalRight !== undefined && (
+                        <span className={`team-stat-badge ${finalRight ? 'is-win' : 'is-loss'}`}>
+                          {wager === 0 ? 'Final Jeopardy: wagered $0' : `Final Jeopardy ${finalRight ? 'won' : 'lost'} ${formatScore(wager)}`}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
 
         <ul className="finale-stats" aria-label="Game stats">
           {stats.map((s) => (

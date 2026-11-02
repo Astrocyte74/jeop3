@@ -9,6 +9,9 @@ export type Clue = {
    *  survives reloads. Used by the Board Editor for cell tinting + AI badges. */
   provenance?: string;
   verification?: ClueVerification;
+  /** Author-pinned Daily Double. If no clue in the game sets this, the game
+   *  picks random Daily Double position(s) when a board starts (see gameState.ts). */
+  dailyDouble?: boolean;
 };
 
 export type Category = {
@@ -45,6 +48,14 @@ export type Game = {
   rows?: number;
   suggestedTeamNames?: string[];
   metadata?: GameMetadata;
+  /** Optional closing round. When present, the finale is preceded by Final Jeopardy. */
+  finalJeopardy?: FinalJeopardyClue;
+};
+
+export type FinalJeopardyClue = {
+  category: string;
+  clue: string;
+  response: string;
 };
 
 export type Team = {
@@ -53,11 +64,34 @@ export type Team = {
   score: number;
 };
 
+/** One scored outcome, appended whenever a clue is awarded or deducted. */
+export type ClueResult = {
+  /** "<categoryIndex>:<clueIndex>", or "final" for Final Jeopardy */
+  clueId: string;
+  teamId: string;
+  correct: boolean;
+  /** Points actually applied (positive for correct, negative for incorrect) */
+  delta: number;
+  dailyDouble?: boolean;
+};
+
+export type FinalState = {
+  done: boolean;
+  wagers: Record<string, number>;
+  results: Record<string, boolean>;
+};
+
 export type GameState = {
   used: Record<string, boolean>;
   teams: Team[];
   activeTeamId: string;
   currentRound: number;
+  /** clueIds that are Daily Doubles for this play-through. Absent on older saves = none. */
+  dailyDoubles?: string[];
+  /** Every scored outcome, in order. Absent on older saves; stats must tolerate that. */
+  log?: ClueResult[];
+  /** Final Jeopardy outcome once played. */
+  final?: FinalState;
 };
 
 export type GameVisibility = 'public' | 'private';

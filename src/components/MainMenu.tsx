@@ -48,7 +48,8 @@ import { summarizeGame, lobbyVars } from './lobby/gameInfo';
 
 interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
-  onOpenEditor: (game?: Game) => void;
+  /** `gameId` is the library game's id when editing an existing one (so saves persist). */
+  onOpenEditor: (game?: Game, gameId?: string) => void;
   editGame?: Game | null;
   onAIPreviewSave?: (game: Game) => void;
 }
@@ -2530,7 +2531,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                             onSelectGame(game.id, fullGameFor(game), teams);
                           }}
                           onEditAI={() => handleEditWithAIPreview(fullGameFor(game))}
-                          onEditBoard={() => onOpenEditor(fullGameFor(game))}
+                          onEditBoard={() => onOpenEditor(fullGameFor(game), game.id)}
                           onInfo={gameData?.game?.metadata ? () => setGameInfoMetadata(gameData?.game?.metadata) : undefined}
                           onExport={() => handleExportGame(game)}
                           onReset={() => handleResetGame(game.id)}
