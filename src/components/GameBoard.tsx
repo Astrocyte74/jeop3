@@ -36,7 +36,6 @@ interface GameBoardProps {
   onOpenClue: (categoryId: number, clueIndex: number) => void;
   onExit: () => void;
   onToggleEditor: () => void;
-  onToggleAIPreviewEditor?: () => void;
   /** The game has a Final Jeopardy clue that hasn't been played yet. */
   finalAvailable?: boolean;
   onStartFinal?: () => void;
@@ -57,7 +56,6 @@ export function GameBoard({
   onOpenClue,
   onExit,
   onToggleEditor,
-  onToggleAIPreviewEditor,
   finalAvailable = false,
   onStartFinal,
   canUndo = false,
@@ -495,12 +493,6 @@ export function GameBoard({
               <DropdownMenuItem onClick={onToggleEditor}>
                 <Edit className="w-4 h-4 mr-2 text-blue-400" />
                 <span>Edit game</span>
-              </DropdownMenuItem>
-            )}
-            {onToggleAIPreviewEditor && isSignedIn && (
-              <DropdownMenuItem onClick={onToggleAIPreviewEditor}>
-                <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                <span>Review with AI</span>
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />

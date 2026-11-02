@@ -131,3 +131,53 @@ export function computeTeamStats(state: GameState): TeamStats[] {
     };
   });
 }
+
+/**
+ * After editing a game that is in progress, categories may have been reordered or added. Match each
+ * new category to the old one it came from (most identical clue+answer pairs; ties prefer the same
+ * column) and remap the column index in `used`, `dailyDoubles` and the log, so played tiles and the
+ * Daily Double stay with their category. New categories start unplayed; a category that matches
+ * nothing (every clue rewritten) is treated as new.
+ */
+export function remapStateForEditedGame(oldGame: Game, newGame: Game, state: GameState): GameState {
+  const pairKey = (c: { clue: string; response: string }) => `${c.clue}\u0000${c.response}`;
+  const oldSets = oldGame.categories.map((cat) => new Set(cat.clues.filter((c) => c.clue || c.response).map(pairKey)));
+  const claimed = new Set<number>();
+  const oldToNew = new Map<number, number>();
+  newGame.categories.forEach((cat, ni) => {
+    let best = -1;
+    let bestScore = 0;
+    oldSets.forEach((set, oi) => {
+      if (claimed.has(oi)) return;
+      const score = cat.clues.filter((c) => (c.clue || c.response) && set.has(pairKey(c))).length;
+      if (score > bestScore || (score === bestScore && score > 0 && oi === ni)) {
+        best = oi;
+        bestScore = score;
+      }
+    });
+    if (best >= 0 && bestScore > 0) {
+      claimed.add(best);
+      oldToNew.set(best, ni);
+    }
+  });
+  // Identity mapping: nothing to do (the common case) — keep the same object.
+  if ([...oldToNew].every(([o, n]) => o === n) && oldGame.categories.length === newGame.categories.length) return state;
+
+  const remapId = (id: string): string | null => {
+    const [ci, ri] = id.split(':');
+    if (ri === undefined) return id; // e.g. "final"
+    const to = oldToNew.get(Number(ci));
+    return to === undefined ? null : `${to}:${ri}`;
+  };
+  const used: Record<string, boolean> = {};
+  for (const id of Object.keys(state.used)) {
+    const mapped = remapId(id);
+    if (mapped) used[mapped] = true;
+  }
+  return {
+    ...state,
+    used,
+    dailyDoubles: state.dailyDoubles?.map(remapId).filter((x): x is string => !!x),
+    log: state.log?.map((r) => ({ ...r, clueId: remapId(r.clueId) ?? r.clueId })),
+  };
+}

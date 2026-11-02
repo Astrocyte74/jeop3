@@ -11,10 +11,10 @@ import type { Game, GameState } from '@/lib/storage';
 import { loadGameState, saveGameState, setSelectedGameId, saveCustomGames, loadCustomGames } from '@/lib/storage';
 import { applyTheme, getStoredTheme } from '@/lib/themes';
 import { iconMatcher } from '@/lib/iconMatcher';
-import { applyClueResult, applyFinalResults, boardMaxValue, createInitialState, markClueUsed, type FinalOutcome } from '@/lib/gameState';
+import { applyClueResult, applyFinalResults, boardMaxValue, createInitialState, markClueUsed, remapStateForEditedGame, type FinalOutcome } from '@/lib/gameState';
 import { type GameMode } from '@/components/GameModeMenu';
 
-type AppMode = 'menu' | 'playing' | 'editing' | 'ai-preview-editing';
+type AppMode = 'menu' | 'playing' | 'editing';
 
 interface ClueData {
   categoryId: number;
@@ -367,16 +367,6 @@ export function App() {
     setMode((prev) => prev === 'editing' ? (gameState ? 'playing' : 'menu') : 'editing');
   }, [gameState]);
 
-  const handleToggleAIPreviewEditor = useCallback(() => {
-    // Need to pass the current game data to MainMenu for AI preview editing
-    // We set a flag so MainMenu knows to open AI preview with current game
-    if (currentGame) {
-      // Store the current game so MainMenu can use it
-      sessionStorage.setItem('aiPreviewGame', JSON.stringify(currentGame));
-    }
-    setMode('ai-preview-editing');
-  }, [currentGame]);
-
   const handleResetBoard = useCallback(() => {
     if (!currentGame || !gameState) return;
 
@@ -397,6 +387,13 @@ export function App() {
   const persistEditedGame = useCallback((updatedGame: Game) => {
     const games = loadCustomGames();
     const targetId = gameId ?? editorGameId;
+    if (targetId && !gameId) {
+      // Edited from the library: keep this game's saved play state (played tiles, Daily Double)
+      // attached to the right categories if they were reordered. In-play edits remap in memory.
+      const before = games.find(g => g.id === targetId)?.game;
+      const savedState = before ? loadGameState(targetId) : null;
+      if (before && savedState) saveGameState(targetId, remapStateForEditedGame(before, updatedGame, savedState));
+    }
     if (targetId) {
       saveCustomGames(games.map(g =>
         g.id === targetId
@@ -424,21 +421,21 @@ export function App() {
   const handleSaveGame = useCallback((updatedGame: Game) => {
     // Update the in-memory current game and persist to storage so Board
     // Editor edits survive a reload (previously only updated in-memory —
-    // edits vanished on page refresh). Mirrors handleAIPreviewSave's logic.
+    // edits vanished on page refresh).
+    if (currentGame && gameState) {
+      // Reordered/added categories: keep played tiles and the Daily Double with their category.
+      // Write storage first: the load-state effect re-reads it when currentGame changes, and would
+      // otherwise restore the pre-edit state over this one.
+      const remapped = remapStateForEditedGame(currentGame, updatedGame, gameState);
+      if (gameId) saveGameState(gameId, remapped);
+      setGameState(remapped);
+    }
     setCurrentGame(updatedGame);
     persistEditedGame(updatedGame);
     // Saving from an editor opened off the main menu has no game in progress
     // to return to — 'playing' would render nothing, so go back to the menu.
     setMode(gameState ? 'playing' : 'menu');
-  }, [persistEditedGame, gameState]);
-
-  const handleAIPreviewSave = useCallback((updatedGame: Game) => {
-    setCurrentGame(updatedGame);
-    persistEditedGame(updatedGame);
-    // Saving from an editor opened off the main menu has no game in progress
-    // to return to — 'playing' would render nothing, so go back to the menu.
-    setMode(gameState ? 'playing' : 'menu');
-  }, [persistEditedGame, gameState]);
+  }, [persistEditedGame, gameState, currentGame, gameId]);
 
   // Get current clue data for dialog
   const getCurrentClue = useCallback((): ClueData | null => {
@@ -526,7 +523,6 @@ export function App() {
             onOpenClue={handleOpenClue}
             onExit={handleExitToMenu}
             onToggleEditor={handleToggleEditor}
-            onToggleAIPreviewEditor={handleToggleAIPreviewEditor}
             finalAvailable={!!currentGame.finalJeopardy && !gameState.final?.done}
             onStartFinal={handleStartFinal}
             canUndo={undoStack.length > 0}
@@ -592,35 +588,10 @@ export function App() {
       {mode === 'editing' && currentGame && (
         <EditorBoard
           game={currentGame}
+          gameId={gameId ?? editorGameId}
           onSave={handleSaveGame}
           onExit={handleExitToMenu}
           onCancel={handleToggleEditor}
-        />
-      )}
-
-      {mode === 'ai-preview-editing' && currentGame && (
-        <MainMenu
-          onSelectGame={handleSelectGame}
-          onOpenEditor={(game?: Game, libraryGameId?: string) => {
-            setEditorGameId(libraryGameId ?? null);
-            const editorGame = game || {
-              title: 'New Game',
-              subtitle: '',
-              categories: Array.from({ length: 5 }, (_, i) => ({
-                title: `Category ${i + 1}`,
-                clues: Array.from({ length: 5 }, (_, j) => ({
-                  value: (j + 1) * 200,
-                  clue: '',
-                  response: '',
-                })),
-              })),
-              rows: 5,
-            };
-            setCurrentGame(editorGame);
-            setMode('editing');
-          }}
-          editGame={currentGame}
-          onAIPreviewSave={handleAIPreviewSave}
         />
       )}
     </>

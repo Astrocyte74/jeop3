@@ -52,8 +52,10 @@ interface MainMenuProps {
   onSelectGame: (gameId: string, game: any, teams?: Team[]) => void;
   /** `gameId` is the library game's id when editing an existing one (so saves persist). */
   onOpenEditor: (game?: Game, gameId?: string) => void;
-  editGame?: Game | null;
-  onAIPreviewSave?: (game: Game) => void;
+  /** Open the New Game wizard as soon as the menu mounts (the finale's "New game"). One-shot. */
+  startWithWizard?: boolean;
+  /** Called once `startWithWizard` has been acted on, so the caller can clear its flag. */
+  onStartWithWizardHandled?: () => void;
 }
 
 interface GeneratedGameData {
@@ -200,25 +202,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
 
   const { generate: aiGenerate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
 
-  // Ref to track if we need to open AI preview after component mounts
-  const pendingAIPreviewGame = useRef<Game | null>(null);
-
   useEffect(() => {
     loadGames();
-
-    // Check if we're coming from gameplay with AI preview editor
-    const storedGame = sessionStorage.getItem('aiPreviewGame');
-    if (storedGame) {
-      try {
-        const game = JSON.parse(storedGame) as Game;
-        // Clear the stored game so we don't re-open on every render
-        sessionStorage.removeItem('aiPreviewGame');
-        // Store for later - we'll open it after handleEditWithAIPreview is defined
-        pendingAIPreviewGame.current = game;
-      } catch (error) {
-        console.error('Failed to load stored game for AI preview:', error);
-      }
-    }
   }, []);
 
   // Load available AI models on mount
@@ -600,51 +585,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const handleCreateGameImport = () => {
     fileInputRef.current?.click();
   };
-
-  const handleEditWithAIPreview = (game: Game) => {
-    // Populate AI preview data with existing game data
-    const categories = game.categories.map(cat => ({
-      title: cat.title,
-      contentTopic: cat.title, // Use title as content topic
-      clues: cat.clues.map(clue => ({ ...clue,
-      })),
-    }));
-
-    const titles = game.title ? [{
-      title: game.title,
-      subtitle: game.subtitle || '',
-    }] : [];
-
-    const suggestedTeamNames = game.suggestedTeamNames || ['Team 1', 'Team 2'];
-
-    setGeneratedGameData({
-      game,
-      categories,
-      titles,
-      suggestedTeamNames,
-      theme: 'Custom',
-      difficulty: 'normal',
-    });
-
-    setAiPreviewData({
-      categories,
-      titles,
-      suggestedTeamNames,
-      finalJeopardy: game.finalJeopardy,
-    });
-
-    setAiPreviewType('categories-generate');
-    setAiPreviewOpen(true);
-    setSelectedGameId(null); // Don't select a game when editing
-  };
-
-  // Check for pending AI preview game from gameplay
-  useEffect(() => {
-    if (pendingAIPreviewGame.current) {
-      handleEditWithAIPreview(pendingAIPreviewGame.current);
-      pendingAIPreviewGame.current = null;
-    }
-  }, []);
 
   // Update teams when a game is selected
   useEffect(() => {
@@ -2602,7 +2542,6 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                             recordGamePlay(game.id);
                             onSelectGame(game.id, fullGameFor(game), teams);
                           }}
-                          onEditAI={() => handleEditWithAIPreview(fullGameFor(game))}
                           onEditBoard={() => onOpenEditor(fullGameFor(game), game.id)}
                           onInfo={gameData?.game?.metadata ? () => setGameInfoMetadata(gameData?.game?.metadata) : undefined}
                           onExport={() => handleExportGame(game)}

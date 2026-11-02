@@ -1,5 +1,5 @@
 import { VerificationBadge } from './ai/VerificationBadge';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, type DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,16 +24,19 @@ import { Badge } from '@/components/ui/badge';
 import type { Game, Category, Clue } from '@/lib/storage';
 import {
   Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen,
-  Eye, EyeOff, PencilLine, ChevronLeft, ChevronRight, Users, ChevronDown, Zap,
+  Eye, EyeOff, PencilLine, ChevronLeft, ChevronRight, Users, ChevronDown, Zap, GripVertical, History,
 } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
 import { generateContentSpan } from '@/lib/ai/board';
 import { FinalJeopardyPanel } from './editor/FinalJeopardyPanel';
 import { classifyFinal } from './editor/finalDraft';
+import { clearDraft, readDraft, relativeTime, writeDraft, type EditorDraft } from './editor/draft';
 import { EDITOR_NAME, StatusDot, StatusSummary, countStatuses, getClueStatus, readShowAnswers, writeShowAnswers } from './editor/clueStatus';
 
 interface EditorBoardProps {
   game: Game;
+  /** Library id of the game being edited (null/undefined = a brand-new game). Keys the autosaved draft. */
+  gameId?: string | null;
   onSave: (game: Game) => void;
   onExit: () => void;
   onCancel: () => void;
@@ -51,9 +54,20 @@ function withSavedFinal(g: Game, original: Game): Game {
   return next;
 }
 
+/** Autosave waits for this long after the last edit before writing the draft. */
+const DRAFT_DEBOUNCE_MS = 1500;
+
+/** Drop indicator: a bright bar on the edge of the column a dragged category would land beside. */
+const DROP_RING = {
+  before: 'shadow-[-5px_0_0_0_#facc15]',
+  after: 'shadow-[5px_0_0_0_#facc15]',
+} as const;
+
+type TitleIdea = { title: string; subtitle: string };
+
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
-export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps) {
+export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBoardProps) {
   const [editingGame, setEditingGame] = useState<Game>({ ...game });
   const [editingCell, setEditingCell] = useState<{ categoryId: number; clueIndex: number } | null>(null);
   // Which action a pending "unsaved changes" confirmation will run.
@@ -83,6 +97,17 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   // Empty until a category is regenerated in this session — alternatives don't
   // persist across reloads.
   const [alternatives, setAlternatives] = useState<NonNullable<import('@/lib/ai/board').ContentSpanResult['alternatives']>>([]);
+
+  // Title/subtitle suggestions (the same game-title prompt the new-game review uses).
+  const [titleMenuOpen, setTitleMenuOpen] = useState(false);
+  const [titleIdeas, setTitleIdeas] = useState<TitleIdea[]>([]);
+  const [titlesLoading, setTitlesLoading] = useState(false);
+
+  // Category drag-and-drop: the column being dragged and where it would land.
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dropAt, setDropAt] = useState<{ index: number; side: 'before' | 'after' } | null>(null);
+  // Spoken confirmation of a reorder, for screen readers.
+  const [reorderNote, setReorderNote] = useState('');
 
   const categories = editingGame.categories || [];
   const rowCount = editingGame.rows || categories[0]?.clues?.length || 5;
@@ -150,6 +175,79 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     setEditingGame((g) => (JSON.stringify(g.suggestedTeamNames) === JSON.stringify(names) ? g : { ...g, suggestedTeamNames: names }));
   }, [teams]);
 
+  // ==================== DRAFT AUTOSAVE ====================
+  // A draft of the in-progress game is written to localStorage shortly after each
+  // edit. It never touches the saved game, and is removed on Save / Discard.
+  // An unrestored draft found on open is offered back (non-blocking) before any
+  // autosave runs, so it can't be overwritten before the user decides.
+  const [restoreOffer, setRestoreOffer] = useState<EditorDraft | null>(() => {
+    const found = readDraft(gameId);
+    if (!found) return null;
+    // A draft identical to the saved game has nothing to offer.
+    return JSON.stringify(withSavedFinal(found.game, game)) === JSON.stringify(game) ? null : found;
+  });
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  // Set once the editor is being left (Save / Discard) so no late write resurrects the draft.
+  const draftClosed = useRef(false);
+  const closeDraft = () => {
+    draftClosed.current = true;
+    clearDraft(gameId);
+  };
+
+  // Drop a stale or unreadable draft left over from an earlier session.
+  useEffect(() => {
+    if (!restoreOffer) clearDraft(gameId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on open
+  }, []);
+
+  useEffect(() => {
+    if (restoreOffer || draftClosed.current) return;
+    if (!hasChanges) return;
+    const write = () => {
+      if (draftClosed.current) return;
+      const at = writeDraft(gameId, editingGame);
+      if (at) setDraftSavedAt(at);
+    };
+    const timer = window.setTimeout(write, DRAFT_DEBOUNCE_MS);
+    // Closing the tab inside the debounce window still keeps the latest edit.
+    const flush = () => { if (!draftClosed.current) writeDraft(gameId, editingGame); };
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [editingGame, hasChanges, restoreOffer, gameId]);
+
+  // Keep "saved 3 min ago" honest.
+  useEffect(() => {
+    if (draftSavedAt === null) return;
+    const id = window.setInterval(() => setNowTick(Date.now()), 20_000);
+    return () => window.clearInterval(id);
+  }, [draftSavedAt]);
+
+  const restoreDraft = () => {
+    if (!restoreOffer) return;
+    const draft = restoreOffer;
+    setEditingGame(draft.game);
+    const names = draft.game.suggestedTeamNames;
+    if (names && names.length > 0) {
+      setTeams(Array.from({ length: Math.max(2, names.length) }, (_, i) => ({
+        id: crypto.randomUUID(),
+        name: names[i] || `Team ${i + 1}`,
+      })));
+    }
+    setEditingCell(null);
+    setRestoreOffer(null);
+    setDraftSavedAt(draft.savedAt);
+    setNowTick(Date.now());
+  };
+
+  const dismissDraft = () => {
+    clearDraft(gameId);
+    setRestoreOffer(null);
+  };
+
   const toggleAnswers = () => {
     setShowAnswers((prev) => {
       const next = !prev;
@@ -164,12 +262,49 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     setEditingGame({ ...editingGame, categories: newCategories });
   };
 
-  const moveCategory = (index: number, delta: -1 | 1) => {
-    const target = index + delta;
-    if (target < 0 || target >= categories.length) return;
+  /** Move a whole category (title, clues, Daily Double pins, provenance) to a new column. */
+  const reorderCategory = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= categories.length || to >= categories.length) return;
     const newCategories = [...categories];
-    [newCategories[index], newCategories[target]] = [newCategories[target], newCategories[index]];
+    const [moved] = newCategories.splice(from, 1);
+    newCategories.splice(to, 0, moved);
     setEditingGame({ ...editingGame, categories: newCategories });
+    setEditingCell(null);
+    setReorderNote(`${moved.title || 'Category'} moved to position ${to + 1} of ${newCategories.length}`);
+  };
+
+  const moveCategory = (index: number, delta: -1 | 1) => reorderCategory(index, index + delta);
+
+  const endDrag = () => {
+    setDragFrom(null);
+    setDropAt(null);
+  };
+
+  /** Drop-target handlers for a column (its header and every clue cell share them). */
+  const columnDropProps = (index: number) => ({
+    onDragOver: (e: DragEvent<HTMLElement>) => {
+      if (dragFrom === null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = e.currentTarget.getBoundingClientRect();
+      const side = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+      setDropAt((prev) => (prev && prev.index === index && prev.side === side ? prev : { index, side }));
+    },
+    onDrop: (e: DragEvent<HTMLElement>) => {
+      if (dragFrom === null) return;
+      e.preventDefault();
+      const side = dropAt && dropAt.index === index ? dropAt.side : 'before';
+      const slot = side === 'before' ? index : index + 1;
+      reorderCategory(dragFrom, slot > dragFrom ? slot - 1 : slot);
+      endDrag();
+    },
+  });
+
+  /** Resulting position of a drop at (index, side), or null when it would not move the column. */
+  const dropIndicator = (index: number): 'before' | 'after' | null => {
+    if (dragFrom === null || !dropAt || dropAt.index !== index) return null;
+    const slot = dropAt.side === 'before' ? index : index + 1;
+    return slot === dragFrom || slot === dragFrom + 1 ? null : dropAt.side;
   };
 
   const updateClue = (categoryId: number, clueIndex: number, updates: Partial<Clue>) => {
@@ -223,6 +358,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
       window.setTimeout(() => document.getElementById(`final-${finalState.missing[0]}`)?.focus({ preventScroll: true }), 250);
       return;
     }
+    closeDraft();
     onSave(toSave);
   };
 
@@ -266,6 +402,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   const confirmLeave = () => {
     const kind = pendingLeave;
     setPendingLeave(null);
+    closeDraft();
     if (kind === 'discard') onCancel();
     else if (kind === 'menu') onExit();
   };
@@ -276,6 +413,47 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
   const updateGameSubtitle = (subtitle: string) => {
     setEditingGame({ ...editingGame, subtitle });
+  };
+
+  const fetchTitleIdeas = async () => {
+    if (!aiAvailable || titlesLoading) return;
+    setTitlesLoading(true);
+    try {
+      const sample = editingGame.categories
+        .map((cat) => {
+          const lines = cat.clues
+            .filter((c) => c.clue)
+            .slice(0, 2)
+            .map((c) => `  $${c.value} ${c.clue} (${c.response})`)
+            .join('\n');
+          return `${cat.title}\n${lines}`;
+        })
+        .join('\n\n');
+      const context: Record<string, unknown> = {
+        theme: editingGame.title || editingGame.categories.map((c) => c.title).join(', ') || 'general',
+        count: 3,
+        existingTitles: [
+          ...(editingGame.title ? [{ title: editingGame.title, subtitle: editingGame.subtitle || '' }] : []),
+          ...titleIdeas,
+        ],
+      };
+      if (sample.trim()) {
+        context.hasContent = true;
+        context.sampleContent = `Game Categories:\n\n${sample}`;
+      }
+      const result = await generate('game-title', context, 'normal');
+      if (result && typeof result === 'object' && 'titles' in result) {
+        const ideas = (result as { titles: TitleIdea[] }).titles.filter((t) => t.title?.trim());
+        if (ideas.length > 0) setTitleIdeas(ideas);
+      }
+    } finally {
+      setTitlesLoading(false);
+    }
+  };
+
+  const applyTitleIdea = (idea: TitleIdea) => {
+    setEditingGame((g) => ({ ...g, title: idea.title, subtitle: idea.subtitle }));
+    setTitleMenuOpen(false);
   };
 
   const handleAddTeam = () => {
@@ -609,6 +787,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
           </div>
           <div className="h-8 w-px shrink-0 bg-white/10" aria-hidden />
 
+          <div className="flex min-w-0 flex-1 items-center gap-1">
           <div className="min-w-0 flex-1">
             <Input
               aria-label="Game title"
@@ -625,6 +804,61 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               className="h-6 border-transparent bg-transparent px-2 text-sm text-slate-300 shadow-none hover:border-white/15 focus-visible:border-white/30 focus-visible:ring-0 md:text-sm"
             />
           </div>
+          {aiAvailable && (
+            <DropdownMenu
+              open={titleMenuOpen}
+              onOpenChange={(open) => {
+                setTitleMenuOpen(open);
+                if (open && titleIdeas.length === 0) void fetchTitleIdeas();
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Suggest titles"
+                  title="Suggest titles from the board's content"
+                  className="shrink-0 text-purple-300 hover:bg-purple-500/10 hover:text-purple-200"
+                >
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-80">
+                {titlesLoading && titleIdeas.length === 0 ? (
+                  <div className="flex items-center gap-2 px-2 py-2 text-sm text-slate-400" role="status">
+                    <RefreshCw className="h-4 w-4 animate-spin" aria-hidden /> Thinking up titles…
+                  </div>
+                ) : titleIdeas.length === 0 ? (
+                  <>
+                    <p className="px-2 py-2 text-sm text-slate-400">No suggestions came back.</p>
+                    <DropdownMenuItem onSelect={(e) => { e.preventDefault(); void fetchTitleIdeas(); }}>
+                      <RefreshCw className="h-4 w-4" aria-hidden /> Try again
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  titleIdeas.map((idea, i) => (
+                    <DropdownMenuItem key={`${idea.title}-${i}`} onClick={() => applyTitleIdea(idea)} className="flex-col items-start gap-0.5">
+                      <span className="font-medium">{idea.title}</span>
+                      {idea.subtitle && <span className="text-xs text-muted-foreground">{idea.subtitle}</span>}
+                    </DropdownMenuItem>
+                  ))
+                )}
+                {titleIdeas.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={titlesLoading}
+                      onSelect={(e) => { e.preventDefault(); void fetchTitleIdeas(); }}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${titlesLoading ? 'animate-spin' : ''}`} aria-hidden />
+                      {titlesLoading ? 'Working…' : 'More ideas'}
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          </div>
 
           <div className="flex shrink-0 items-center gap-2">
             <span
@@ -634,6 +868,11 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
             >
               <span className={`size-2 rounded-full ${hasChanges ? 'bg-amber-400' : 'bg-slate-600'}`} aria-hidden />
               {hasChanges ? 'Unsaved changes' : 'No changes'}
+              {hasChanges && draftSavedAt !== null && (
+                <span className="text-xs font-normal text-slate-400">
+                  · Draft saved {relativeTime(draftSavedAt, nowTick)}
+                </span>
+              )}
             </span>
 
             <Button
@@ -697,6 +936,33 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
           </div>
         </div>
       </header>
+
+      {/* Reorder confirmations for screen readers (drag, or the move buttons). */}
+      <div role="status" aria-live="polite" className="sr-only">{reorderNote}</div>
+
+      {restoreOffer && (
+        <div
+          role="region"
+          aria-label="Unsaved changes found"
+          className="border-b border-amber-400/25 bg-amber-400/10"
+        >
+          <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5 text-sm">
+            <History className="h-4 w-4 shrink-0 text-amber-300" aria-hidden />
+            <p className="min-w-0 flex-1 text-amber-100">
+              Restore unsaved changes from <span className="font-semibold">{relativeTime(restoreOffer.savedAt)}</span>?
+              <span className="ml-2 text-xs text-amber-200/70">Found from an earlier editing session; your saved game is unchanged.</span>
+            </p>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={restoreDraft} className="bg-amber-400 font-semibold text-black hover:bg-amber-300">
+                Restore
+              </Button>
+              <Button size="sm" variant="ghost" onClick={dismissDraft} className="text-amber-100 hover:bg-white/10">
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="mx-auto max-w-[1680px] px-5 pb-12 pt-4">
         {/* Summary strip: legend for the dots on the cards, plus build info. */}
@@ -824,10 +1090,13 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
           >
             {categories.map((category, index) => {
               const catSource = (category as any)?.sourceType as string | undefined;
+              const indicator = dropIndicator(index);
               return (
                 <div
                   key={`h-${index}`}
-                  className="group/cat rounded-lg shadow-md"
+                  data-category-header
+                  {...columnDropProps(index)}
+                  className={`group/cat rounded-lg transition-opacity ${dragFrom === index ? 'opacity-40' : ''} ${indicator ? DROP_RING[indicator] : 'shadow-md'}`}
                   style={{ background: 'linear-gradient(145deg, var(--theme-primary, #0055a4), var(--theme-secondary, #003366))' }}
                 >
                   <div className="px-2 pt-2">
@@ -842,6 +1111,24 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                   </div>
                   <div className="flex items-center justify-between px-1.5 pb-1.5 pt-0.5">
                     <div className="flex items-center gap-0.5 opacity-60 transition-opacity group-hover/cat:opacity-100 group-focus-within/cat:opacity-100">
+                      <span
+                        draggable
+                        role="img"
+                        aria-label={`Drag to reorder ${category.title}`}
+                        title="Drag to reorder (or use the arrows)"
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('application/x-jeop3-category', String(index));
+                          const header = e.currentTarget.closest('[data-category-header]');
+                          if (header) e.dataTransfer.setDragImage(header, 24, 20);
+                          setDragFrom(index);
+                          setEditingCell(null);
+                        }}
+                        onDragEnd={endDrag}
+                        className="flex h-6 w-5 cursor-grab items-center justify-center rounded text-white/80 hover:bg-black/25 active:cursor-grabbing"
+                      >
+                        <GripVertical className="h-4 w-4" aria-hidden />
+                      </span>
                       <button
                         type="button"
                         onClick={() => moveCategory(index, -1)}
@@ -906,6 +1193,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                   : isCurated ? 'border-l-emerald-500/60'
                   : 'border-l-white/10';
                 const filled = !!clue?.clue;
+                const cellIndicator = dropIndicator(categoryIndex);
 
                 return (
                   <button
@@ -913,7 +1201,8 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                     key={`${categoryIndex}-${rowIndex}`}
                     aria-label={`Edit ${filled ? '' : 'empty '}clue, ${category.title} for ${value}${clue?.dailyDouble ? ', Daily Double' : ''}`}
                     onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}
-                    className={`group/card relative flex min-h-[100px] flex-col gap-1 rounded-md border border-l-[3px] p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${accent} ${
+                    {...columnDropProps(categoryIndex)}
+                    className={`group/card relative flex min-h-[100px] flex-col gap-1 rounded-md border border-l-[3px] p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${accent} ${dragFrom === categoryIndex ? 'opacity-40' : ''} ${cellIndicator ? DROP_RING[cellIndicator] : ''} ${
                       filled
                         ? clue?.dailyDouble
                           ? 'border-amber-400/40 bg-slate-900/70 hover:border-amber-300/70 hover:bg-slate-800/80'

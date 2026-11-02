@@ -1,4 +1,4 @@
-import { MoreVertical, Play, Edit, Sparkles, Info, Download, RotateCcw, Trash2 } from 'lucide-react';
+import { MoreVertical, Play, Edit, Info, Download, RotateCcw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -11,7 +11,6 @@ import {
 interface GameCardMenuProps {
   onOpen: () => void;
   onPlay: () => void;
-  onEditAI: () => void;
   onEditBoard: () => void;
   /** Omit when the game has no metadata to show */
   onInfo?: () => void;
@@ -22,7 +21,7 @@ interface GameCardMenuProps {
 }
 
 /** The per-game "..." menu. Handlers are owned by MainMenu. */
-export function GameCardMenu({ onOpen, onPlay, onEditAI, onEditBoard, onInfo, onExport, onReset, onDelete }: GameCardMenuProps) {
+export function GameCardMenu({ onOpen, onPlay, onEditBoard, onInfo, onExport, onReset, onDelete }: GameCardMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -48,10 +47,6 @@ export function GameCardMenu({ onOpen, onPlay, onEditAI, onEditBoard, onInfo, on
         <DropdownMenuItem onClick={onEditBoard}>
           <Edit className="mr-2 size-4 text-blue-400" />
           <span>Edit game</span>
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={onEditAI}>
-          <Sparkles className="mr-2 size-4 text-purple-400" />
-          <span>Review with AI</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator />

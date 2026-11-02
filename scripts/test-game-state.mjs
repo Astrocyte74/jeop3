@@ -289,3 +289,51 @@ test('nextTeamId rotates in board order, wraps, and handles unknown ids and no t
 test('default rules take turns, keep penalties and allow steals', () => {
   assert.deepEqual(gr.DEFAULT_RULES, { turnMode: 'rotate', wrongAnswerPenalty: true, allowSteal: true });
 });
+
+// Real boards have distinct clues per category; the shared board() fixture does not.
+const distinctBoard = (cats) => ({
+  title: 'Test',
+  categories: Array.from({ length: cats }, (_, c) => ({
+    title: `Cat ${c}`,
+    clues: [200, 400, 600, 800, 1000].map((v) => ({ value: v, clue: `c${c} clue ${v}`, response: `c${c} answer ${v}` })),
+  })),
+});
+
+test('remapStateForEditedGame: reordered categories keep played tiles, Daily Double and log with them', () => {
+  const g = distinctBoard(3);
+  const reordered = { ...g, categories: [g.categories[2], g.categories[0], g.categories[1]] };
+  let s = gs.createInitialState(g, teams(), () => 0); // DD at 0:1
+  s = gs.applyClueResult(s, { clueId: '1:0', teamId: 'a', correct: true, amount: 200 });
+  s = gs.applyClueResult(s, { clueId: '0:1', teamId: 'b', correct: true, amount: 300, dailyDouble: true });
+  const out = gs.remapStateForEditedGame(g, reordered, s);
+  assert.deepEqual(Object.keys(out.used).sort(), ['1:1', '2:0']); // old 0→1, old 1→2
+  assert.deepEqual(out.dailyDoubles, ['1:1']);
+  assert.deepEqual(out.log.map((r) => r.clueId), ['2:0', '1:1']);
+  assert.deepEqual(out.teams, s.teams);
+});
+
+test('remapStateForEditedGame: unchanged order returns the same state object', () => {
+  const g = distinctBoard(3);
+  const s = gs.applyClueResult(gs.createInitialState(g, teams(), () => 0), { clueId: '0:0', teamId: 'a', correct: true, amount: 200 });
+  assert.equal(gs.remapStateForEditedGame(g, structuredClone(g), s), s);
+});
+
+test('remapStateForEditedGame: an added category starts unplayed; an edited clue keeps its tile played', () => {
+  const g = distinctBoard(2);
+  const edited = structuredClone(g);
+  edited.categories[0].clues[0].clue = 'rewritten'; // one clue changed, the rest still match
+  edited.categories.unshift({ title: 'New', clues: [200, 400, 600, 800, 1000].map((v) => ({ value: v, clue: 'x' + v, response: 'y' + v })) });
+  const s = gs.applyClueResult(gs.createInitialState(g, teams(), () => 0), { clueId: '0:0', teamId: 'a', correct: true, amount: 200 });
+  const out = gs.remapStateForEditedGame(g, edited, s);
+  assert.deepEqual(Object.keys(out.used), ['1:0']); // old column 0 is now column 1
+  assert.equal(out.used['0:0'], undefined);
+});
+
+test('remapStateForEditedGame: a fully rewritten category is treated as new (its played tiles are dropped)', () => {
+  const g = distinctBoard(2);
+  const rewritten = structuredClone(g);
+  rewritten.categories[1].clues = rewritten.categories[1].clues.map((c) => ({ ...c, clue: 'n' + c.value, response: 'm' + c.value }));
+  rewritten.categories.reverse(); // force a non-identity mapping so the remap runs
+  const s = gs.applyClueResult(gs.createInitialState(g, teams(), () => 0), { clueId: '1:0', teamId: 'a', correct: true, amount: 200 });
+  assert.deepEqual(gs.remapStateForEditedGame(g, rewritten, s).used, {});
+});
