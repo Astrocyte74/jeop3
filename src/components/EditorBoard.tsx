@@ -24,10 +24,12 @@ import { Badge } from '@/components/ui/badge';
 import type { Game, Category, Clue } from '@/lib/storage';
 import {
   Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen,
-  Eye, EyeOff, PencilLine, ChevronLeft, ChevronRight, Users, ChevronDown,
+  Eye, EyeOff, PencilLine, ChevronLeft, ChevronRight, Users, ChevronDown, Zap,
 } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
 import { generateContentSpan } from '@/lib/ai/board';
+import { FinalJeopardyPanel } from './editor/FinalJeopardyPanel';
+import { classifyFinal } from './editor/finalDraft';
 import { EDITOR_NAME, StatusDot, StatusSummary, countStatuses, getClueStatus, readShowAnswers, writeShowAnswers } from './editor/clueStatus';
 
 interface EditorBoardProps {
@@ -35,6 +37,18 @@ interface EditorBoardProps {
   onSave: (game: Game) => void;
   onExit: () => void;
   onCancel: () => void;
+}
+
+/** The game as it will be saved: a final round that is all-empty is dropped and a
+ *  complete one is trimmed. A half-filled one is left as-is (Save refuses it). */
+function withSavedFinal(g: Game, original: Game): Game {
+  if (g.finalJeopardy === original.finalJeopardy) return g;
+  const state = classifyFinal(g.finalJeopardy);
+  if (state.kind === 'partial') return g;
+  const next: Game = { ...g };
+  if (state.kind === 'complete') next.finalJeopardy = state.value;
+  else delete next.finalJeopardy;
+  return next;
 }
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -46,6 +60,9 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   const [pendingLeave, setPendingLeave] = useState<'discard' | 'menu' | null>(null);
   const [showAnswers, setShowAnswers] = useState<boolean>(readShowAnswers);
   const [teamsOpen, setTeamsOpen] = useState(false);
+  // Final Jeopardy: show "still missing" messages after a Save was refused.
+  const [finalErrors, setFinalErrors] = useState(false);
+  const finalPanelRef = useRef<HTMLElement>(null);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([
     { id: '1', name: 'Team 1' },
     { id: '2', name: 'Team 2' },
@@ -108,7 +125,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
   // Check if game has changed from original
   const hasChanges = useMemo(
-    () => JSON.stringify(editingGame) !== JSON.stringify(game),
+    () => JSON.stringify(withSavedFinal(editingGame, game)) !== JSON.stringify(game),
     [editingGame, game],
   );
 
@@ -159,7 +176,9 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     const newCategories = [...categories];
     const category = { ...newCategories[categoryId] };
     const newClues = [...category.clues];
-    newClues[clueIndex] = { ...newClues[clueIndex], ...updates };
+    const merged = { ...newClues[clueIndex], ...updates };
+    if (!merged.dailyDouble) delete merged.dailyDouble;
+    newClues[clueIndex] = merged;
     category.clues = newClues;
     newCategories[categoryId] = category;
     setEditingGame({ ...editingGame, categories: newCategories });
@@ -180,8 +199,31 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     });
   };
 
+  const updateFinal = (next: Game['finalJeopardy']) => {
+    setEditingGame((g) => {
+      if (next) return { ...g, finalJeopardy: next };
+      const rest = { ...g };
+      delete rest.finalJeopardy;
+      return rest;
+    });
+  };
+
+  const scrollToFinal = () => {
+    finalPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  };
+
   const handleSave = () => {
-    onSave(editingGame);
+    const toSave = withSavedFinal(editingGame, game);
+    const finalState = classifyFinal(toSave.finalJeopardy);
+    if (finalState.kind === 'partial') {
+      // Never persist a half-filled final round: point at what's missing.
+      setFinalErrors(true);
+      setEditingCell(null);
+      scrollToFinal();
+      window.setTimeout(() => document.getElementById(`final-${finalState.missing[0]}`)?.focus({ preventScroll: true }), 250);
+      return;
+    }
+    onSave(toSave);
   };
 
   // Cmd/Ctrl+S saves. Kept in a ref so the listener is registered once.
@@ -518,7 +560,11 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         newCategories[categoryId] = {
           ...category,
           title: newCat.title,
-          clues: newCat.clues.map(c => ({ ...c, value: c.value, clue: c.clue, response: c.response, provenance: c.provenance })),
+          // Keep the author's Daily Double pin on the same board position.
+          clues: newCat.clues.map((c, i) => ({
+            ...c, value: c.value, clue: c.clue, response: c.response, provenance: c.provenance,
+            ...(category.clues[i]?.dailyDouble ? { dailyDouble: true } : {}),
+          })),
         };
         setEditingGame({ ...editingGame, categories: newCategories });
 
@@ -548,6 +594,8 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
   const currentClue = getCurrentEditingClue();
   const counts = countStatuses(categories);
+  const pinnedCount = categories.reduce((n, c) => n + c.clues.filter((cl) => cl.dailyDouble).length, 0);
+  const finalState = classifyFinal(editingGame.finalJeopardy);
   const anyBusy = regeneratingClue || regeneratingCategory !== null;
 
   return (
@@ -656,6 +704,21 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
             <StatusSummary counts={counts} />
             <span className="text-xs text-slate-500">Click a card to edit its clue and answer.</span>
+            <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+              <Zap className="h-3.5 w-3.5 text-amber-300" aria-hidden />
+              {pinnedCount > 0
+                ? <><span className="tabular-nums text-slate-200">{pinnedCount}</span> Daily Double{pinnedCount === 1 ? '' : 's'} pinned</>
+                : 'Daily Double placed at random'}
+            </span>
+            <button
+              type="button"
+              onClick={scrollToFinal}
+              aria-label="Go to Final Jeopardy"
+              className="inline-flex items-center gap-1.5 rounded text-xs text-slate-400 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70"
+            >
+              <span className={`size-2 rounded-full ${finalState.kind === 'complete' ? 'bg-emerald-400' : finalState.kind === 'partial' ? 'bg-amber-400' : 'border border-slate-400/70'}`} aria-hidden />
+              Final Jeopardy: {finalState.kind === 'complete' ? 'ready' : finalState.kind === 'partial' ? 'unfinished' : 'not set'}
+            </button>
           </div>
           {editingGame.metadata && (editingGame.metadata.modelUsed || editingGame.metadata.generatedAt || editingGame.metadata.generationTimeMs) && (
             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -848,17 +911,29 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                   <button
                     type="button"
                     key={`${categoryIndex}-${rowIndex}`}
-                    aria-label={`Edit ${filled ? '' : 'empty '}clue, ${category.title} for ${value}`}
+                    aria-label={`Edit ${filled ? '' : 'empty '}clue, ${category.title} for ${value}${clue?.dailyDouble ? ', Daily Double' : ''}`}
                     onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}
                     className={`group/card relative flex min-h-[100px] flex-col gap-1 rounded-md border border-l-[3px] p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${accent} ${
                       filled
-                        ? 'border-white/10 bg-slate-900/70 hover:border-white/25 hover:bg-slate-800/80'
+                        ? clue?.dailyDouble
+                          ? 'border-amber-400/40 bg-slate-900/70 hover:border-amber-300/70 hover:bg-slate-800/80'
+                          : 'border-white/10 bg-slate-900/70 hover:border-white/25 hover:bg-slate-800/80'
                         : 'border-dashed border-purple-400/30 bg-transparent hover:bg-purple-500/10'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <span className="text-[22px] leading-none text-yellow-400" style={{ fontFamily: 'var(--font-board)' }}>
-                        ${value}
+                      <span className="flex items-center gap-1.5">
+                        <span className="text-[22px] leading-none text-yellow-400" style={{ fontFamily: 'var(--font-board)' }}>
+                          ${value}
+                        </span>
+                        {clue?.dailyDouble && (
+                          <span
+                            className="inline-flex items-center gap-0.5 rounded bg-amber-400/15 px-1 py-0.5 text-[10px] font-bold leading-none text-amber-300"
+                            title="Daily Double: players wager on this clue"
+                          >
+                            <Zap className="h-3 w-3" aria-hidden /> DD
+                          </span>
+                        )}
                       </span>
                       {status && <StatusDot status={status} className="mt-1" />}
                     </div>
@@ -882,6 +957,13 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
             )}
           </div>
         </div>
+
+        <FinalJeopardyPanel
+          ref={finalPanelRef}
+          value={editingGame.finalJeopardy}
+          showErrors={finalErrors}
+          onChange={updateFinal}
+        />
       </main>
 
       {/* Edit clue drawer — slides in from the right, grid visible behind scrim.
@@ -977,6 +1059,29 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                   className="bg-slate-800 border-slate-700 min-h-[80px]"
                   placeholder="Enter the answer..."
                 />
+              </div>
+
+              {/* Daily Double pin — author-chosen; unpinned games get a random one. */}
+              <div className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-slate-800/40 p-3">
+                <div>
+                  <label htmlFor="clue-daily-double" className="flex items-center gap-1.5 text-sm font-medium text-slate-300">
+                    <Zap className="h-4 w-4 text-amber-300" aria-hidden /> Daily Double
+                  </label>
+                  <p className="mt-1 text-xs leading-snug text-slate-500">
+                    If no clue is pinned, the game places one at random.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  id="clue-daily-double"
+                  role="switch"
+                  aria-checked={!!currentClue.clue?.dailyDouble}
+                  aria-label="Daily Double"
+                  onClick={() => updateClue(currentClue.categoryId, editingCell.clueIndex, { dailyDouble: !currentClue.clue?.dailyDouble })}
+                  className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${currentClue.clue?.dailyDouble ? 'bg-amber-400' : 'bg-slate-600'}`}
+                >
+                  <span className={`absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${currentClue.clue?.dailyDouble ? 'translate-x-5' : ''}`} />
+                </button>
               </div>
 
               {/* Smart AI actions. Regenerate pulls from the pool first
