@@ -13,13 +13,22 @@ import {
 import { type GameMode } from '@/components/GameModeMenu';
 import { TTSSubmenu } from '@/components/tts/TTSSettings';
 import type { Game, GameState } from '@/lib/storage';
-import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2 } from 'lucide-react';
+import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { getModelStats, formatTime, getModelsBySpeed } from '@/lib/ai/stats';
 import { useAIGeneration } from '@/lib/ai/hooks';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
+import { teamColor, teamInitials } from '@/lib/teamColors';
+import { playSfx, isSfxMuted, setSfxMuted } from '@/lib/sfx';
+import { AnimatedScore } from '@/components/board/AnimatedScore';
+import { prefersReducedMotion } from '@/components/board/useReducedMotion';
+import { EndGame } from '@/components/EndGame';
+
+// Games whose opening reveal already played this session (so returning from the editor doesn't replay it)
+const revealedGames = new Set<string>();
+const REVEAL_MS = 2800;
 
 interface GameBoardProps {
   game: Game;
@@ -69,6 +78,51 @@ export function GameBoard({
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
   const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
   const [gameMode, setGameMode] = useState<GameMode>(() => (localStorage.getItem('gameMode') as GameMode) || 'regular');
+  const [sfxMuted, setSfxMutedState] = useState<boolean>(() => isSfxMuted());
+
+  // Board progress, derived purely from saved state
+  const { totalClues, usedCount, pointsPlayed } = useMemo(() => {
+    let total = 0;
+    let used = 0;
+    let points = 0;
+    categories.forEach((category, ci) => {
+      (category.clues || []).forEach((clue, ri) => {
+        if (!clue) return;
+        total += 1;
+        if (state.used[`${ci}:${ri}`]) {
+          used += 1;
+          points += clue.value;
+        }
+      });
+    });
+    return { totalClues: total, usedCount: used, pointsPlayed: points };
+  }, [categories, state.used]);
+  const allPlayed = totalClues > 0 && usedCount >= totalClues;
+
+  // Start-of-game reveal: only on a fresh board, once per session, never under reduced motion
+  const [revealing, setRevealing] = useState(
+    () => usedCount === 0 && totalClues > 0 && !prefersReducedMotion() && !revealedGames.has(game.title),
+  );
+  const prevUsedCount = useRef(usedCount);
+  useEffect(() => {
+    // Board was reset (Play again / Reset Board): play the reveal again
+    if (prevUsedCount.current > 0 && usedCount === 0 && !prefersReducedMotion()) setRevealing(true);
+    prevUsedCount.current = usedCount;
+  }, [usedCount]);
+  useEffect(() => {
+    if (!revealing) return;
+    revealedGames.add(game.title);
+    playSfx('whoosh');
+    const t = window.setTimeout(() => setRevealing(false), REVEAL_MS);
+    return () => window.clearTimeout(t);
+  }, [revealing, game.title]);
+
+  // Finale: shows when every clue is played; "View board" dismisses it until the board is reset
+  const [finaleDismissed, setFinaleDismissed] = useState(false);
+  useEffect(() => {
+    if (!allPlayed) setFinaleDismissed(false);
+  }, [allPlayed]);
+  const showFinale = allPlayed && !finaleDismissed;
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
@@ -280,10 +334,29 @@ export function GameBoard({
     setTeamToRemove(null);
   };
 
+  const activeTeam = state.teams.find((t) => t.id === state.activeTeamId);
+  const activeColor = teamColor(Math.max(0, state.teams.findIndex((t) => t.id === state.activeTeamId)));
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 relative">
+      {showFinale && (
+        <EndGame
+          gameTitle={game.title}
+          teams={state.teams}
+          cluesPlayed={usedCount}
+          pointsInPlay={pointsPlayed}
+          onPlayAgain={onResetBoard}
+          onBackToMenu={onExit}
+          onViewBoard={() => setFinaleDismissed(true)}
+        />
+      )}
       {/* Menu dropdown - top right, absolute positioned */}
       <div className="absolute top-4 right-4 z-10 flex gap-2">
+        {allPlayed && finaleDismissed && (
+          <Button variant="outline" size="sm" className="border-yellow-500/50 bg-slate-900/50 text-yellow-400" onClick={() => setFinaleDismissed(false)} aria-label="Show final results">
+            <Trophy className="w-5 h-5" />
+          </Button>
+        )}
         {/* Home button */}
         <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit} aria-label="Back to main menu">
           <Home className="w-5 h-5" />
@@ -346,13 +419,13 @@ export function GameBoard({
             {isSignedIn && (
               <DropdownMenuItem onClick={onToggleEditor}>
                 <Edit className="w-4 h-4 mr-2 text-blue-400" />
-                <span>Board Editor</span>
+                <span>Edit game</span>
               </DropdownMenuItem>
             )}
             {onToggleAIPreviewEditor && isSignedIn && (
               <DropdownMenuItem onClick={onToggleAIPreviewEditor}>
                 <Sparkles className="w-4 h-4 mr-2 text-purple-400" />
-                <span>AI Preview Editor</span>
+                <span>Review with AI</span>
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
@@ -528,6 +601,22 @@ export function GameBoard({
                 </DropdownMenuSub>
                 )}
 
+                {/* Sound effects */}
+                <DropdownMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    const next = !sfxMuted;
+                    setSfxMuted(next);
+                    setSfxMutedState(next);
+                    if (!next) playSfx('select');
+                  }}
+                  aria-label={sfxMuted ? 'Unmute sound effects' : 'Mute sound effects'}
+                >
+                  {sfxMuted ? <VolumeX className="w-4 h-4 mr-2" /> : <Volume2 className="w-4 h-4 mr-2" />}
+                  <span>Sound effects</span>
+                  <span className="ml-auto text-xs text-slate-500">{sfxMuted ? 'Off' : 'On'}</span>
+                </DropdownMenuItem>
+
                 {/* Text-to-Speech Submenu - only in local development */}
                 {import.meta.env.DEV && <TTSSubmenu />}
               </DropdownMenuSubContent>
@@ -548,16 +637,29 @@ export function GameBoard({
         </DropdownMenu>
       </div>
 
-      {/* Header with title */}
-      <div className="max-w-7xl mx-auto mb-4 md:mb-8 pt-12 md:pt-0">
-        {/* Title - centered (top padding on small screens clears the absolute Home/Settings buttons) */}
+      {/* Header with title + whose pick it is */}
+      <div className="max-w-[1800px] mx-auto mb-3 md:mb-5 pt-12 md:pt-0">
         <div className="text-center">
-          <div className="flex items-center justify-center gap-4">
-            <h1 className="text-2xl md:text-4xl font-black text-yellow-500" style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}>
+          <div className="flex items-center justify-center gap-4 flex-wrap">
+            <h1
+              className="text-3xl md:text-5xl text-yellow-500 tracking-wide"
+              style={{ fontFamily: 'var(--font-board)', fontWeight: 400, textShadow: '0 4px 0 rgba(0,0,0,0.45), 0 0 30px rgba(255,200,0,0.18)' }}
+            >
               {game.title}
             </h1>
             {gameMode === 'snake' && (
               <span className="text-4xl animate-pulse" title="Snake Mode Active">🐍</span>
+            )}
+            {activeTeam && !allPlayed && (
+              <span
+                key={activeTeam.id}
+                className="turn-pill"
+                aria-live="polite"
+                style={{ ['--tc' as string]: activeColor.main, ['--tc-on' as string]: activeColor.onMain, ['--tc-soft' as string]: activeColor.soft }}
+              >
+                <span className="turn-avatar" aria-hidden="true">{teamInitials(activeTeam.name)}</span>
+                <span><b>{activeTeam.name}</b> chooses</span>
+              </span>
             )}
           </div>
           {game.subtitle && (
@@ -570,19 +672,20 @@ export function GameBoard({
       </div>
 
       {/* Game board */}
-      <div className="max-w-7xl mx-auto mb-8">
+      <div className="max-w-[1800px] mx-auto mb-6">
         <div className="board-wrap">
           <div
-            className="game-board"
+            className={`game-board ${revealing ? 'board-reveal' : ''}`}
             style={{
               gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))`,
             }}
           >
             {/* Category headers */}
-            {categories.map((category) => (
+            {categories.map((category, categoryIndex) => (
               <div
                 key={category.title}
                 className="cell cell-header"
+                style={{ ['--col' as string]: categoryIndex }}
               >
                 {category.title}
               </div>
@@ -607,9 +710,14 @@ export function GameBoard({
                 return (
                   <div key={`${categoryIndex}-${rowIndex}`} className="cell">
                     <button
-                      onClick={() => !used && onOpenClue(categoryIndex, rowIndex)}
+                      onClick={() => {
+                        if (used) return;
+                        playSfx('select');
+                        onOpenClue(categoryIndex, rowIndex);
+                      }}
                       disabled={used}
                       className="clue-btn"
+                      style={{ ['--order' as string]: rowIndex * categories.length + categoryIndex }}
                       aria-label={`${category.title} for $${clue.value}${used ? ' (played)' : ''}`}
                     >
                       ${clue.value}
@@ -626,7 +734,8 @@ export function GameBoard({
       <div className="w-full bg-slate-900/80 backdrop-blur-sm border-t border-slate-700 sticky bottom-0 z-50 mt-8">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="group flex items-center justify-center gap-3 flex-wrap">
-            {state.teams.map((team) => {
+            {state.teams.map((team, teamIndex) => {
+              const tc = teamColor(teamIndex);
               // Crown whoever holds the top positive score (ties share it)
               const topScore = Math.max(...state.teams.map(t => t.score));
               const isLeader = team.score > 0 && team.score === topScore;
@@ -634,11 +743,10 @@ export function GameBoard({
               return (
                 <div
                   key={team.id}
-                  className={`relative group rounded-lg border transition-all ${
-                    state.activeTeamId === team.id
-                      ? 'bg-yellow-500/20 border-yellow-500/60 shadow-lg shadow-yellow-500/20 ring-1 ring-yellow-500/40'
-                      : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800/80 hover:border-slate-600'
+                  className={`team-card relative group rounded-xl border-2 ${
+                    state.activeTeamId === team.id ? 'is-active' : ''
                   } ${editingTeamId === team.id || editingScoreTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
+                  style={{ ['--tc' as string]: tc.main, ['--tc-on' as string]: tc.onMain, ['--tc-soft' as string]: tc.soft }}
                 >
                   {/* Dropdown menu button - shown on hover when not editing */}
                   {(onUpdateTeamName || onUpdateTeamScore) && editingTeamId !== team.id && editingScoreTeamId !== team.id && (
@@ -802,21 +910,22 @@ export function GameBoard({
                     /* Normal Display Mode */
                     <button
                       onClick={() => onSetActiveTeam(team.id)}
-                      className="px-5 py-3 min-w-[160px] lg:min-w-[220px] block w-full text-left"
+                      className="px-4 py-2.5 min-w-[160px] lg:min-w-[240px] w-full text-left flex items-center gap-3"
                     >
-                      {/* Team name - readable from across the room */}
-                      <div className={`text-lg lg:text-2xl font-black leading-tight ${
-                        state.activeTeamId === team.id ? 'text-yellow-400' : 'text-slate-100'
-                      }`}>
-                        {isLeader && <span className="mr-1.5" aria-label="Leading">👑</span>}
-                        {team.name}
-                      </div>
-                      {/* Score */}
-                      <div className={`text-2xl lg:text-4xl font-black mt-1 tabular-nums ${
-                        team.score >= 0 ? 'text-green-400' : 'text-red-400'
-                      }`}>
-                        {team.score < 0 ? '-' : ''}${Math.abs(team.score).toLocaleString()}
-                      </div>
+                      <span className="team-avatar" aria-hidden="true">{teamInitials(team.name)}</span>
+                      <span className="min-w-0 block">
+                        {/* Team name - readable from across the room */}
+                        <span className={`team-name block truncate ${
+                          state.activeTeamId === team.id ? 'text-white' : 'text-slate-200'
+                        }`}>
+                          {isLeader && <span className="mr-1.5" aria-label="Leading">👑</span>}
+                          {team.name}
+                        </span>
+                        <AnimatedScore
+                          value={team.score}
+                          className={`team-score ${team.score >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                        />
+                      </span>
                     </button>
                   )}
                 </div>

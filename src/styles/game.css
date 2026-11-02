@@ -1,95 +1,269 @@
 /* ==================== JEOPARDY GAME STYLES ==================== */
 
-/* Board wrapper */
+/* ==================== BOARD ==================== */
+
+/* Stage: a dark bezel around the lit tiles, like a studio set */
 .board-wrap {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%), rgb(11, 18, 40);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 8px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, color-mix(in oklab, var(--theme-primary, #0055a4) 22%, transparent), transparent 70%),
+    #04060f;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 20px;
+  padding: clamp(8px, 0.9vw, 16px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.6);
 }
 
-/* Game board grid */
+/* Game board grid: black gutters between lit tiles */
 .game-board {
   display: grid;
-  gap: 0;
+  gap: clamp(4px, 0.5vw, 9px);
 }
 
-/* Cell base styles */
 .cell {
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  min-height: 100px;
+  min-height: clamp(64px, 11vh, 132px);
   display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+/* Category header: board display face, readable across a room */
+.cell-header {
+  min-height: clamp(64px, 10.5vh, 128px);
   align-items: center;
   justify-content: center;
-  perspective: 1000px;
-}
-
-/* Category header */
-.cell-header {
-  min-height: 80px;
-  background: linear-gradient(145deg, #0055a4, #003366);
-  font-weight: 800;
+  padding: 10px clamp(8px, 1vw, 20px);
+  border-radius: 6px;
+  font-family: var(--font-board);
+  font-weight: 400;
+  font-size: clamp(15px, 1.85vw, 38px);
+  line-height: 1.08;
+  letter-spacing: 0.045em;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  font-size: 13px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.95);
-  padding: 12px;
-  transition: background 0.5s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), 0 0 18px rgba(0, 0, 0, 0.35);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 42%),
+    linear-gradient(150deg, var(--theme-primary, #0055a4), var(--theme-secondary, #003366));
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
 }
 
-/* Theme-based category header override */
-.cell-header {
-  background: linear-gradient(145deg, var(--theme-primary, #0055a4), var(--theme-secondary, #003366));
-}
-
-/* Clue button */
+/* Clue tile */
 .clue-btn {
   width: 100%;
   height: 100%;
   display: grid;
   place-items: center;
-  text-decoration: none;
   border: 0;
-  background: transparent;
-  color: #ffd700;
-  font-weight: 900;
-  font-size: 28px;
-  transition: transform 0.2s ease, text-shadow 0.2s ease;
+  border-radius: 6px;
   cursor: pointer;
-  transform-style: preserve-3d;
-}
-
-.clue-btn {
+  position: relative;
+  font-family: var(--font-board);
+  font-weight: 400;
+  font-size: clamp(22px, 3.1vw, 66px);
+  letter-spacing: 0.03em;
+  line-height: 1;
   color: var(--theme-gold, #ffd700);
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.55), 0 0 22px color-mix(in oklab, var(--theme-gold, #ffd700) 25%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 38%),
+    color-mix(in oklab, var(--theme-secondary, #003366) 62%, #050a1e);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07), inset 0 -3px 0 rgba(0, 0, 0, 0.3);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.6s ease,
+    color 0.7s ease,
+    text-shadow 0.7s ease,
+    opacity 0.7s ease;
 }
 
 .clue-btn:not(:disabled):hover {
-  transform: scale(1.15) rotateY(10deg);
-  text-shadow: 0 0 30px var(--theme-gold, #ffd700);
+  transform: scale(1.045);
+  z-index: 2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 45%),
+    color-mix(in oklab, var(--theme-primary, #0055a4) 70%, #050a1e);
+  box-shadow:
+    inset 0 0 0 2px var(--theme-gold, #ffd700),
+    0 0 34px color-mix(in oklab, var(--theme-gold, #ffd700) 35%, transparent);
 }
 
 .clue-btn:not(:disabled):active {
-  transform: scale(1.05) rotateY(0deg);
+  transform: scale(0.985);
 }
 
+/* Played: the tile powers down and recedes into the bezel */
 .clue-btn:disabled {
-  color: transparent;
-  cursor: not-allowed;
-  transform: none;
-  position: relative;
+  cursor: default;
+  color: rgba(255, 255, 255, 0.07);
+  text-shadow: none;
+  background: rgba(255, 255, 255, 0.015);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
-.clue-btn:disabled::after {
-  content: "✓";
-  position: absolute;
-  inset: 0;
+.clue-btn:not(:disabled):focus-visible {
+  outline: 3px solid var(--theme-gold, #ffd700);
+  outline-offset: -5px;
+}
+
+/* ---- Start-of-game reveal: headers drop in, then values cascade ---- */
+.board-reveal .cell-header {
+  animation: headerDrop 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--col, 0) * 110ms);
+}
+
+.board-reveal .clue-btn {
+  animation: valueFlip 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(750ms + var(--order, 0) * 32ms);
+}
+
+@keyframes headerDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-28px) scaleY(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes valueFlip {
+  from {
+    opacity: 0;
+    transform: perspective(600px) rotateX(-80deg) scale(0.9);
+    filter: brightness(2.2);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+/* ---- Turn indicator ---- */
+.turn-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 16px 5px 6px;
+  border-radius: 999px;
+  border: 2px solid var(--tc);
+  background: var(--tc-soft);
+  font-family: var(--font-board);
+  font-size: clamp(16px, 1.5vw, 28px);
+  letter-spacing: 0.05em;
+  color: #fff;
+  animation: turnIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.turn-pill b {
+  font-weight: 400;
+  color: var(--tc);
+  filter: brightness(1.15);
+}
+
+.turn-avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 50%;
+  background: var(--tc);
+  color: var(--tc-on);
+  font-family: var(--font-board);
+  font-size: 0.8em;
+  letter-spacing: 0.02em;
+}
+
+@keyframes turnIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Scoreboard ---- */
+.team-card {
+  --tc: #90a4ae;
+  --tc-on: #10181c;
+  --tc-soft: rgba(144, 164, 174, 0.16);
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.team-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: color-mix(in oklab, var(--tc) 55%, transparent);
+}
+
+.team-card.is-active {
+  border-color: var(--tc);
+  background: linear-gradient(180deg, var(--tc-soft), transparent 140%), rgba(8, 12, 28, 0.85);
+  box-shadow: 0 0 0 1px var(--tc), 0 6px 26px color-mix(in oklab, var(--tc) 38%, transparent);
+  transform: translateY(-3px);
+}
+
+.team-avatar {
+  flex: none;
   display: grid;
   place-items: center;
-  font-size: 24px;
-  color: rgba(255, 255, 255, 0.3);
+  width: clamp(34px, 3vw, 52px);
+  height: clamp(34px, 3vw, 52px);
+  border-radius: 50%;
+  background: var(--tc);
+  color: var(--tc-on);
+  font-family: var(--font-board);
+  font-size: clamp(14px, 1.3vw, 22px);
+  letter-spacing: 0.03em;
+}
+
+.team-name {
+  font-family: var(--font-board);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  font-size: clamp(16px, 1.45vw, 28px);
+  line-height: 1.1;
+}
+
+.team-score {
+  display: inline-block;
+  font-family: var(--font-board);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  font-size: clamp(24px, 2.4vw, 46px);
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  transform-origin: left center;
+}
+
+.score-flash-gain {
+  animation: scoreGain 1.1s ease-out;
+}
+
+.score-flash-loss {
+  animation: scoreLoss 1.1s ease-out;
+}
+
+@keyframes scoreGain {
+  0% { transform: scale(1); }
+  18% { transform: scale(1.22); color: #bbf7d0; text-shadow: 0 0 26px #22c55e; }
+  100% { transform: scale(1); }
+}
+
+@keyframes scoreLoss {
+  0% { transform: scale(1); }
+  18% { transform: scale(1.18); color: #fecaca; text-shadow: 0 0 26px #ef4444; }
+  100% { transform: scale(1); }
 }
 
 /* Clue dialog */
@@ -234,35 +408,6 @@
 
 /* ==================== RESPONSIVE + ACCESSIBILITY POLISH ==================== */
 
-/* Keyboard focus for clue cells (the button is otherwise unstyled) */
-.clue-btn:not(:disabled):focus-visible {
-  outline: 2px solid var(--theme-gold, #ffd700);
-  outline-offset: -4px;
-  border-radius: 8px;
-  text-shadow: 0 0 24px var(--theme-gold, #ffd700);
-}
-
-/* Let long category names wrap instead of forcing the grid wider */
-.cell-header {
-  overflow-wrap: anywhere;
-  hyphens: auto;
-}
-
-/* Scale values between phone and desktop instead of jumping */
-.clue-btn {
-  font-size: clamp(16px, 2.2vw, 28px);
-}
-
-/* Size rows to the window height so the board stays above the sticky
-   scoreboard on short laptop windows (100px rows / 80px header at ~900px tall) */
-.cell {
-  min-height: clamp(64px, 11vh, 100px);
-}
-
-.cell-header {
-  min-height: clamp(56px, 9vh, 80px);
-}
-
 /* Tablet and below */
 @media (max-width: 900px) {
   .cell {
@@ -271,8 +416,8 @@
 
   .cell-header {
     min-height: 60px;
-    font-size: 11px;
-    letter-spacing: 0.3px;
+    font-size: 13px;
+    letter-spacing: 0.02em;
     padding: 8px 4px;
   }
 
@@ -309,16 +454,12 @@
 
   .cell-header {
     min-height: 52px;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0;
     padding: 6px 2px;
   }
 
   .clue-btn {
-    font-size: 14px;
-  }
-
-  .clue-btn:disabled::after {
     font-size: 16px;
   }
 
@@ -338,6 +479,14 @@
     animation: none;
   }
 
+  .board-reveal .cell-header,
+  .board-reveal .clue-btn,
+  .turn-pill,
+  .score-flash-gain,
+  .score-flash-loss {
+    animation: none;
+  }
+
   .clue-btn,
   .clue-text,
   .clue-response,
@@ -349,5 +498,399 @@
   .team-chip.selected,
   .team-chip:hover {
     transform: none;
+  }
+}
+
+/* ==================== FINALE ==================== */
+
+.finale {
+  --finale-accent: #ffd700;
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow-y: auto;
+  color: #fff;
+  background:
+    radial-gradient(70% 55% at 50% 0%, color-mix(in oklab, var(--finale-accent) 24%, transparent), transparent 70%),
+    radial-gradient(120% 90% at 50% 120%, color-mix(in oklab, var(--theme-primary, #0055a4) 55%, transparent), transparent 60%),
+    #05081a;
+  animation: finaleIn 0.6s ease both;
+}
+
+@keyframes finaleIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Slow stage-light beams */
+.finale-beams {
+  position: absolute;
+  inset: -40% -10% auto;
+  height: 150%;
+  pointer-events: none;
+  opacity: 0.5;
+  background: repeating-conic-gradient(
+    from 0deg at 50% 0%,
+    rgba(255, 255, 255, 0.07) 0deg 5deg,
+    transparent 5deg 22deg
+  );
+  mask-image: radial-gradient(60% 70% at 50% 0%, #000, transparent 75%);
+  -webkit-mask-image: radial-gradient(60% 70% at 50% 0%, #000, transparent 75%);
+  animation: beamSweep 40s linear infinite;
+}
+
+@keyframes beamSweep {
+  from { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+  to { transform: rotate(-6deg); }
+}
+
+.finale-confetti {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.finale-inner {
+  position: relative;
+  z-index: 2;
+  min-height: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: clamp(18px, 3.5vh, 44px) clamp(16px, 3vw, 56px) clamp(18px, 3vh, 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 1.6vh, 20px);
+}
+
+.finale-game-title {
+  font-family: var(--font-board);
+  font-size: clamp(14px, 1.3vw, 24px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: center;
+}
+
+/* Headline: suspense line and winner share one slot */
+.finale-headline-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: clamp(4px, 1vh, 14px);
+}
+
+.finale-stack {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  min-height: clamp(64px, 12vh, 160px);
+}
+
+.finale-stack > * {
+  grid-area: 1 / 1;
+}
+
+.finale-headline {
+  font-family: var(--font-board);
+  font-weight: 400;
+  font-size: clamp(48px, min(8.4vw, 15vh), 168px);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  max-width: 95vw;
+  text-wrap: balance;
+  background: linear-gradient(180deg, #fff6c8 10%, var(--theme-gold, #ffd700) 55%, #c98a00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 40px color-mix(in oklab, var(--finale-accent) 45%, transparent));
+}
+
+.finale-subline {
+  font-size: clamp(16px, 1.7vw, 32px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  text-wrap: balance;
+  max-width: min(1100px, 92vw);
+}
+
+.finale-suspense {
+  font-family: var(--font-board);
+  font-weight: 400;
+  font-size: clamp(32px, 4.6vw, 88px);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+  animation: suspensePulse 1.1s ease-in-out infinite alternate;
+  transition: opacity 0.25s ease;
+}
+
+.finale-headline,
+.finale-subline {
+  opacity: 0;
+  transform: scale(1.5);
+  transition: opacity 0.18s ease-out, transform 0.45s cubic-bezier(0.22, 1.4, 0.36, 1);
+}
+
+.finale.is-revealed .finale-headline,
+.finale.is-revealed .finale-subline {
+  opacity: 1;
+  transform: none;
+}
+
+.finale.is-revealed .finale-subline {
+  transition-delay: 0.25s;
+}
+
+.finale.is-revealed .finale-suspense {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes suspensePulse {
+  from { opacity: 0.45; }
+  to { opacity: 1; }
+}
+
+/* Podium */
+.finale-podium {
+  --bar-max: clamp(100px, 25vh, 340px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(10px, 1.6vw, 28px);
+  width: 100%;
+  margin-top: auto;
+  padding-bottom: 0;
+  border-bottom: 3px solid color-mix(in oklab, var(--finale-accent) 70%, #fff);
+  background: linear-gradient(0deg, color-mix(in oklab, var(--finale-accent) 16%, transparent), transparent 18%);
+}
+
+.podium-col {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: clamp(190px, 21vw, 380px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.podium-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 10px;
+  max-width: 100%;
+  text-align: center;
+  position: relative;
+}
+
+.podium-crown {
+  width: clamp(28px, 3vw, 54px);
+  height: clamp(28px, 3vw, 54px);
+  color: var(--theme-gold, #ffd700);
+  fill: var(--theme-gold, #ffd700);
+  filter: drop-shadow(0 0 14px rgba(255, 215, 0, 0.65));
+  opacity: 0;
+  transform: translateY(-14px) scale(0.5) rotate(-12deg);
+  transition: opacity 0.3s ease 0.35s, transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 0.35s;
+}
+
+.finale.is-revealed .podium-crown {
+  opacity: 1;
+  transform: none;
+}
+
+.podium-avatar {
+  display: grid;
+  place-items: center;
+  width: clamp(36px, 3.4vw, 62px);
+  height: clamp(36px, 3.4vw, 62px);
+  border-radius: 50%;
+  background: var(--tc);
+  color: var(--tc-on);
+  font-family: var(--font-board);
+  font-size: clamp(15px, 1.5vw, 26px);
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.podium-name {
+  font-family: var(--font-board);
+  font-size: clamp(18px, 2vw, 40px);
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.podium-score {
+  font-family: var(--font-board);
+  font-size: clamp(26px, 3.2vw, 64px);
+  letter-spacing: 0.02em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-gold, #ffd700);
+}
+
+.podium-score.is-negative {
+  color: #fca5a5;
+}
+
+.podium-block {
+  position: relative;
+  width: 100%;
+  height: calc(var(--bar-max) * var(--p, 0));
+  min-height: 0;
+  border-radius: 10px 10px 0 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 28%),
+    linear-gradient(180deg, var(--tc), color-mix(in oklab, var(--tc) 55%, #000));
+  box-shadow: 0 -2px 0 rgba(255, 255, 255, 0.35) inset, 0 18px 40px rgba(0, 0, 0, 0.4);
+  transition: height 0.9s cubic-bezier(0.22, 1, 0.36, 1) var(--delay, 0ms);
+}
+
+.podium-block.is-negative {
+  background:
+    repeating-linear-gradient(135deg, rgba(239, 68, 68, 0.35) 0 8px, transparent 8px 16px),
+    linear-gradient(180deg, #4b5563, #1f2937);
+}
+
+.podium-rank {
+  font-family: var(--font-board);
+  font-size: clamp(40px, 6vw, 120px);
+  line-height: 1;
+  color: var(--tc-on);
+  opacity: 0.38;
+}
+
+.podium-col.is-winner .podium-block {
+  box-shadow: 0 -2px 0 rgba(255, 255, 255, 0.5) inset, 0 0 60px color-mix(in oklab, var(--tc) 55%, transparent);
+}
+
+.podium-col.is-winner .podium-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.45) 50%, transparent 65%);
+  transform: translateX(-120%);
+}
+
+.finale.is-revealed .podium-col.is-winner .podium-block::after {
+  transform: translateX(120%);
+  transition: transform 1.1s ease 0.2s;
+}
+
+/* Stats */
+.finale-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(18px, 4vw, 72px);
+  margin-top: clamp(4px, 1.2vh, 16px);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.5s ease 0.5s, transform 0.5s ease 0.5s;
+}
+
+.finale-stats li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.finale-stat-value {
+  font-family: var(--font-board);
+  font-size: clamp(24px, 2.6vw, 48px);
+  letter-spacing: 0.03em;
+  color: #fff;
+}
+
+.finale-stat-label {
+  font-size: clamp(13px, 1.1vw, 20px);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Actions */
+.finale-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.5s ease 0.8s, transform 0.5s ease 0.8s;
+}
+
+.finale.is-revealed .finale-stats,
+.finale.is-revealed .finale-actions {
+  opacity: 1;
+  transform: none;
+}
+
+.finale .finale-btn {
+  height: auto;
+  padding: 0.75rem 1.6rem;
+  font-size: clamp(16px, 1.3vw, 22px);
+  font-weight: 800;
+  gap: 10px;
+  border-radius: 999px;
+}
+
+.finale .finale-btn-primary {
+  background: var(--theme-gold, #ffd700);
+  color: #1a1200;
+  box-shadow: 0 8px 30px color-mix(in oklab, var(--theme-gold, #ffd700) 40%, transparent);
+}
+
+.finale .finale-btn-primary:hover {
+  background: color-mix(in oklab, var(--theme-gold, #ffd700) 88%, #fff);
+}
+
+.finale .finale-btn:not(.finale-btn-primary) {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.finale .finale-btn:not(.finale-btn-primary):hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* Reduced motion: show the finished state with no choreography */
+.finale.is-still,
+.finale.is-still * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.finale.is-still .finale-headline,
+.finale.is-still .finale-subline,
+.finale.is-still .finale-stats,
+.finale.is-still .finale-actions,
+.finale.is-still .podium-crown {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finale-beams,
+  .finale-suspense {
+    animation: none;
   }
 }
