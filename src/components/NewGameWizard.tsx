@@ -1,3 +1,4 @@
+import type { GenerationProgress as PipelineProgress } from '@/lib/ai/types';
 /**
  * New Game Wizard Dialog
  *
@@ -66,6 +67,7 @@ export interface WizardCompleteData {
   // AI mode fields
   theme?: string;
   difficulty?: 'easy' | 'normal' | 'hard';
+  includeFinalJeopardy?: boolean;
   sourceMode?: 'scratch' | 'paste' | 'url' | 'custom';
   referenceMaterial?: string;
   referenceUrl?: string;
@@ -90,6 +92,7 @@ interface NewGameWizardProps {
   onImportJSON?: () => void;
   isLoading?: boolean;
   loadingStage?: string;
+  generationEvent?: PipelineProgress | null;
   /** Multi-source progress. Null for single-source games (legacy display). */
   progress?: GenerationProgress | null;
   error?: string | null;
@@ -280,7 +283,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, progress, error, onRetry, onCancelGeneration }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, generationEvent, progress, error, onRetry, onCancelGeneration }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
@@ -296,6 +299,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // AI mode state
   const [customSources, setCustomSources] = useState<CustomSource[]>([]);
   const [theme, setTheme] = useState('');
+  const [includeFinalJeopardy, setIncludeFinalJeopardy] = useState(true);
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
 
   // Current source being added
@@ -343,7 +347,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
           if (stored && data.models.find((m: any) => m.id === stored)) {
             setAIModel(stored);
           } else if (data.models.length > 0) {
-            setAIModel(data.models[0].id);
+            const defaultId = data.defaultModel || data.models[0].id;
+            setAIModel(defaultId);
+            localStorage.setItem('jeop3:aiModel', defaultId);
           }
         }
         // Initialize pricing from OpenRouter (async, non-blocking)
@@ -373,12 +379,13 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     const provider = parts[0];
     const modelName = parts.slice(1).join(':');
     if (provider === 'or' || provider === 'openrouter') {
-      return `🤖 ${modelName}`;
+      return `${modelName} · OpenRouter API`;
     } else if (provider === 'ollama') {
       return `🦙 ${modelName}`;
     } else if (provider === 'openai') {
-      return `🧠 ${modelName}`;
+      return `${modelName} · OpenAI API`;
     }
+    if (provider === 'codex') return `${modelName} · Subscription`;
     return modelName;
   };
 
@@ -664,6 +671,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       mode: creationMode,
       theme: theme || 'random',
       difficulty,
+      includeFinalJeopardy,
       sourceMode: 'custom',
       customSources: customSourcesWithDrafts,
     };
@@ -1052,6 +1060,18 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                         Performance based on your history
                       </div>
 
+                      {availableModels.some(m => m.provider === 'codex') && (
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger>Subscription · local</DropdownMenuSubTrigger>
+                          <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-64">
+                            {availableModels.filter(m => m.provider === 'codex').map(model => (
+                              <DropdownMenuItem key={model.id} onClick={() => handleAIModelChange(model.id)}>
+                                {model.name}{aiModel === model.id ? ' ✓' : ''}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuSub>
+                      )}
                       {/* OpenRouter section */}
                       <DropdownMenuSub>
                         <DropdownMenuSubTrigger>
@@ -1198,6 +1218,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             columns={theatreColumns}
             sourceLabels={progress?.sourceLabels ?? customSources.map(sourceLabel)}
             stage={loadingStage}
+            event={generationEvent}
             progress={progress}
             error={isLoading ? null : error}
             summary={buildSummary}
@@ -1513,6 +1534,11 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   </Label>
                   <Input value={theme} onChange={(e) => setTheme(e.target.value)} placeholder="Ties your categories together" className="bg-slate-800/50 border-slate-700" />
                 </div>
+
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input type="checkbox" checked={includeFinalJeopardy} onChange={e => setIncludeFinalJeopardy(e.target.checked)} />
+                  Include Final Jeopardy
+                </label>
 
                 {/* Difficulty */}
                 <div className="space-y-2">
@@ -2054,6 +2080,11 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     Ties all categories together with a unifying theme
                   </p>
                 </div>
+
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input type="checkbox" checked={includeFinalJeopardy} onChange={e => setIncludeFinalJeopardy(e.target.checked)} />
+                  Include Final Jeopardy
+                </label>
 
                 {/* Difficulty */}
                 <div className="space-y-2">

@@ -3,12 +3,37 @@
  * Ported from jeop2 with TypeScript improvements
  */
 
+export type GenerationStage = 'categories' | 'facts' | 'retrieval' | 'answers' | 'clues' | 'judging' | 'verifying' | 'final' | 'titles' | 'teams';
+export interface GenerationProgress {
+  stage: GenerationStage;
+  categoryIndex?: number;
+  categoryTitle?: string;
+  completed?: number;
+  total?: number;
+  message?: string;
+  status?: 'started' | 'complete' | 'failed';
+}
+export interface BoardReviewIssue {
+  kind: 'answer-leak' | 'repeated-fact' | 'ambiguous' | 'difficulty';
+  ids: string[];
+  reason: string;
+}
+export interface BoardReview {
+  issues: BoardReviewIssue[];
+  checkedAt: string;
+  /** Exact board snapshot; edits invalidate the review. */
+  snapshot: string;
+  warning?: string;
+}
+
 // Difficulty levels for AI generation
 export type AIDifficulty = 'easy' | 'normal' | 'hard';
 
 // AI prompt types - all operations supported by the AI system
 export type AIPromptType =
   // Game level
+  | 'final-jeopardy'
+  | 'review-board'
   | 'game-title'
   | 'categories-generate'
   | 'categories-generate-from-content'
@@ -117,6 +142,9 @@ export interface AIContext {
   // the clues-from-answers template renders them as style references.
   exemplars?: Array<{ category: string; value: number; clue: string; response: string }>;
 
+  finalSources?: Array<{ title: string; text: string; sourceUrl?: string }>;
+  reviewItems?: Array<{ id: string; category: string; clue: string; response: string; value?: number }>;
+
   // Category level
   categoryTitle?: string;
   contentTopic?: string;
@@ -140,6 +168,8 @@ export interface AIContext {
 
 // AI response types by prompt type
 export interface AIResponses {
+  'final-jeopardy': { category: string; clue: string; response: string; sourceIndex: number };
+  'review-board': { issues: BoardReviewIssue[] };
   'game-title': { titles: Array<{ title: string; subtitle: string }> };
   'categories-generate': { categories: AICategory[] };
   'categories-generate-from-content': { categories: AICategory[] };

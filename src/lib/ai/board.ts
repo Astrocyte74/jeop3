@@ -1,3 +1,4 @@
+import { checkAbort, isAbort, progress, type GenerationOptions } from './progress';
 /**
  * Answer-first board generation for one content span, with overgeneration +
  * judging (curate, don't just generate) and A+ fallback.
@@ -21,9 +22,9 @@ import { searchAndFetchCategorySource } from './service';
 import { verifyCategories, type Verifier } from './verification';
 import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
 
-type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty) => Promise<any>;
+export type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty, options?: GenerationOptions) => Promise<any>;
 
-export interface ContentSpanInput {
+export interface ContentSpanInput extends GenerationOptions {
   referenceMaterial: string;
   theme?: string;
   titles?: string[];
@@ -156,35 +157,52 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     ? titles.slice(0, count)
     : Array.from({ length: count }, (_, i) => `Category ${i + 1}`);
 
+  const call: Generate = async (type, context, level) => {
+    checkAbort(opts.signal);
+    const result = await generate(type, context, level, opts);
+    checkAbort(opts.signal);
+    return result;
+  };
+  const stage = (id: import('./types').GenerationStage, message: string) => {
+    progress(opts, id, message, { completed: 0, total: count });
+    onStage?.(message);
+  };
+  const complete = (id: import('./types').GenerationStage, cats: Array<{title: string}>) => catTitles.forEach((title, i) => {
+    const ok = cats.some(c => norm(c.title) === norm(title));
+    progress(opts, id, `${ok ? 'Completed' : 'Missing'} ${title}`, { categoryIndex: i, categoryTitle: title, completed: i + 1, total: count, status: ok ? 'complete' : 'failed' });
+  });
   // 1-4. extract (overgenerate) -> filter -> clues (value-less) -> judge
   let judged: JudgedCat[] = [];
   try {
-    onStage?.('Finding specific answers…');
-    const extracted = await generate(
+    stage('answers', 'Finding specific answers…');
+    const extracted = await call(
       'extract-board-answers',
       { referenceMaterial, count, topicList: titles, theme } as AIContext, difficulty
     );
+    complete('answers', extracted?.categories || []);
     const raw = (extracted?.categories || []).map((c: any) => ({
       title: c.title,
       answers: (c.answers || []).filter((a: any) => a?.answer && a?.fact),
     }));
     const { board } = filterAnswerBoard(raw, 5, existingAnswers);
     if (board.length && board.some(c => c.answers.length > 0)) {
-      onStage?.('Writing clues for locked answers…');
+      stage('clues', 'Writing clues for locked answers…');
       // Few-shot: retrieve real-Jeopardy exemplars matching the board's topics
       // so the model imitates authentic Jeopardy voice. Up to 4 across the
       // board, query biased by the game theme + the categories being written.
       const query = [theme, ...board.map(c => c.title)].filter(Boolean).join(' · ');
       const exemplars = retrieveExemplars(query, 4);
-      const clueRes = await generate('clues-from-answers', { answerBoard: board, theme, exemplars } as AIContext, difficulty);
+      const clueRes = await call('clues-from-answers', { answerBoard: board, theme, exemplars } as AIContext, difficulty);
       const clueCats = (clueRes?.categories || []) as Array<{ title: string; clues: ValuedClue[] }>;
+      complete('clues', clueCats);
       if (clueCats.length) {
-        onStage?.('Judging clue quality…');
-        const judgeRes = await generate(
+        stage('judging', 'Judging clue quality…');
+        const judgeRes = await call(
           'judge-clues',
           { answerBoard: clueCats, referenceMaterial, theme } as AIContext, difficulty
         );
         const judgeCats = (judgeRes?.categories || []) as Array<{ title: string; scored: any[] }>;
+        complete('judging', judgeCats);
         judged = clueCats.map(cc => {
           const scores = new Map<string, Score>();
           for (const s of (judgeCats.find(jc => norm(jc.title) === norm(cc.title))?.scored || [])) {
@@ -197,7 +215,8 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
         });
       }
     }
-  } catch {
+  } catch (error) {
+    if (isAbort(error, opts.signal)) throw error;
     judged = [];
   }
 
@@ -218,14 +237,15 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     patched = true;
     let singleCats: AICategory[] = [];
     try {
-      onStage?.('Filling gaps from fallback…');
-      const single = await generate(
+      stage('clues', 'Filling gaps from fallback…');
+      const single = await call(
         'categories-generate-from-content',
         { theme: theme || 'random', count, referenceMaterial, suggestedCategoryTitles: titles, existingAnswers } as AIContext,
         difficulty
       );
       singleCats = ((single?.categories || []) as AICategory[]).slice(0, count);
-    } catch {
+    } catch (error) {
+      if (isAbort(error, opts.signal)) throw error;
       singleCats = [];
     }
     pickedPerCat = catTitles.map((t, i) => {
@@ -249,7 +269,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
       ...cat.clues,
       ...(alternativesByTitle.find(a => a.title === cat.title)?.clues || []).map(cl => ({ ...cl, value: 0 })),
     ] }));
-    const checked = await verifyCategories(candidates, theme || 'random', opts.verify);
+    const checked = await verifyCategories(candidates, theme || 'random', opts.verify, opts);
     const used = new Set(existingAnswers.map(nearDupKey));
     alternativesByTitle.length = 0;
     categories = checked.categories.map(cat => {
@@ -282,7 +302,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   };
 }
 
-export interface TopicSpanInput {
+export interface TopicSpanInput extends GenerationOptions {
   topic: string;
   titles?: string[];
   count: number;
@@ -327,9 +347,16 @@ export async function generateTopicSpan(
   //    category order afterwards. (Distinct from cross-span parallelism, which
   //    we correctly defer: spans share an existingAnswers dedup chain;
   //    categories within one span don't.)
+  checkAbort(opts.signal);
   onStage?.('Researching categories…');
+  progress(opts, 'retrieval', 'Researching categories…', { completed: 0, total: count });
+  let retrievedCount = 0;
   const retrieved = await Promise.all(
-    catTitles.map(title => searchAndFetchCategorySource(title, authToken, topic))
+    catTitles.map(async (title, i) => {
+      const source = await searchAndFetchCategorySource(title, authToken, topic, opts);
+      progress(opts, 'retrieval', source ? `Found source for ${title}` : `No retrieved source for ${title}`, { categoryIndex: i, categoryTitle: title, completed: ++retrievedCount, total: count, status: source ? 'complete' : 'failed' });
+      return source;
+    })
   );
   const sections: Array<{ title: string; body: string }> = [];
   // categorySources is finalized after synthesis — a category's sourceType is
@@ -356,15 +383,17 @@ export async function generateTopicSpan(
   const synthesizedTitles = new Set<string>();
   if (needFactSheet.length) {
     onStage?.('Filling gaps from AI research…');
+    progress(opts, 'facts', 'Filling gaps from AI research…', { completed: 0, total: needFactSheet.length });
     let synthSections: Array<{ title: string; confidence: 'high' | 'low'; facts: string[] }> = [];
     try {
       const sheet = await generate(
         'topic-fact-sheet',
         { theme: topic, count: needFactSheet.length, topicList: needFactSheet } as AIContext,
-        difficulty
+        difficulty, opts
       );
+      checkAbort(opts.signal);
       synthSections = (sheet?.sections || []) as Array<{ title: string; confidence: 'high' | 'low'; facts: string[] }>;
-    } catch { synthSections = []; }
+    } catch (error) { if (isAbort(error, opts.signal)) throw error; synthSections = []; }
     for (let i = 0; i < needFactSheet.length; i++) {
       const title = needFactSheet[i];
       const sec = synthSections.find(s => norm(s.title) === norm(title));
@@ -377,6 +406,7 @@ export async function generateTopicSpan(
         sections.push({ title, body: facts.map(f => `- ${f}`).join('\n') });
         synthesizedTitles.add(title);
       }
+      progress(opts, 'facts', `Researched ${title}`, { categoryIndex: catTitles.indexOf(title), categoryTitle: title, completed: i + 1, total: needFactSheet.length, status: synthesizedTitles.has(title) ? 'complete' : 'failed' });
       // Missing grounding causes a visible failure below, without an unchecked retry.
     }
   }
@@ -413,6 +443,7 @@ export async function generateTopicSpan(
       sourceUrl: retrievedByTitle.get(title)?.url,
     })),
     verify: opts.verify,
+    signal: opts.signal, model: opts.model, onProgress: opts.onProgress,
     onStage,
   });
   return { ...result, categorySources };

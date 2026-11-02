@@ -53,6 +53,10 @@ export type Game = {
 };
 
 export type FinalJeopardyClue = {
+  provenance?: string;
+  verification?: import('./ai/types').ClueVerification;
+  sourceMaterial?: string;
+  sourceUrl?: string;
   category: string;
   clue: string;
   response: string;

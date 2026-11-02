@@ -1,9 +1,7 @@
+import type { GenerationProgress, GenerationStage } from '@/lib/ai/types';
 /**
- * Maps the pipeline's free-text stage strings (see `onStage` in src/lib/ai/board.ts
- * and MainMenu's `setWizardStage`) onto a small ordered set of build phases.
- *
- * The pipeline does not emit structured events, so this is a text match. It is
- * deliberately forgiving: an unknown stage never moves progress backwards.
+ * Maps typed pipeline events onto the wizard's build phases. Free-text matching
+ * remains available for legacy callers; the theatre keeps progress monotonic.
  */
 
 export type BuildPhase = 'draft' | 'research' | 'write' | 'check' | 'finish';
@@ -56,4 +54,14 @@ export function creep(phase: PhaseInfo, secondsInPhase: number): number {
 export function formatElapsed(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/** Typed events take precedence; legacy callers can still supply stage strings. */
+export function phaseFromProgress(event: GenerationProgress | null | undefined, legacy?: string): StageSignal {
+  if (!event) return phaseFromStage(legacy);
+  const phases: Record<GenerationStage, BuildPhase> = {
+    categories: 'draft', facts: 'research', retrieval: 'research', answers: 'research',
+    clues: 'write', judging: 'check', verifying: 'check', final: 'check', titles: 'finish', teams: 'finish',
+  };
+  return phases[event.stage];
 }

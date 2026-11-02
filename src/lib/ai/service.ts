@@ -14,6 +14,7 @@ import type {
   AIGenerateResponse,
   AIValidator
 } from './types';
+import { checkAbort, isAbort, timedSignal, type GenerationOptions } from './progress';
 import { buildPrompt } from './prompts';
 
 // AI Server configuration
@@ -258,8 +259,10 @@ export async function generateAI<T = unknown>(
   context: AIContext,
   difficulty: AIDifficulty = 'normal',
   config?: AIServerConfig,
-  authToken?: string | null
+  authToken?: string | null,
+  options: GenerationOptions = {}
 ): Promise<T> {
+  checkAbort(options.signal);
   if (!serverAvailable) {
     throw new Error('AI server is not available. Please start the AI server with: node server.js');
   }
@@ -278,7 +281,7 @@ export async function generateAI<T = unknown>(
   const requestBody: AIGenerateRequest = {
     promptType,
     prompt,
-    model: selectedModel || undefined
+    model: options.model || selectedModel || undefined
   };
 
   // Build headers with auth token if available
@@ -290,7 +293,8 @@ export async function generateAI<T = unknown>(
   const response = await fetch(`${apiBase}/ai/generate`, {
     method: 'POST',
     headers,
-    body: JSON.stringify(requestBody)
+    body: JSON.stringify(requestBody),
+    signal: options.signal
   });
 
   // Handle rate limiting
@@ -345,7 +349,8 @@ export function sourceMatchesTopic(topic: string | undefined, title: string, tex
 export async function searchAndFetchCategorySource(
   query: string,
   authToken?: string | null,
-  contextTopic?: string
+  contextTopic?: string,
+  options: GenerationOptions = {}
 ): Promise<CategorySource | null> {
   const apiBase = getAIApiBase();
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -354,9 +359,10 @@ export async function searchAndFetchCategorySource(
   const queries = scoped ? [`${contextTopic} ${query}`, contextTopic!] : [query];
   const seen = new Set<string>();
   for (const searchQuery of queries) {
+    checkAbort(options.signal);
     try {
       const sr = await fetch(`${apiBase}/search-wikipedia`, {
-        method: 'POST', headers, body: JSON.stringify({ query: searchQuery }), signal: AbortSignal.timeout(20000),
+        method: 'POST', headers, body: JSON.stringify({ query: searchQuery }), signal: timedSignal(options.signal, 20000),
       });
       if (!sr.ok) continue;
       const sdata = await sr.json();
@@ -366,16 +372,16 @@ export async function searchAndFetchCategorySource(
         seen.add(hit.url);
         try {
           const fr = await fetch(`${apiBase}/fetch-article`, {
-            method: 'POST', headers, body: JSON.stringify({ url: hit.url }), signal: AbortSignal.timeout(20000),
+            method: 'POST', headers, body: JSON.stringify({ url: hit.url }), signal: timedSignal(options.signal, 20000),
           });
           if (!fr.ok) continue;
           const data = await fr.json();
           if (typeof data?.text !== 'string' || data.text.length < 400) continue;
           if (!sourceMatchesTopic(contextTopic, hit.title || '', data.text)) continue;
           return { text: data.text, title: hit.title || query, url: hit.url };
-        } catch { /* Try the next candidate. */ }
+        } catch (error) { if (isAbort(error, options.signal)) throw error; /* Try the next candidate. */ }
       }
-    } catch { /* The caller can still try a fact-sheet when retrieval fails. */ }
+    } catch (error) { if (isAbort(error, options.signal)) throw error; }
   }
   return null;
 }
@@ -389,7 +395,8 @@ export async function searchAndFetchCategorySource(
  */
 export async function fetchArticleContent(
   url: string,
-  authToken?: string | null
+  authToken?: string | null,
+  options: GenerationOptions = {}
 ): Promise<{
   success: boolean;
   text?: string;
@@ -408,7 +415,8 @@ export async function fetchArticleContent(
     const response = await fetch(`${apiBase}/fetch-article`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ url })
+      body: JSON.stringify({ url }),
+      signal: options.signal
     });
 
     if (!response.ok) {
@@ -426,6 +434,7 @@ export async function fetchArticleContent(
       truncated: data.truncated || false
     };
   } catch (error) {
+    if (isAbort(error, options.signal)) throw error;
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to fetch article'

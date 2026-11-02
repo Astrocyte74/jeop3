@@ -8,8 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:ai": "node --test scripts/test-ai-verification.mjs",
-    "eval:ai": "node scripts/eval-ai.mjs"
+    "test:ai": "node --test scripts/test-ai-verification.mjs scripts/test-ai-pipeline.mjs",
+    "eval:ai": "node scripts/eval-ai.mjs",
+    "test:state": "node --test scripts/test-game-state.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",

@@ -1,3 +1,4 @@
+import type { GenerationProgress } from '@/lib/ai/types';
 /**
  * Live "board building" view shown while the wizard generates a game.
  *
@@ -17,7 +18,7 @@ import {
   PHASES,
   creep,
   formatElapsed,
-  phaseFromStage,
+  phaseFromProgress,
   phaseRank,
   type BuildPhase,
 } from './generationStages';
@@ -37,6 +38,7 @@ interface TheatreProps {
   columns: TheatreColumn[];
   sourceLabels: string[];
   stage?: string;
+  event?: GenerationProgress | null;
   progress?: { sourceIndex: number; sourceTotal: number } | null;
   error?: string | null;
   summary: string;
@@ -68,6 +70,7 @@ export function GenerationTheatre({
   columns,
   sourceLabels,
   stage,
+  event,
   progress,
   error,
   summary,
@@ -94,7 +97,7 @@ export function GenerationTheatre({
   // Fold each new stage signal into the track. Phases only ever move forward.
   useEffect(() => {
     if (failed) return;
-    const signal = phaseFromStage(stage);
+    const signal = phaseFromProgress(event, stage);
     setTrack((prev) => {
       const t: Track = {
         phases: [...prev.phases],
@@ -123,7 +126,7 @@ export function GenerationTheatre({
       return moved ? t : prev;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage, sourceIndex, failed]);
+  }, [stage, event, sourceIndex, failed]);
 
   // Clock. Slower tick under reduced motion; stops on failure so elapsed freezes.
   useEffect(() => {
@@ -168,7 +171,7 @@ export function GenerationTheatre({
       <TheatreStyles />
 
       {/* ---------- Left: status ---------- */}
-      <div className="flex flex-col min-h-0 lg:overflow-y-auto lg:pr-2 lg:-mr-2">
+      <div className="flex flex-col lg:min-h-0 lg:overflow-y-auto lg:pr-2 lg:-mr-2">
         <h3 className="text-xl font-semibold text-slate-100">
           {failed ? 'The build stopped' : 'Building your board'}
         </h3>
@@ -330,10 +333,10 @@ export function GenerationTheatre({
             <>
               <p className="flex items-center gap-2 text-sm text-slate-200">
                 <span className="th-pulse w-1.5 h-1.5 rounded-full bg-yellow-400" />
-                {stage || 'Starting…'}
+                {event?.message || stage || 'Starting…'}
               </p>
               <p className="text-xs text-slate-600 mt-1">
-                Cells light up as each step finishes. Nothing here is a preview of clue text.
+                {event?.categoryTitle ? `${event.categoryTitle} · ` : ''}{event?.total !== undefined ? `${event.completed ?? 0} / ${event.total} processed` : 'Cells light up as each step finishes. Nothing here is a preview of clue text.'}
               </p>
             </>
           )}

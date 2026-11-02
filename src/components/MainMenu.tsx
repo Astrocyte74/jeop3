@@ -26,12 +26,14 @@ import { loadCustomGames, saveCustomGames, getSelectedGameId, loadGameState, sav
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
 import { getAIApiBase } from '@/lib/ai/service';
 import { useAIGeneration } from '@/lib/ai/hooks';
+import { checkAbort, isAbort, type GenerationOptions } from '@/lib/ai/progress';
+import { generateFinalJeopardy, reviewWholeBoard } from '@/lib/ai/wholeBoard';
 import { generateContentSpan, generateTopicSpan } from '@/lib/ai/board';
 import { getModelStats, formatTime, getModelsBySpeed, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { AIPreviewDialog } from '@/components/ai/AIPreviewDialog';
 import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/components/NewGameWizard';
 import { GameMetadata } from '@/components/GameMetadata';
-import type { AIPromptType, AIDifficulty, Clue as AIClue, AICategory } from '@/lib/ai/types';
+import type { AIPromptType, AIDifficulty, Clue as AIClue, AICategory, GenerationProgress, AIContext } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
 import { Sparkles, Plus } from 'lucide-react';
 import './lobby/lobby.css';
@@ -55,6 +57,9 @@ interface MainMenuProps {
 }
 
 interface GeneratedGameData {
+  boardReview?: PreviewData['boardReview'];
+  finalWarning?: string;
+  includeFinalJeopardy?: boolean;
   game: Game;
   categories: Array<{
     title: string;
@@ -143,6 +148,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
   const [isWizardGenerating, setIsWizardGenerating] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const wizardRunRef = useRef(0);
+  const wizardAbortRef = useRef<AbortController | null>(null);
+  const [generationEvent, setGenerationEvent] = useState<GenerationProgress | null>(null);
+  useEffect(() => () => wizardAbortRef.current?.abort(), []);
   const [wizardStage, setWizardStage] = useState<string>('');
   // Per-source progress for multi-source generation. Null for single-source
   // games (which keep the legacy single-line stage display).
@@ -225,7 +233,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           if (stored && data.models.find((m: any) => m.id === stored)) {
             setAIModel(stored);
           } else if (data.models.length > 0) {
-            setAIModel(data.models[0].id);
+            const defaultId = data.defaultModel || data.models[0].id;
+            setAIModel(defaultId);
+            localStorage.setItem('jeop3:aiModel', defaultId);
           }
         }
         // Initialize pricing from OpenRouter (async, non-blocking)
@@ -620,6 +630,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       categories,
       titles,
       suggestedTeamNames,
+      finalJeopardy: game.finalJeopardy,
     });
 
     setAiPreviewType('categories-generate');
@@ -778,11 +789,32 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
     setRegeneratedItems(new Set());
     setWizardError(null); // Clear any previous errors
     setWizardProgress(null); // Cleared until the multi-source loop populates it
+    wizardAbortRef.current?.abort();
+    const controller = new AbortController();
+    wizardAbortRef.current = controller;
+    setGenerationEvent(null);
+    const runStarted = Date.now();
     const runId = ++wizardRunRef.current;
-    const isStale = () => runId !== wizardRunRef.current;
+    const isStale = () => runId !== wizardRunRef.current || controller.signal.aborted;
     const setRunError = (message: string) => {
       if (!isStale()) setWizardError(message);
     };
+    const options: GenerationOptions = {
+      signal: controller.signal,
+      model: localStorage.getItem('jeop3:aiModel') || aiModel,
+      onProgress: event => {
+        if (isStale()) return;
+        setGenerationEvent(event);
+        if (event.message) setWizardStage(event.message);
+      },
+    };
+    const runGenerate = async (type: AIPromptType, context: AIContext, level: AIDifficulty = 'normal') => {
+      checkAbort(controller.signal);
+      const result = await aiGenerate(type, context, level, options);
+      checkAbort(controller.signal);
+      return result;
+    };
+    const emit = (stage: GenerationProgress['stage'], message: string) => options.onProgress?.({ stage, message });
     setIsWizardGenerating(true);
 
     try {
@@ -852,6 +884,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           return s.url || 'URL source';
         });
         for (let sourceIdx = 0; sourceIdx < customSourcesLoop.length; sourceIdx++) {
+          checkAbort(controller.signal);
           const source = customSourcesLoop[sourceIdx];
           const hasContent = (source.type === 'paste' && source.content) ||
                             (source.type === 'url' && source.fetchedContent);
@@ -866,6 +899,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
           // the active one highlighted. Wrap setWizardStage so granular
           // pipeline stages ("Judging quality…") update the active row.
           const updateProgress = (stage: string) => {
+            if (isStale()) return;
             setWizardStage(stage);
             setWizardProgress({
               sourceIndex: sourceIdx,
@@ -884,7 +918,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               // A+ answer-first pipeline (board.ts): extract specific answers -> filter ->
               // clues for FIXED answers; patch thin-source gaps from a single-pass fallback,
               // then independently verify all clues before accepting a complete board.
-              const span = await generateContentSpan(aiGenerate as any, {
+              const span = await generateContentSpan(runGenerate, {
+                ...options,
                 referenceMaterial: sourceMaterial,
                 theme: source.topic || theme || 'random',
                 titles: source.suggestedTitles,
@@ -902,7 +937,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
               // via a synthesized grounding fact-sheet (topic-mode parity). This
               // gives topics the same extract → clues → judge → select curation
               // that content gets. Verification failures remain visible in the wizard.
-              const span = await generateTopicSpan(aiGenerate as any, {
+              const span = await generateTopicSpan(runGenerate, {
+                ...options,
                 topic: source.topic || 'random',
                 titles: source.suggestedTitles,
                 count: source.categoryCount,
@@ -945,6 +981,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
             categoriesList.push(...spanCategories);
             updateProgress('Done');
           } catch (error) {
+            if (isAbort(error, controller.signal)) throw error;
             console.error('[MainMenu] Error generating from source:', source, error);
             failedSources.push({
               source,
@@ -985,7 +1022,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         }
 
         // Generate categories
-        const categoriesResult = await aiGenerate(
+        emit('categories', 'Choosing categories and clues…');
+        const categoriesResult = await runGenerate(
           promptType,
           context,
           difficulty
@@ -1031,6 +1069,12 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         categoriesMetadata = (categoriesResult as any)._metadata;
       }
 
+      checkAbort(controller.signal);
+      const finalResult = wizardData.includeFinalJeopardy === false ? {} : await generateFinalJeopardy(runGenerate, categoriesList, theme || 'random', options);
+      const finalJeopardy = finalResult.final;
+      const boardReview = await reviewWholeBoard(runGenerate, categoriesList, finalJeopardy, options);
+      checkAbort(controller.signal);
+
       // Generate titles - use actual categories for better themed titles
       const titleContext: Record<string, any> = { theme: theme || 'random', hasContent: true };
 
@@ -1051,8 +1095,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         sampleLength: titleContext.sampleContent?.length,
         categoriesCount: categoriesList?.length
       });
-      setWizardStage('Generating title options…');
-      const titlesResult = await aiGenerate(
+      emit('titles', 'Generating title options…');
+      const titlesResult = await runGenerate(
         'game-title',
         titleContext,
         difficulty
@@ -1092,8 +1136,8 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       teamNamesContext.gameTopic = gameTopic;
 
       console.log('[MainMenu] Generating team names with gameTopic:', gameTopic);
-      setWizardStage('Generating team names…');
-      const teamNamesResult = await aiGenerate('team-name-random', teamNamesContext, difficulty);
+      emit('teams', 'Generating team names…');
+      const teamNamesResult = await runGenerate('team-name-random', teamNamesContext, difficulty);
 
       let suggestedTeamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4'];
       if (teamNamesResult && typeof teamNamesResult === 'object' && 'names' in teamNamesResult) {
@@ -1125,6 +1169,9 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       // Build enhanced metadata with source info
       const enhancedMetadata = {
         ...categoriesMetadata,
+        modelUsed: options.model,
+        generatedAt: new Date().toISOString(),
+        generationTimeMs: Date.now() - runStarted,
         sourceMode,
         difficulty,
         ...(sourceMode === 'custom' && customSources ? {
@@ -1146,12 +1193,16 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         subtitle: titlesList[0].subtitle,
         categories: gameCategories,
         rows: 5,
+        finalJeopardy,
         suggestedTeamNames: suggestedTeamNames,
         metadata: enhancedMetadata,
       };
 
       // Store the generated game data for later use
+      if (isStale()) return;
       setGeneratedGameData({
+        includeFinalJeopardy: wizardData.includeFinalJeopardy !== false,
+        boardReview, finalWarning: finalResult.warning,
         game: newGame,
         categories: categoriesList,
         alternatives: alternativesList.length ? alternativesList : undefined,
@@ -1178,23 +1229,31 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       setIsWizardGenerating(false);
       setWizardHidden(true);
 
-      setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames });
+      setAiPreviewData({ categories: categoriesList, titles: titlesList, suggestedTeamNames, finalJeopardy, finalWarning: finalResult.warning, boardReview });
       setAiPreviewType('categories-generate');
       setAiPreviewOpen(true);
 
     } catch (error) {
+      if (isAbort(error, controller.signal)) return;
       console.error('[MainMenu] AI generation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to generate game. Please try again.';
       setRunError(errorMessage);
       if (!isStale()) setIsWizardGenerating(false);
       // Keep wizard open on error
+    } finally {
+      if (runId === wizardRunRef.current) {
+        setIsWizardGenerating(false);
+        wizardAbortRef.current = null;
+      }
     }
   };
 
   // Retry handler for wizard errors
   const handleWizardCancel = useCallback(() => {
-    // The AI pipeline has no abort signal yet: invalidate the run so its result is
-    // ignored when it lands, and return the wizard to the form.
+    wizardAbortRef.current?.abort();
+    wizardAbortRef.current = null;
+    setGenerationEvent(null);
+    // Invalidate late callbacks as a backstop to transport cancellation.
     wizardRunRef.current += 1;
     setIsWizardGenerating(false);
     setWizardProgress(null);
@@ -1337,6 +1396,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         referenceMaterial: generatedGameData.referenceMaterial,
         referenceUrl: generatedGameData.referenceUrl,
         customSources: generatedGameData.customSources,
+        includeFinalJeopardy: generatedGameData.includeFinalJeopardy,
       });
       return; // handleWizardComplete reopens the preview with fresh data.
     }
@@ -2358,6 +2418,18 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
                       Performance based on your history
                     </div>
 
+                    {(['codex', 'openai'] as const).map(provider => availableModels.some(m => m.provider === provider) && (
+                      <DropdownMenuSub key={provider}>
+                        <DropdownMenuSubTrigger>{provider === 'codex' ? 'Subscription · local' : 'OpenAI API'}</DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent sideOffset={5} className="max-h-80 overflow-y-auto w-64">
+                          {availableModels.filter(m => m.provider === provider).map(model => (
+                            <DropdownMenuItem key={model.id} onClick={() => handleAIModelChange(model.id)}>
+                              {model.name}{aiModel === model.id ? ' ✓' : ''}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    ))}
                     {/* OpenRouter section */}
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
@@ -2576,6 +2648,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
         onImportJSON={handleCreateGameImport}
         isLoading={isWizardGenerating}
         loadingStage={wizardStage}
+        generationEvent={generationEvent}
         progress={wizardProgress}
         error={wizardError}
         onRetry={handleWizardRetry}
@@ -2595,7 +2668,7 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       <AIPreviewDialog
         open={aiPreviewOpen}
         type={aiPreviewType}
-        data={aiPreviewData}
+        data={{ ...aiPreviewData, finalJeopardy: generatedGameData?.game.finalJeopardy, boardReview: generatedGameData?.boardReview, finalWarning: generatedGameData?.finalWarning }}
         onConfirm={handleAIPreviewConfirm}
         onCancel={handleAIPreviewCancel}
         onRegenerateAll={handleRegenerateAll}

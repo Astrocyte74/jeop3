@@ -1,3 +1,6 @@
+import { boardSnapshot } from '@/lib/ai/wholeBoard';
+import type { BoardReview } from '@/lib/ai/types';
+import type { FinalJeopardyClue } from '@/lib/storage';
 import { VerificationBadge } from './VerificationBadge';
 /**
  * AI Preview Dialog Component
@@ -41,6 +44,9 @@ import type { GameMetadata } from '@/lib/storage';
 export type PreviewClue = Pick<Clue, 'value' | 'clue' | 'response' | 'provenance' | 'verification'>;
 
 export interface PreviewData {
+  finalJeopardy?: FinalJeopardyClue;
+  finalWarning?: string;
+  boardReview?: BoardReview;
   titles?: Array<{ title: string; subtitle: string }>;
   categories?: Array<{
     title: string;
@@ -887,6 +893,8 @@ export function AIPreviewDialog({
 
   const getTypeLabel = () => {
     const labels: Record<AIPromptType, string> = {
+      'final-jeopardy': 'Final Jeopardy',
+      'review-board': 'Review Board',
       'game-title': 'Generate Title & Subtitle',
       'categories-generate': 'Generate All Categories',
       'categories-generate-from-content': 'Generate from Content',
@@ -1053,6 +1061,26 @@ export function AIPreviewDialog({
           </AlertDialogHeader>
         </div>
 
+        {data.finalJeopardy && (
+          <details className="my-2 rounded-lg border border-slate-700 p-3">
+            <summary className="cursor-pointer text-slate-200">Final Jeopardy · {data.finalJeopardy.category} <VerificationBadge clue={{ ...data.finalJeopardy, value: 0 }} category={data.finalJeopardy.category} /></summary>
+            <p className="mt-2">{data.finalJeopardy.clue}</p>
+            <p className="mt-1 font-semibold">{data.finalJeopardy.response}</p>
+          </details>
+        )}
+        {data.finalWarning && <p className="text-sm text-amber-300">{data.finalWarning}</p>}
+        {data.boardReview && (
+          <details className="my-2 rounded-lg border border-slate-700 p-3">
+            <summary className="cursor-pointer text-slate-200">Whole-board review · {data.boardReview.issues.length} notes</summary>
+            {data.boardReview.snapshot !== boardSnapshot(data.categories || [], data.finalJeopardy) ? (
+              <p className="text-sm text-amber-300">The board has changed since this review. Regenerate the board to check the new version.</p>
+            ) : <>
+              {data.boardReview.warning && <p className="text-sm text-amber-300">{data.boardReview.warning}</p>}
+              {!data.boardReview.issues.length && <p>No board-level issues found in this review.</p>}
+              <ul className="list-disc pl-5">{data.boardReview.issues.map((issue, i) => <li key={i}>{issue.reason}</li>)}</ul>
+            </>}
+          </details>
+        )}
         {/* Metadata display - collapsible */}
         {metadata && <GameMetadataComponent metadata={metadata} defaultOpen={false} />}
 

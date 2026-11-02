@@ -1,3 +1,4 @@
+import { checkAbort, timedSignal, progress, type GenerationOptions } from './progress';
 import { getAIApiBase } from './service';
 import type { AICategory, Clue, ClueVerification } from './types';
 
@@ -13,14 +14,15 @@ export interface VerificationResult {
   model: string;
   verdicts: Array<{ id: string; verdict: 'true' | 'false' | 'unsure'; onTopic: boolean; reason: string }>;
 }
-export type Verifier = (topic: string, items: VerificationItem[]) => Promise<VerificationResult>;
+export type Verifier = (topic: string, items: VerificationItem[], options?: GenerationOptions) => Promise<VerificationResult>;
 
-export const requestVerification: Verifier = async (topic, items) => {
+export const requestVerification: Verifier = async (topic, items, options = {}) => {
+  checkAbort(options.signal);
   const response = await fetch(`${getAIApiBase()}/ai/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(150000),
-    body: JSON.stringify({ topic, items, generatorModel: typeof localStorage !== 'undefined' ? localStorage.getItem('jeop3:aiModel') : undefined }),
+    signal: timedSignal(options.signal, 150000),
+    body: JSON.stringify({ topic, items, generatorModel: options.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('jeop3:aiModel') : undefined) }),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'Independent verification unavailable');
@@ -28,7 +30,8 @@ export const requestVerification: Verifier = async (topic, items) => {
 };
 
 /** Strict ID matching: an omitted, duplicated or malformed verdict never passes. */
-export async function verifyCategories(categories: AICategory[], topic: string, verify: Verifier = requestVerification) {
+export async function verifyCategories(categories: AICategory[], topic: string, verify: Verifier = requestVerification, options: GenerationOptions = {}) {
+  progress(options, 'verifying', 'Independently checking facts and topic…', { completed: 0, total: categories.length });
   const items: VerificationItem[] = categories.flatMap((cat, ci) => cat.clues.map((clue, qi) => ({
     id: `${ci}:${qi}`, category: cat.title, clue: clue.clue, response: clue.response,
     // A synthesized fact sheet is not independent evidence.
@@ -36,7 +39,8 @@ export async function verifyCategories(categories: AICategory[], topic: string, 
     sourceUrl: cat.sourceType === 'ai_synthesized' ? undefined : cat.sourceUrl,
   })));
   if (!items.length) throw new Error('No clues to verify');
-  const result = await verify(topic, items);
+  const result = await verify(topic, items, options);
+  checkAbort(options.signal);
   if (!result || typeof result.model !== 'string' || !result.model.trim() || !Array.isArray(result.verdicts) || result.verdicts.length !== items.length) throw new Error('Incomplete independent verification');
   const expected = new Set(items.map(i => i.id));
   for (const row of result.verdicts) {
@@ -53,6 +57,7 @@ export async function verifyCategories(categories: AICategory[], topic: string, 
     };
     return [{ ...clue, verification }];
   }) }));
+  checked.forEach((cat, i) => progress(options, 'verifying', `Checked ${cat.title}`, { categoryIndex: i, categoryTitle: cat.title, completed: i + 1, total: checked.length, status: cat.clues.length === categories[i].clues.length ? 'complete' : 'failed' }));
   return { categories: checked, audit: { ...result, items } };
 }
 

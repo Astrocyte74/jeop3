@@ -1,3 +1,4 @@
+import { checkAbort, isAbort, type GenerationOptions } from './progress';
 /**
  * AI React Hooks
  *
@@ -125,7 +126,7 @@ export function useAIServer() {
 // AI GENERATION HOOK
 // ============================================
 
-export interface UseAIGenerationOptions {
+export interface UseAIGenerationOptions extends GenerationOptions {
   onSuccess?: (result: unknown) => void;
   onError?: (error: Error) => void;
   onRetry?: () => void;
@@ -144,6 +145,7 @@ export function useAIGeneration() {
     difficulty: AIDifficulty = 'normal',
     options?: UseAIGenerationOptions
   ) => {
+    checkAbort(options?.signal);
     if (!isAvailable) {
       const err = new Error('AI server is not available. Start the server with: node server.js');
       show(err.message, 'error', { duration: 4000 });
@@ -162,8 +164,10 @@ export function useAIGeneration() {
     console.log('[useAIGeneration] Clerk auth check:', {
       clerkLoaded,
       hasToken: !!authToken,
-      tokenPreview: authToken ? `${authToken.substring(0, 20)}...` : 'none'
+      // Never log authentication token contents.
     });
+
+    if (options?.signal?.aborted) { setIsLoading(false); checkAbort(options.signal); }
 
     // Check if we have a token (AI generation requires auth)
     if (!authToken) {
@@ -176,12 +180,14 @@ export function useAIGeneration() {
     }
 
     // Get the selected model from localStorage first (for estimate)
-    const modelUsed = typeof window !== 'undefined'
+    const modelUsed = options?.model || (typeof window !== 'undefined'
       ? localStorage.getItem('jeop3:aiModel') || undefined
-      : undefined;
+      : undefined);
 
     // Get loading message for action type with estimate
     const baseLoadingMessages: Record<AIPromptType, string> = {
+      'final-jeopardy': 'Writing Final Jeopardy...',
+      'review-board': 'Reviewing the whole board...',
       'game-title': 'Generating title options...',
       'categories-generate': 'Generating full game...',
       'categories-generate-from-content': 'Generating game from content...',
@@ -218,7 +224,8 @@ export function useAIGeneration() {
     const startTime = Date.now();
 
     try {
-      const rawResult = await generateAI<string>(promptType, context, difficulty, undefined, authToken);
+      const rawResult = await generateAI<string>(promptType, context, difficulty, undefined, authToken, options);
+      checkAbort(options?.signal);
 
       console.log('[useAIGeneration] Raw AI response:', { promptType, rawLength: rawResult?.length, rawPreview: rawResult?.substring(0, 500) });
 
@@ -260,6 +267,7 @@ export function useAIGeneration() {
       };
 
     } catch (err) {
+      if (isAbort(err, options?.signal)) { loader.dismiss(); setIsLoading(false); throw err; }
       const error = err as Error;
       console.error('[useAIGeneration] Generation error:', { error, message: error.message, stack: error.stack });
       loader.error(error.message || 'AI generation failed');
