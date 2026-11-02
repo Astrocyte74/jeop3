@@ -1,3 +1,4 @@
+import { VerificationBadge } from './VerificationBadge';
 /**
  * AI Preview Dialog Component
  *
@@ -26,8 +27,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Wand2, Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft, Check, AlertCircle, BookOpen } from 'lucide-react';
-import type { AIPromptType } from '@/lib/ai/types';
+import { Sparkles, RefreshCw, Eye, EyeOff, ArrowLeft, Check, AlertCircle, BookOpen, PencilLine, X } from 'lucide-react';
+import { EDITOR_NAME, StatusSummary, countStatuses, readShowAnswers, writeShowAnswers } from '@/components/editor/clueStatus';
+import type { AIPromptType, Clue } from '@/lib/ai/types';
 import { GameMetadata as GameMetadataComponent } from '@/components/GameMetadata';
 import type { GameMetadata } from '@/lib/storage';
 
@@ -35,19 +37,22 @@ import type { GameMetadata } from '@/lib/storage';
 // TYPES
 // ============================================
 
+/** A previewed clue. provenance/verification are present when the pipeline produced them. */
+export type PreviewClue = Pick<Clue, 'value' | 'clue' | 'response' | 'provenance' | 'verification'>;
+
 export interface PreviewData {
   titles?: Array<{ title: string; subtitle: string }>;
   categories?: Array<{
     title: string;
     contentTopic?: string;
-    clues: Array<{ value: number; clue: string; response: string }>;
+    clues: PreviewClue[];
   }>;
   category?: {
     title: string;
     contentTopic?: string;
-    clues: Array<{ value: number; clue: string; response: string }>;
+    clues: PreviewClue[];
   };
-  clues?: Array<{ value: number; clue: string; response: string }>;
+  clues?: PreviewClue[];
   suggestedTeamNames?: string[];
 }
 
@@ -218,7 +223,7 @@ function CategoryPreview({
   category,
   showRegeneratedBadge = false
 }: {
-  category: { title: string; contentTopic?: string; clues: Array<{ value: number; clue: string; response: string }> };
+  category: { title: string; contentTopic?: string; clues: PreviewClue[] };
   showRegeneratedBadge?: boolean;
 }) {
   return (
@@ -286,7 +291,7 @@ function CategoriesPreview({
   categories: Array<{
     title: string;
     contentTopic?: string;
-    clues: Array<{ value: number; clue: string; response: string }>;
+    clues: PreviewClue[];
   }>;
   regeneratedItems: Set<string>;
   titles?: Array<{ title: string; subtitle: string }>;
@@ -321,7 +326,7 @@ function CategoriesPreview({
   onEditTeamName?: (teamIndex: number, newName: string) => void;
 }) {
   // Local state for inline editing and show answers toggle
-  const [showAnswers, setShowAnswers] = useState(true);
+  const [showAnswers, setShowAnswers] = useState<boolean>(readShowAnswers);
   const [editingCategory, setEditingCategory] = useState<{ catIndex: number; field: 'title' | 'contentTopic' } | null>(null);
   const [editingClue, setEditingClue] = useState<{ catIndex: number; clueIndex: number; field: 'clue' | 'response' } | null>(null);
   const [editingTeamName, setEditingTeamName] = useState<number | null>(null);
@@ -476,25 +481,23 @@ function CategoriesPreview({
         );
       })()}
 
-      {/* Instructions with Show Answers toggle */}
-      <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 text-sm">
-        <div className="flex items-center justify-between mb-2">
-          <p className="font-medium text-slate-300">Review the generated content:</p>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowAnswers(!showAnswers)}
-            className="h-7 px-2 text-xs text-purple-400 hover:text-purple-300 hover:bg-purple-500/10"
-          >
-            {showAnswers ? <EyeOff className="w-3.5 h-3.5 mr-1" /> : <Eye className="w-3.5 h-3.5 mr-1" />}
-            {showAnswers ? 'Hide' : 'Show'} Answers
-          </Button>
+      {/* Toolbar: verification summary + answers toggle (same as the board view) */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-slate-700 bg-slate-800/50 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <StatusSummary counts={countStatuses(categories)} />
+          <span className="text-xs text-slate-500">Click any text to edit it. Use the sparkle menus for AI options.</span>
         </div>
-        <ul className="space-y-1 text-slate-400 text-xs">
-          <li>• Click on any text to manually edit it</li>
-          <li>• Use the AI menu (✨) next to items for AI options</li>
-          <li>• All changes will be applied when you click "Done"</li>
-        </ul>
+        <Button
+          variant="outline"
+          size="sm"
+          aria-pressed={showAnswers}
+          aria-label={showAnswers ? 'Hide answers' : 'Show answers'}
+          onClick={() => setShowAnswers((v) => { writeShowAnswers(!v); return !v; })}
+          className="h-8 border-slate-600 bg-transparent text-slate-200"
+        >
+          {showAnswers ? <EyeOff className="w-3.5 h-3.5 mr-1.5" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
+          {showAnswers ? 'Hide answers' : 'Show answers'}
+        </Button>
       </div>
 
       {/* Categories with dropdown menus */}
@@ -632,6 +635,7 @@ function CategoriesPreview({
                       {isClueRegenerated && (
                         <Badge className="bg-purple-500 text-xs shrink-0">✨ New</Badge>
                       )}
+                      <VerificationBadge clue={clue} category={cat.title} />
                       {(clue as any).provenance === 'fallback' && (
                         <Badge variant="outline" className="text-amber-400/80 border-amber-500/30 bg-amber-500/5 text-[10px] shrink-0" title="Filled from fallback — click ✨ to regenerate for a better clue">Patched</Badge>
                       )}
@@ -831,6 +835,11 @@ export function AIPreviewDialog({
   } : {};
 
   const [selectedTitle, setSelectedTitle] = useState<number | null>(null);
+  // Any manual edit or regeneration in this session counts as unsaved.
+  const [hasEdits, setHasEdits] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  // Set while Save is running so the dialog's own close doesn't read as a discard.
+  const savingRef = useRef(false);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [internalRegeneratedItems, setInternalRegeneratedItems] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -851,10 +860,23 @@ export function AIPreviewDialog({
       setSelectedTitle(0); // Default to first title
       setCheckedItems(new Set());
       setInternalRegeneratedItems(new Set());
+      setHasEdits(false);
+      setConfirmDiscard(false);
+      savingRef.current = false;
     }
   }, [open]);
 
+  const hasUnsaved = hasEdits || regeneratedItems.size > 0;
+  const markEdited = <A extends unknown[]>(fn?: (...args: A) => void) =>
+    fn ? (...args: A) => { setHasEdits(true); fn(...args); } : undefined;
+
+  const requestDiscard = () => {
+    if (hasUnsaved) setConfirmDiscard(true);
+    else onCancel();
+  };
+
   const handleConfirm = () => {
+    savingRef.current = true;
     // Pass both the selected title (if applicable) and checked items
     const result = {
       title: type === 'game-title' ? (selectedTitle ?? 0) : selectedTitle ?? undefined,
@@ -919,10 +941,10 @@ export function AIPreviewDialog({
             rewritingTeamName={rewritingTeamName}
             enhancingTeamName={enhancingTeamName}
             // Manual editing callbacks
-            onEditCategoryTitle={onEditCategoryTitle}
-            onEditClue={onEditClue}
-            onEditAnswer={onEditAnswer}
-            onEditTeamName={onEditTeamName}
+            onEditCategoryTitle={markEdited(onEditCategoryTitle)}
+            onEditClue={markEdited(onEditClue)}
+            onEditAnswer={markEdited(onEditAnswer)}
+            onEditTeamName={markEdited(onEditTeamName)}
             {...aiActionProps}
           />
         ) : null;
@@ -946,10 +968,10 @@ export function AIPreviewDialog({
             rewritingTeamName={rewritingTeamName}
             enhancingTeamName={enhancingTeamName}
             // Manual editing callbacks
-            onEditCategoryTitle={onEditCategoryTitle}
-            onEditClue={onEditClue}
-            onEditAnswer={onEditAnswer}
-            onEditTeamName={onEditTeamName}
+            onEditCategoryTitle={markEdited(onEditCategoryTitle)}
+            onEditClue={markEdited(onEditClue)}
+            onEditAnswer={markEdited(onEditAnswer)}
+            onEditTeamName={markEdited(onEditTeamName)}
             {...aiActionProps}
           />
         ) : null;
@@ -982,25 +1004,59 @@ export function AIPreviewDialog({
   };
 
   return (
-    <AlertDialog open={open} onOpenChange={(open) => !open && onCancel()}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) return;
+        // Save closes the dialog through here too; only Esc/overlay should ask.
+        if (savingRef.current) onCancel();
+        else requestDiscard();
+      }}
+    >
       {/* data-[size=default]:sm:max-w-3xl matches the base component's own variant so it can override its sm:max-w-lg cap */}
       <AlertDialogContent className="max-w-[95vw] data-[size=default]:sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
-        <AlertDialogHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-500/20 rounded-lg">
-              <Wand2 className="w-5 h-5 text-purple-400" />
+        {/* Persistent bar: same name and actions as the board view of the editor. */}
+        <div className="sticky -top-6 z-20 -mx-6 -mt-6 border-b border-white/10 bg-background/95 px-6 pb-3 pt-5 backdrop-blur">
+          <AlertDialogHeader>
+            <div className="flex w-full items-center gap-3">
+              <PencilLine className="h-5 w-5 shrink-0 text-purple-300" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <AlertDialogTitle>{EDITOR_NAME}</AlertDialogTitle>
+                <AlertDialogDescription className="flex items-center gap-2">
+                  <span>{getTypeLabel()}</span>
+                  <span className={`inline-flex items-center gap-1.5 ${hasUnsaved ? 'text-amber-300' : 'text-slate-500'}`} role="status" aria-live="polite">
+                    <span className={`size-2 rounded-full ${hasUnsaved ? 'bg-amber-400' : 'bg-slate-600'}`} aria-hidden />
+                    {hasUnsaved ? 'Unsaved changes' : 'No changes'}
+                  </span>
+                </AlertDialogDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={requestDiscard}
+                disabled={isLoading}
+                aria-label={hasUnsaved ? 'Discard changes' : 'Close editor'}
+                className="border-slate-600 bg-transparent text-slate-200"
+              >
+                <X className="mr-1.5 h-4 w-4" />
+                {hasUnsaved ? 'Discard' : 'Close'}
+              </Button>
+              <AlertDialogAction
+                onClick={handleConfirm}
+                disabled={(type === 'game-title' && selectedTitle === null) || isLoading}
+                aria-label="Save game"
+                className="bg-yellow-500 font-semibold text-black hover:bg-yellow-400"
+              >
+                Save
+              </AlertDialogAction>
             </div>
-            <div className="flex-1">
-              <AlertDialogTitle>🪄 AI Preview</AlertDialogTitle>
-              <AlertDialogDescription>{getTypeLabel()}</AlertDialogDescription>
-            </div>
-          </div>
-        </AlertDialogHeader>
+          </AlertDialogHeader>
+        </div>
 
         {/* Metadata display - collapsible */}
         {metadata && <GameMetadataComponent metadata={metadata} defaultOpen={false} />}
 
-        <div className="py-4 relative break-words">
+        <div className="py-1 relative break-words">
           {/* Loading indicator at top */}
           {isLoading && regeneratingCounts && (
             <div ref={scrollRef} className="mb-4 bg-purple-500/20 border border-purple-500/50 rounded-lg p-4 flex items-center gap-4">
@@ -1022,42 +1078,58 @@ export function AIPreviewDialog({
           {renderContent()}
         </div>
 
-        <AlertDialogFooter>
-          <div className="flex gap-2 w-full">
-            {onBack && (
-              <Button
-                variant="ghost"
-                onClick={onBack}
-                disabled={isLoading}
-                className="text-gray-600 hover:text-gray-800"
+        {(onBack || (onRegenerateAll && type !== 'game-title' && isSignedIn)) && (
+          <AlertDialogFooter>
+            <div className="flex gap-2 w-full">
+              {onBack && (
+                <Button
+                  variant="ghost"
+                  onClick={onBack}
+                  disabled={isLoading}
+                  className="text-slate-400 hover:text-slate-200"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+              )}
+              {onRegenerateAll && type !== 'game-title' && isSignedIn && (
+                <Button
+                  variant="outline"
+                  className="ml-auto"
+                  onClick={() => {
+                    onRegenerateAll();
+                    onCancel();
+                  }}
+                  disabled={isLoading}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Regenerate all categories
+                </Button>
+              )}
+            </div>
+          </AlertDialogFooter>
+        )}
+
+        {/* Only reachable when there are unsaved edits. */}
+        <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Your edits and regenerated items haven't been saved. Leaving now will lose them.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep editing</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => { setConfirmDiscard(false); onCancel(); }}
+                className="bg-red-600 hover:bg-red-500"
               >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-            )}
-            <AlertDialogCancel onClick={onCancel} disabled={isLoading}>Cancel</AlertDialogCancel>
-            {onRegenerateAll && type !== 'game-title' && isSignedIn && (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  onRegenerateAll();
-                  onCancel();
-                }}
-                disabled={isLoading}
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Regenerate all categories
-              </Button>
-            )}
-            <AlertDialogAction
-              onClick={handleConfirm}
-              disabled={(type === 'game-title' && selectedTitle === null) || isLoading}
-              className="ml-auto bg-yellow-500 hover:bg-yellow-400 text-black"
-            >
-              Done
-            </AlertDialogAction>
-          </div>
-        </AlertDialogFooter>
+                Discard changes
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </AlertDialogContent>
     </AlertDialog>
   );

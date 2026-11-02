@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { VerificationBadge } from './ai/VerificationBadge';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -21,9 +22,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import type { Game, Category, Clue } from '@/lib/storage';
-import { Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen } from 'lucide-react';
+import {
+  Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen,
+  Eye, EyeOff, PencilLine, ChevronLeft, ChevronRight, Users, ChevronDown,
+} from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
 import { generateContentSpan } from '@/lib/ai/board';
+import { EDITOR_NAME, StatusDot, StatusSummary, countStatuses, getClueStatus, readShowAnswers, writeShowAnswers } from './editor/clueStatus';
 
 interface EditorBoardProps {
   game: Game;
@@ -32,15 +37,25 @@ interface EditorBoardProps {
   onCancel: () => void;
 }
 
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
 export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps) {
   const [editingGame, setEditingGame] = useState<Game>({ ...game });
   const [editingCell, setEditingCell] = useState<{ categoryId: number; clueIndex: number } | null>(null);
-  const [hasChanges, setHasChanges] = useState(false);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  // Which action a pending "unsaved changes" confirmation will run.
+  const [pendingLeave, setPendingLeave] = useState<'discard' | 'menu' | null>(null);
+  const [showAnswers, setShowAnswers] = useState<boolean>(readShowAnswers);
+  const [teamsOpen, setTeamsOpen] = useState(false);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([
     { id: '1', name: 'Team 1' },
     { id: '2', name: 'Team 2' },
   ]);
+  // Only write team names back into the game once the user actually edits them.
+  const teamsTouched = useRef(false);
+  const updateTeams = (updater: (prev: { id: string; name: string }[]) => { id: string; name: string }[]) => {
+    teamsTouched.current = true;
+    setTeams(updater);
+  };
 
   // AI state
   const { generate, isLoading: aiLoading, isAvailable: aiAvailable } = useAIGeneration();
@@ -50,7 +65,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   // Alternatives pool (filled by per-category regen; consumed by per-clue regen).
   // Empty until a category is regenerated in this session — alternatives don't
   // persist across reloads.
-  const [alternatives, setAlternatives] = useState<Array<{ title: string; clues: Array<{ clue: string; response: string; provenance: 'answer_first'; score: { specificity: number; sourceSupport: number; clarity: number; jeopardyStyle: number; duplicateRisk: number; difficulty: number } }> }>>([]);
+  const [alternatives, setAlternatives] = useState<NonNullable<import('@/lib/ai/board').ContentSpanResult['alternatives']>>([]);
 
   const categories = editingGame.categories || [];
   const rowCount = editingGame.rows || categories[0]?.clues?.length || 5;
@@ -92,10 +107,10 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   };
 
   // Check if game has changed from original
-  useEffect(() => {
-    const changed = JSON.stringify(editingGame) !== JSON.stringify(game);
-    setHasChanges(changed);
-  }, [editingGame, game]);
+  const hasChanges = useMemo(
+    () => JSON.stringify(editingGame) !== JSON.stringify(game),
+    [editingGame, game],
+  );
 
   // Load suggested team names from game on mount
   useEffect(() => {
@@ -111,9 +126,32 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     }
   }, [game]);
 
+  // Team names edited here are saved with the game (as its suggested names).
+  useEffect(() => {
+    if (!teamsTouched.current) return;
+    const names = teams.map((t) => t.name);
+    setEditingGame((g) => (JSON.stringify(g.suggestedTeamNames) === JSON.stringify(names) ? g : { ...g, suggestedTeamNames: names }));
+  }, [teams]);
+
+  const toggleAnswers = () => {
+    setShowAnswers((prev) => {
+      const next = !prev;
+      writeShowAnswers(next);
+      return next;
+    });
+  };
+
   const updateCategoryTitle = (index: number, title: string) => {
     const newCategories = [...categories];
     newCategories[index] = { ...newCategories[index], title };
+    setEditingGame({ ...editingGame, categories: newCategories });
+  };
+
+  const moveCategory = (index: number, delta: -1 | 1) => {
+    const target = index + delta;
+    if (target < 0 || target >= categories.length) return;
+    const newCategories = [...categories];
+    [newCategories[index], newCategories[target]] = [newCategories[target], newCategories[index]];
     setEditingGame({ ...editingGame, categories: newCategories });
   };
 
@@ -146,17 +184,48 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     onSave(editingGame);
   };
 
-  const handleCancel = () => {
-    if (hasChanges) {
-      setShowCancelDialog(true);
-    } else {
-      onCancel();
-    }
+  // Cmd/Ctrl+S saves. Kept in a ref so the listener is registered once.
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Esc closes the clue drawer.
+  useEffect(() => {
+    if (!editingCell) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingCell(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editingCell]);
+
+  // Browser-level guard against losing edits on reload/close.
+  useEffect(() => {
+    if (!hasChanges) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasChanges]);
+
+  // Leaving without saving only asks when there is something to lose.
+  const requestLeave = (kind: 'discard' | 'menu') => {
+    if (hasChanges) setPendingLeave(kind);
+    else if (kind === 'discard') onCancel();
+    else onExit();
   };
 
-  const confirmCancel = () => {
-    setShowCancelDialog(false);
-    onCancel();
+  const confirmLeave = () => {
+    const kind = pendingLeave;
+    setPendingLeave(null);
+    if (kind === 'discard') onCancel();
+    else if (kind === 'menu') onExit();
   };
 
   const updateGameTitle = (title: string) => {
@@ -169,16 +238,16 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
   const handleAddTeam = () => {
     const newId = crypto.randomUUID();
-    setTeams([...teams, { id: newId, name: `Team ${teams.length + 1}` }]);
+    updateTeams((prev) => [...prev, { id: newId, name: `Team ${prev.length + 1}` }]);
   };
 
   const handleUpdateTeamName = (id: string, name: string) => {
-    setTeams(teams.map((t) => (t.id === id ? { ...t, name } : t)));
+    updateTeams((prev) => prev.map((t) => (t.id === id ? { ...t, name } : t)));
   };
 
   const handleRemoveTeam = (id: string) => {
     if (teams.length <= 1) return;
-    setTeams(teams.filter((t) => t.id !== id));
+    updateTeams((prev) => prev.filter((t) => t.id !== id));
   };
 
   // ==================== AI TEAM NAME HANDLERS ====================
@@ -203,7 +272,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     if (result && typeof result === 'object' && 'names' in result) {
       const names = result as { names: string[] };
       if (names.names[0]) {
-        setTeams((prev) =>
+        updateTeams((prev) =>
           prev.map((t, i) => (i === teamIndex ? { ...t, name: names.names[0] } : t))
         );
       }
@@ -231,7 +300,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     if (result && typeof result === 'object' && 'name' in result) {
       const enhanced = result as { name: string };
       if (enhanced.name) {
-        setTeams((prev) =>
+        updateTeams((prev) =>
           prev.map((t, i) => (i === teamIndex ? { ...t, name: enhanced.name } : t))
         );
       }
@@ -254,7 +323,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
     if (result && typeof result === 'object' && 'names' in result) {
       const names = result as { names: string[] };
       if (names.names.length === teams.length) {
-        setTeams((prev) =>
+        updateTeams((prev) =>
           prev.map((t, i) => ({ ...t, name: names.names[i] || t.name }))
         );
       }
@@ -384,6 +453,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
       if (candidate) {
         // Instant swap — re-value to the target clue's dollar amount.
         updateClue(categoryId, clueIndex, {
+          verification: candidate.verification,
           clue: candidate.clue,
           response: candidate.response,
           provenance: 'answer_first',
@@ -431,13 +501,14 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
 
       const span = await generateContentSpan(generate as any, {
         referenceMaterial: sourceMaterial,
-        theme: editingGame.title || category.title,
+        theme: category.contentTopic || editingGame.title || category.title,
         titles: [category.title],
         count: 1,
         difficulty: 'normal',
         existingAnswers,
         sourceMaterial,
         sourceUrl: category.sourceUrl,
+        categoryGrounding: [{ ...category, sourceMaterial }],
       });
 
       const newCat = span.categories[0];
@@ -447,7 +518,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         newCategories[categoryId] = {
           ...category,
           title: newCat.title,
-          clues: newCat.clues.map(c => ({ value: c.value, clue: c.clue, response: c.response, provenance: c.provenance })),
+          clues: newCat.clues.map(c => ({ ...c, value: c.value, clue: c.clue, response: c.response, provenance: c.provenance })),
         };
         setEditingGame({ ...editingGame, categories: newCategories });
 
@@ -476,237 +547,348 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
   };
 
   const currentClue = getCurrentEditingClue();
+  const counts = countStatuses(categories);
+  const anyBusy = regeneratingClue || regeneratingCategory !== null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 relative">
-      {/* Menu dropdown - top right, absolute positioned */}
-      <div className="absolute top-4 right-4 z-10">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50">
-              <MoreVertical className="w-5 h-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={addCategory}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Column
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleSave}>
-              <Save className="w-4 h-4 mr-2" />
-              Save
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleCancel}>
-              <X className="w-4 h-4 mr-2" />
-              Cancel
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onExit} className="text-red-400">
-              <Home className="w-4 h-4 mr-2" />
-              Main Menu
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      {/* Editor hint banner */}
-      <div className="max-w-7xl mx-auto mb-4">
-        <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-3 flex items-center gap-3">
-          <Wand2 className="w-5 h-5 text-purple-400" />
-          <p className="text-sm text-purple-200">
-            <strong>Editor Mode:</strong> Click any card to edit. Click category headers to rename them. Use the menu to add columns or save.
-          </p>
-        </div>
-      </div>
-
-      {/* Header with teams and title */}
-      <div className="max-w-7xl mx-auto mb-8">
-        <div className="flex items-center gap-8">
-          {/* Teams - top left, grid layout with edit controls */}
-          <div
-            className="grid gap-2"
-            style={{
-              gridTemplateColumns: `repeat(${teamGridCols}, 1fr)`,
-              gridTemplateRows: `repeat(${Math.ceil(teamCount / teamGridCols)}, auto)`,
-            }}
-          >
-            {teams.map((team, index) => (
-              <div key={team.id} className="relative group flex items-center gap-1">
-                <Input
-                  value={team.name}
-                  onChange={(e) => handleUpdateTeamName(team.id, e.target.value)}
-                  className="px-3 py-2 bg-slate-800/50 border-2 border-slate-700 rounded-lg text-left min-w-[120px] font-medium text-sm text-slate-200"
-                />
-                {aiAvailable && (
-                  <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => handleAIGenerateTeamName(index)}
-                      className="w-6 h-6 flex items-center justify-center bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-500 rounded text-xs"
-                      title="Generate random name"
-                    >
-                      <Dice1 className="w-3 h-3" />
-                    </button>
-                    <button
-                      onClick={() => handleAIEnhanceTeamName(index)}
-                      className="w-6 h-6 flex items-center justify-center bg-purple-500/20 hover:bg-purple-500/40 text-purple-500 rounded text-xs"
-                      title="Enhance this name"
-                    >
-                      <Sparkles className="w-3 h-3" />
-                    </button>
-                  </div>
-                )}
-                {teams.length > 1 && (
-                  <button
-                    onClick={() => handleRemoveTeam(team.id)}
-                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-400 rounded-full text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
-            {teams.length < 6 && (
-              <button
-                onClick={handleAddTeam}
-                className="px-3 py-2 border-2 border-dashed border-slate-700 rounded-lg text-left min-w-[120px] text-sm text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
-              >
-                + Add Team
-              </button>
-            )}
-            {aiAvailable && teams.length > 1 && (
-              <button
-                onClick={handleAIGenerateAllTeamNames}
-                className="px-3 py-2 border-2 border-dashed border-yellow-500/50 rounded-lg text-left min-w-[120px] text-sm text-yellow-500 hover:text-yellow-400 hover:border-yellow-500 transition-colors flex items-center gap-2"
-                title="Generate names for all teams"
-              >
-                <Dice1 className="w-3 h-3" />
-                AI All
-              </button>
-            )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
+      {/* Persistent top bar: identity on the left, document actions on the right. */}
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/90 backdrop-blur">
+        <div className="mx-auto flex max-w-[1680px] items-center gap-4 px-5 py-3">
+          <div className="flex shrink-0 items-center gap-2 text-purple-300">
+            <PencilLine className="h-4 w-4" aria-hidden />
+            <span className="text-sm font-semibold">{EDITOR_NAME}</span>
           </div>
+          <div className="h-8 w-px shrink-0 bg-white/10" aria-hidden />
 
-          {/* Title - center, editable */}
-          <div className="flex-1 text-center pr-16">
+          <div className="min-w-0 flex-1">
             <Input
+              aria-label="Game title"
               value={editingGame.title}
               onChange={(e) => updateGameTitle(e.target.value)}
-              className="text-3xl md:text-4xl font-black text-center bg-transparent border-none text-yellow-500 p-0 mb-2 focus-visible:ring-0 focus-visible:ring-offset-0"
-              style={{ textShadow: '0 4px 12px rgba(0,0,0,0.5)' }}
+              className="h-9 border-transparent bg-transparent px-2 text-2xl text-yellow-400 shadow-none hover:border-white/15 focus-visible:border-yellow-500/50 focus-visible:ring-0 md:text-2xl"
+              style={{ fontFamily: 'var(--font-board)', letterSpacing: '0.02em' }}
             />
             <Input
+              aria-label="Game subtitle"
               value={editingGame.subtitle || ''}
               onChange={(e) => updateGameSubtitle(e.target.value)}
-              placeholder="Add a subtitle..."
-              className="text-sm md:text-base text-center bg-transparent border-none text-slate-300 font-medium p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+              placeholder="Add a subtitle"
+              className="h-6 border-transparent bg-transparent px-2 text-sm text-slate-300 shadow-none hover:border-white/15 focus-visible:border-white/30 focus-visible:ring-0 md:text-sm"
             />
-            {/* Metadata display */}
-            {editingGame.metadata && (editingGame.metadata.modelUsed || editingGame.metadata.generatedAt || editingGame.metadata.generationTimeMs) && (
-              <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-xs text-slate-600">
-                {editingGame.metadata.modelUsed && (
-                  <span className="flex items-center gap-1">
-                    Model: <span className="font-medium text-slate-500">{formatModelName(editingGame.metadata.modelUsed)}</span>
-                  </span>
-                )}
-                {editingGame.metadata.generationTimeMs && (
-                  <span className="flex items-center gap-1">
-                    Time: <span className="font-medium text-slate-500">{formatGenerationTime(editingGame.metadata.generationTimeMs)}</span>
-                  </span>
-                )}
-                {editingGame.metadata.generatedAt && (
-                  <span className="flex items-center gap-1">
-                    Generated: <span className="font-medium text-slate-500">{formatTimestamp(editingGame.metadata.generatedAt)}</span>
-                  </span>
-                )}
-              </div>
-            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span
+              role="status"
+              aria-live="polite"
+              className={`mr-1 hidden items-center gap-2 text-sm lg:inline-flex ${hasChanges ? 'text-amber-300' : 'text-slate-500'}`}
+            >
+              <span className={`size-2 rounded-full ${hasChanges ? 'bg-amber-400' : 'bg-slate-600'}`} aria-hidden />
+              {hasChanges ? 'Unsaved changes' : 'No changes'}
+            </span>
+
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={showAnswers}
+              aria-label={showAnswers ? 'Hide answers' : 'Show answers'}
+              onClick={toggleAnswers}
+              className="border-slate-700 bg-slate-900/60 text-slate-200"
+            >
+              {showAnswers ? <EyeOff className="mr-1.5 h-4 w-4" /> : <Eye className="mr-1.5 h-4 w-4" />}
+              {showAnswers ? 'Hide answers' : 'Show answers'}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={addCategory}
+              aria-label="Add category"
+              className="border-slate-700 bg-slate-900/60 text-slate-200"
+            >
+              <Plus className="mr-1.5 h-4 w-4" /> Add category
+            </Button>
+
+            <div className="mx-1 h-8 w-px bg-white/10" aria-hidden />
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => requestLeave('discard')}
+              aria-label={hasChanges ? 'Discard changes' : 'Close editor'}
+              className="border-slate-600 bg-transparent text-slate-200"
+            >
+              <X className="mr-1.5 h-4 w-4" />
+              {hasChanges ? 'Discard' : 'Close'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSave}
+              aria-label="Save game"
+              className="bg-yellow-500 font-semibold text-black hover:bg-yellow-400"
+            >
+              <Save className="mr-1.5 h-4 w-4" /> Save
+              <kbd className="ml-2 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-medium md:inline">
+                {IS_MAC ? '⌘S' : 'Ctrl+S'}
+              </kbd>
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" aria-label="More editor actions" className="text-slate-300">
+                  <MoreVertical className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => requestLeave('menu')}>
+                  <Home className="mr-2 h-4 w-4" />
+                  Exit to main menu
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Provenance summary banner — shows when the game carries provenance
-          data (freshly generated this session). Helps spot weak columns. */}
-      {(() => {
-        const allClues = categories.flatMap(c => c.clues || []);
-        const patched = allClues.filter(c => (c as any).provenance === 'fallback').length;
-        const curated = allClues.filter(c => (c as any).provenance === 'answer_first').length;
-        const hasProvenance = patched || curated;
-        if (!hasProvenance) return null;
-        return (
-          <div className="max-w-7xl mx-auto mb-3">
-            <div className="flex items-center gap-4 text-xs text-slate-400 bg-slate-900/40 border border-slate-700/50 rounded-lg px-3 py-2">
-              <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />{curated} curated</span>
-              {patched > 0 && <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />{patched} patched</span>}
-              <span className="text-slate-500">click a cell to edit · click ✨ Regenerate to fix weak clues</span>
-            </div>
+      <main className="mx-auto max-w-[1680px] px-5 pb-12 pt-4">
+        {/* Summary strip: legend for the dots on the cards, plus build info. */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+            <StatusSummary counts={counts} />
+            <span className="text-xs text-slate-500">Click a card to edit its clue and answer.</span>
           </div>
-        );
-      })()}
+          {editingGame.metadata && (editingGame.metadata.modelUsed || editingGame.metadata.generatedAt || editingGame.metadata.generationTimeMs) && (
+            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+              {editingGame.metadata.modelUsed && (
+                <span>Model: <span className="font-medium text-slate-400">{formatModelName(editingGame.metadata.modelUsed)}</span></span>
+              )}
+              {editingGame.metadata.generationTimeMs && (
+                <span>Time: <span className="font-medium text-slate-400">{formatGenerationTime(editingGame.metadata.generationTimeMs)}</span></span>
+              )}
+              {editingGame.metadata.generatedAt && (
+                <span>Generated: <span className="font-medium text-slate-400">{formatTimestamp(editingGame.metadata.generatedAt)}</span></span>
+              )}
+            </div>
+          )}
+        </div>
 
-      {/* Game board - same style as play mode */}
-      <div className="max-w-7xl mx-auto">
-        <div className="board-wrap">
-          <div
-            className="game-board"
-            style={{
-              gridTemplateColumns: `repeat(${categories.length}, 1fr)`,
-            }}
+        {/* Teams — collapsed by default; names are saved with the game. */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setTeamsOpen((o) => !o)}
+            aria-expanded={teamsOpen}
+            className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-slate-300 hover:bg-white/5"
           >
-            {/* Category headers - editable on click */}
-            {categories.map((category, index) => (
-              <div key={index} className="cell cell-header">
-                <Input
-                  value={category.title}
-                  onChange={(e) => updateCategoryTitle(index, e.target.value)}
-                  className="bg-transparent border-none text-center font-bold text-sm w-full"
-                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                />
-              </div>
-            ))}
+            <Users className="h-4 w-4 text-slate-400" />
+            Teams
+            <span className="text-slate-500">{teams.map((t) => t.name).join(', ')}</span>
+            <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${teamsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {teamsOpen && (
+            <div
+              className="mt-2 grid max-w-3xl gap-2"
+              style={{ gridTemplateColumns: `repeat(${Math.max(2, teamGridCols + 1)}, minmax(0, 1fr))` }}
+            >
+              {teams.map((team, index) => (
+                <div key={team.id} className="group relative flex items-center gap-1">
+                  <Input
+                    aria-label={`Team ${index + 1} name`}
+                    value={team.name}
+                    onChange={(e) => handleUpdateTeamName(team.id, e.target.value)}
+                    className="border-slate-700 bg-slate-800/50 text-sm font-medium text-slate-200"
+                  />
+                  {aiAvailable && (
+                    <div className="flex gap-0.5">
+                      <button
+                        onClick={() => handleAIGenerateTeamName(index)}
+                        className="flex h-6 w-6 items-center justify-center rounded bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/40"
+                        title="Generate random name"
+                        aria-label={`Generate random name for team ${index + 1}`}
+                      >
+                        <Dice1 className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => handleAIEnhanceTeamName(index)}
+                        className="flex h-6 w-6 items-center justify-center rounded bg-purple-500/20 text-purple-400 hover:bg-purple-500/40"
+                        title="Enhance this name"
+                        aria-label={`Enhance name for team ${index + 1}`}
+                      >
+                        <Sparkles className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+                  {teams.length > 1 && (
+                    <button
+                      onClick={() => handleRemoveTeam(team.id)}
+                      className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-white/10 hover:text-slate-200"
+                      title="Remove team"
+                      aria-label={`Remove team ${index + 1}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {teams.length < 6 && (
+                <button
+                  onClick={handleAddTeam}
+                  className="rounded-md border border-dashed border-slate-700 px-3 py-2 text-left text-sm text-slate-500 transition-colors hover:border-slate-500 hover:text-slate-300"
+                >
+                  + Add team
+                </button>
+              )}
+              {aiAvailable && teams.length > 1 && (
+                <button
+                  onClick={handleAIGenerateAllTeamNames}
+                  className="flex items-center gap-2 rounded-md border border-dashed border-yellow-500/50 px-3 py-2 text-left text-sm text-yellow-500 transition-colors hover:border-yellow-500 hover:text-yellow-400"
+                  title="Generate names for all teams"
+                >
+                  <Dice1 className="h-3 w-3" />
+                  Name all teams
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
-            {/* Clue cells - clickable for editing. Subtle provenance tinting:
-                emerald accent = answer_first/curated, amber = fallback/patched.
-                No tint for clues without provenance (older saved games). */}
+        {/* The board. Category headers rename inline; cards show value, clue,
+            answer (when toggled) and a verification dot. */}
+        <div className="overflow-x-auto rounded-2xl border border-white/10 p-3" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.03), transparent 40%), rgb(11, 18, 40)' }}>
+          <div
+            className="grid gap-2"
+            style={{ gridTemplateColumns: `repeat(${Math.max(categories.length, 1)}, minmax(168px, 1fr))` }}
+          >
+            {categories.map((category, index) => {
+              const catSource = (category as any)?.sourceType as string | undefined;
+              return (
+                <div
+                  key={`h-${index}`}
+                  className="group/cat rounded-lg shadow-md"
+                  style={{ background: 'linear-gradient(145deg, var(--theme-primary, #0055a4), var(--theme-secondary, #003366))' }}
+                >
+                  <div className="px-2 pt-2">
+                    <Input
+                      aria-label={`Category ${index + 1} title`}
+                      value={category.title}
+                      onChange={(e) => updateCategoryTitle(index, e.target.value)}
+                      onFocus={(e) => e.currentTarget.select()}
+                      title="Click to rename"
+                      className="h-9 border-transparent bg-transparent px-2 text-center text-[13px] font-extrabold uppercase tracking-wide text-white shadow-none hover:border-white/30 hover:bg-black/15 focus-visible:border-white/60 focus-visible:bg-black/25 focus-visible:ring-0 md:text-[13px]"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between px-1.5 pb-1.5 pt-0.5">
+                    <div className="flex items-center gap-0.5 opacity-60 transition-opacity group-hover/cat:opacity-100 group-focus-within/cat:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => moveCategory(index, -1)}
+                        disabled={index === 0}
+                        aria-label={`Move ${category.title} left`}
+                        title="Move left"
+                        className="flex h-6 w-6 items-center justify-center rounded text-white/80 hover:bg-black/25 disabled:opacity-25 disabled:hover:bg-transparent"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => moveCategory(index, 1)}
+                        disabled={index === categories.length - 1}
+                        aria-label={`Move ${category.title} right`}
+                        title="Move right"
+                        className="flex h-6 w-6 items-center justify-center rounded text-white/80 hover:bg-black/25 disabled:opacity-25 disabled:hover:bg-transparent"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {catSource === 'retrieved' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-white/70" title="Grounded in Wikipedia">
+                          <BookOpen className="h-3 w-3" /> Wikipedia
+                        </span>
+                      )}
+                      {catSource === 'ai_synthesized' && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-200/90" title="No Wikipedia match, AI fact-sheet source">
+                          <Sparkles className="h-3 w-3" /> AI fact-sheet
+                        </span>
+                      )}
+                      {aiAvailable && (
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateCategoryEditor(index)}
+                          disabled={aiLoading || anyBusy}
+                          aria-label={`Regenerate category ${category.title}`}
+                          title="Re-run the answer-first pipeline for this category"
+                          className="flex h-6 w-6 items-center justify-center rounded text-white/80 opacity-60 transition-opacity hover:bg-black/25 hover:opacity-100 focus-visible:opacity-100 group-hover/cat:opacity-100 disabled:opacity-30"
+                        >
+                          {regeneratingCategory === index ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
             {Array.from({ length: rowCount }).map((_, rowIndex) =>
               categories.map((category, categoryIndex) => {
                 const clue = category.clues?.[rowIndex];
+                const status = getClueStatus(clue, category.title);
+                const value = clue?.value || (rowIndex + 1) * 200;
                 const prov = (clue as any)?.provenance;
                 const srcType = (category as any)?.sourceType;
                 const isPatched = prov === 'fallback';
                 const isCurated = prov === 'answer_first' || srcType === 'retrieved';
-                const accent = isPatched ? 'border-l-2 border-l-amber-500/60'
-                  : isCurated ? 'border-l-2 border-l-emerald-500/50'
-                  : '';
+                // Left accent keeps the existing provenance tint.
+                const accent = isPatched ? 'border-l-amber-500/70'
+                  : isCurated ? 'border-l-emerald-500/60'
+                  : 'border-l-white/10';
+                const filled = !!clue?.clue;
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={`${categoryIndex}-${rowIndex}`}
-                    className={`cell cursor-pointer hover:bg-slate-700/30 transition-colors relative ${accent}`}
+                    aria-label={`Edit ${filled ? '' : 'empty '}clue, ${category.title} for ${value}`}
                     onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}
+                    className={`group/card relative flex min-h-[100px] flex-col gap-1 rounded-md border border-l-[3px] p-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${accent} ${
+                      filled
+                        ? 'border-white/10 bg-slate-900/70 hover:border-white/25 hover:bg-slate-800/80'
+                        : 'border-dashed border-purple-400/30 bg-transparent hover:bg-purple-500/10'
+                    }`}
                   >
-                    {(isPatched || isCurated) && (
-                      <span className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${isPatched ? 'bg-amber-500' : 'bg-emerald-500/80'}`} title={isPatched ? 'Patched (fallback)' : 'Curated'} />
-                    )}
-                    <div className="w-full h-full flex items-center justify-center">
-                      {clue?.clue ? (
-                        <div className="text-xs text-center p-2 line-clamp-3 opacity-50">
-                          {clue.clue || '(empty)'}
-                        </div>
-                      ) : (
-                        <span className="text-purple-500/50 text-sm">Click to add</span>
-                      )}
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[22px] leading-none text-yellow-400" style={{ fontFamily: 'var(--font-board)' }}>
+                        ${value}
+                      </span>
+                      {status && <StatusDot status={status} className="mt-1" />}
                     </div>
-                  </div>
+                    {filled ? (
+                      <>
+                        <p className={`text-[13px] leading-snug text-slate-200 ${showAnswers ? 'line-clamp-2' : 'line-clamp-3'}`}>{clue!.clue}</p>
+                        {showAnswers && (
+                          <p className="mt-auto line-clamp-2 border-t border-white/10 pt-1.5 text-xs font-medium leading-snug text-emerald-300">
+                            {clue!.response || <span className="font-normal italic text-slate-500">No answer yet</span>}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="m-auto flex items-center gap-1 text-sm text-purple-300/70">
+                        <Plus className="h-4 w-4" /> Add clue
+                      </span>
+                    )}
+                  </button>
                 );
               })
             )}
           </div>
         </div>
-      </div>
+      </main>
 
       {/* Edit clue drawer — slides in from the right, grid visible behind scrim.
           Holds the full smart-AI workflow (provenance, regen-from-pool,
           per-category regen through the pipeline). */}
       {editingCell && currentClue && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Edit clue">
           {/* Scrim — click to close */}
           <div
             className="absolute inset-0 bg-black/50 transition-opacity"
@@ -718,17 +900,18 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-purple-400">Edit Clue</h3>
+                  <h3 className="text-lg font-semibold text-purple-400">Edit clue</h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     in <span className="text-slate-300 font-medium">{currentClue.category.title}</span>
                     {' · '}
-                    <span className="text-yellow-500 font-bold">${currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}</span>
+                    <span className="text-yellow-500 text-base" style={{ fontFamily: 'var(--font-board)' }}>${currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}</span>
                   </p>
                 </div>
                 <button
                   onClick={() => setEditingCell(null)}
                   className="text-slate-400 hover:text-white transition-colors p-1"
                   title="Close"
+                  aria-label="Close clue editor"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -741,6 +924,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
                 const srcType = (currentClue.category as any)?.sourceType;
                 return (
                   <div className="flex flex-wrap gap-2">
+                    <VerificationBadge clue={currentClue.clue} category={currentClue.category.title} />
                     {prov === 'fallback' && (
                       <Badge variant="outline" className="text-amber-400/80 border-amber-500/40 bg-amber-500/10 text-[11px]" title="Filled from fallback — click regenerate for a better clue">
                         <AlertCircle className="w-3 h-3 mr-0.5" /> Patched
@@ -776,7 +960,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               </div>
 
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Clue (Question)</label>
+                <label className="text-sm font-medium text-slate-300 mb-1 block">Clue</label>
                 <Textarea
                   value={currentClue.clue?.clue || ''}
                   onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { clue: e.target.value })}
@@ -786,7 +970,7 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
               </div>
 
               <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Response (Answer)</label>
+                <label className="text-sm font-medium text-slate-300 mb-1 block">Answer</label>
                 <Textarea
                   value={currentClue.clue?.response || ''}
                   onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { response: e.target.value })}
@@ -874,24 +1058,23 @@ export function EditorBoard({ game, onSave, onExit, onCancel }: EditorBoardProps
         </div>
       )}
 
-      {/* Cancel confirmation dialog */}
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+      {/* Unsaved-changes confirmation — only reachable when there are edits. */}
+      <AlertDialog open={pendingLeave !== null} onOpenChange={(open) => { if (!open) setPendingLeave(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard Changes?</AlertDialogTitle>
+            <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
             <AlertDialogDescription>
-              You have unsaved changes. Are you sure you want to exit without saving?
+              Your edits to this game haven't been saved. Leaving now will lose them.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep Editing</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmCancel} className="bg-red-600 hover:bg-red-500">
-              Discard & Exit
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmLeave} className="bg-red-600 hover:bg-red-500">
+              Discard changes
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
     </div>
   );
 }
