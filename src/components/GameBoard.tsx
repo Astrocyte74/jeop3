@@ -11,7 +11,6 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { type GameMode } from '@/components/GameModeMenu';
-import { TTSSubmenu } from '@/components/tts/TTSSettings';
 import { GameRulesMenu } from '@/components/GameRulesMenu';
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy, Eye, Undo2 } from 'lucide-react';
@@ -695,8 +694,6 @@ export function GameBoard({
                   <span className="ml-auto text-xs text-slate-500">{sfxMuted ? 'Off' : 'On'}</span>
                 </DropdownMenuItem>
 
-                {/* Text-to-Speech Submenu - only in local development */}
-                {import.meta.env.DEV && <TTSSubmenu />}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 

@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback, useId, type CSSProperties } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, Info, Trophy, XCircle, Volume2, Loader2, Square, Timer } from 'lucide-react';
+import { X, Eye, Info, Trophy, XCircle, Timer } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
-import { useTTSClue, useTTS } from '@/lib/tts/hooks';
-import { getTTSSettings } from '@/lib/tts';
 import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
 import { ThinkTimer } from '@/components/clue/ThinkTimer';
@@ -90,14 +88,6 @@ export function ClueDialog({
   boardMaxValue,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
-  const ttsSettings = getTTSSettings();
-  const { isAvailable } = useTTS();
-  const { audio, playClue, playAnswer, stopPlayback, preloadAnswer } = useTTSClue(clue, response);
-
-  // TTS is only available in local development mode
-  const isLocalDev = import.meta.env.DEV;
-  const ttsActuallyEnabled = ttsSettings.enabled && isAvailable && isLocalDev;
-
   const titleId = useId();
   const stageRef = useRef<HTMLDivElement>(null);
   const clueFitRef = useRef<HTMLDivElement>(null);
@@ -159,33 +149,6 @@ export function ClueDialog({
       onSetActiveTeam(snakeGameResult.teamId);
     }
   }, [isOpen, dailyDouble, snakeGameResult, onSetActiveTeam]);
-
-  // Auto-read clue when dialog opens if enabled
-  const hasTriggeredAutoReadRef = useRef(false);
-
-  useEffect(() => {
-    // Reset flag when dialog closes
-    if (!isOpen) {
-      hasTriggeredAutoReadRef.current = false;
-      return;
-    }
-
-    // Daily Doubles stay silent until the wager is locked and the clue is revealed.
-    const readable = dailyDouble ? ddPhase === 'play' : !snakeGameResult;
-    if (isOpen && ttsActuallyEnabled && ttsSettings.autoRead && readable && !hasTriggeredAutoReadRef.current) {
-      console.log('[ClueDialog] Triggering auto-read');
-      hasTriggeredAutoReadRef.current = true;
-      // Immediate playback - no delay needed
-      playClue();
-    }
-  }, [isOpen, ttsActuallyEnabled, ttsSettings.autoRead, snakeGameResult, dailyDouble, ddPhase, playClue]);
-
-  // Preload answer when response is shown (if not already loaded)
-  useEffect(() => {
-    if (showResponse && ttsActuallyEnabled && !audio.answerAudioUrl && !audio.isAnswerLoading) {
-      preloadAnswer();
-    }
-  }, [showResponse, ttsActuallyEnabled, audio.answerAudioUrl, audio.isAnswerLoading, preloadAnswer]);
 
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
   const [clueIcons, setClueIcons] = useState<IconMatch[]>([]);
@@ -282,12 +245,7 @@ export function ClueDialog({
     showResponseRef.current = true;
     setShowResponse(true);
     playSfx('reveal');
-    // Auto-play answer when showing response if TTS is enabled
-    if (ttsActuallyEnabled) {
-      console.log('[ClueDialog] Show Answer clicked, playing answer audio');
-      playAnswer();
-    }
-  }, [ttsActuallyEnabled, playAnswer]);
+  }, []);
 
   /** Apply pending wrong answers (and optionally a winner) through the score callbacks. */
   const settle = useCallback(
@@ -562,48 +520,7 @@ export function ClueDialog({
         <h2 id={titleId} className="cs-cat">
           {categoryTitle}
         </h2>
-        {ttsActuallyEnabled && (audio.isClueLoading || audio.isAnswerLoading) && (
-          <span className="cs-prep">Preparing audio...</span>
-        )}
         <div className="cs-tools">
-          {ttsActuallyEnabled && (
-            <>
-              {audio.isPlaying && (
-                <button
-                  type="button"
-                  onClick={stopPlayback}
-                  className="cs-icon-btn cs-icon-btn--stop"
-                  title="Stop playback"
-                  aria-label="Stop playback"
-                >
-                  <Square className="w-5 h-5" />
-                </button>
-              )}
-              {showResponse ? (
-                <button
-                  type="button"
-                  onClick={playAnswer}
-                  disabled={audio.isAnswerLoading}
-                  className="cs-icon-btn"
-                  title="Read answer"
-                  aria-label="Read answer"
-                >
-                  {audio.isAnswerLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={playClue}
-                  disabled={audio.isClueLoading}
-                  className="cs-icon-btn"
-                  title="Read clue"
-                  aria-label="Read clue"
-                >
-                  {audio.isClueLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Volume2 className="w-5 h-5" />}
-                </button>
-              )}
-            </>
-          )}
           {onSwitchToSnake && (
             <GameModeMenu
               currentMode={globalGameMode}

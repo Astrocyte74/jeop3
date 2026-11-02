@@ -1,9 +1,7 @@
 import { Dialog } from 'radix-ui';
 import { useState } from 'react';
-import { Settings2, X, Check, Volume2, VolumeX, Mic } from 'lucide-react';
+import { Settings2, X, Check, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { TTSDirectSettings } from '@/components/tts/TTSSettings';
 import { themes, type ThemeKey, type IconSize } from '@/lib/themes';
 import { lobbyVars } from './gameInfo';
 import { isSfxMuted, setSfxMuted, playSfx } from '@/lib/sfx';
@@ -164,7 +162,7 @@ export function TableSettings({ currentTheme, onThemeChange, iconSize, onIconSiz
             </div>
           </section>
 
-          <div className="mb-7 grid gap-7 sm:grid-cols-2">
+          <div className="mb-7">
             <section>
               <SectionTitle hint="Chimes and reveals during play.">Sound effects</SectionTitle>
               <button
@@ -181,30 +179,6 @@ export function TableSettings({ currentTheme, onThemeChange, iconSize, onIconSiz
                 <span className={`lobby-switch ${muted ? '' : 'is-on'}`} aria-hidden="true" />
               </button>
             </section>
-
-            {import.meta.env.DEV && (
-              <section>
-                <SectionTitle hint="Read clues aloud with a local voice.">Text-to-speech</SectionTitle>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      title="Text-to-Speech Settings"
-                      className="flex w-full items-center justify-between rounded-xl border border-white/12 bg-black/20 px-4 py-3 text-left text-sm transition-colors hover:bg-white/5"
-                    >
-                      <span className="flex items-center gap-3">
-                        <Mic className="size-5 text-[var(--lb-accent)]" />
-                        Voice settings
-                      </span>
-                      <span className="text-xs text-white/50">Open</span>
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <TTSDirectSettings />
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </section>
-            )}
           </div>
 
           <section>

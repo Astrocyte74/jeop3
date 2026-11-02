@@ -96,13 +96,6 @@
   white-space: nowrap;
 }
 
-.cs-prep {
-  font-size: 13px;
-  font-style: italic;
-  color: rgba(255, 255, 255, 0.5);
-  white-space: nowrap;
-}
-
 .cs-tools {
   margin-left: auto;
   display: flex;
@@ -130,10 +123,6 @@
   opacity: 0.5;
   cursor: default;
 }
-.cs-icon-btn--stop {
-  color: #ff8a8a;
-}
-
 .cs-stage button:focus-visible {
   outline: 3px solid var(--cs-gold);
   outline-offset: 2px;
