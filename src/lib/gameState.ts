@@ -132,6 +132,136 @@ export function computeTeamStats(state: GameState): TeamStats[] {
   });
 }
 
+export interface Comeback {
+  /** The eventual winner. */
+  teamId: string;
+  /** Largest gap, in points, between the winner and whoever led at that moment. */
+  deficit: number;
+  /** The team that led when the winner was furthest behind. */
+  leaderId: string;
+  /** `clueId` from the log entry that left the winner furthest behind ('final' for Final Jeopardy). */
+  clueId: string;
+  /** 1-based position of that entry in the log. */
+  step: number;
+}
+
+/**
+ * The final winner's biggest deficit on the way to winning, found by replaying the log from zero.
+ * Returns null whenever the honest answer is "no such stat": no log, a tie, a winner who never
+ * trailed, or a replay that doesn't reproduce the saved scores (manual edits, removed teams).
+ */
+export function computeComeback(state: GameState): Comeback | null {
+  const log = state.log;
+  if (!log || log.length === 0 || state.teams.length < 2) return null;
+
+  const scores = new Map<string, number>(state.teams.map((t) => [t.id, 0]));
+  for (const r of log) {
+    if (!scores.has(r.teamId)) return null;
+  }
+
+  const top = Math.max(...state.teams.map((t) => t.score));
+  const winners = state.teams.filter((t) => t.score === top);
+  if (winners.length !== 1) return null;
+  const winnerId = winners[0].id;
+
+  let best: Comeback | null = null;
+  log.forEach((r, i) => {
+    scores.set(r.teamId, (scores.get(r.teamId) ?? 0) + r.delta);
+    let leaderId = '';
+    let leaderScore = -Infinity;
+    for (const [id, s] of scores) {
+      if (id !== winnerId && s > leaderScore) {
+        leaderId = id;
+        leaderScore = s;
+      }
+    }
+    const deficit = leaderScore - (scores.get(winnerId) ?? 0);
+    if (deficit > 0 && (!best || deficit > best.deficit)) {
+      best = { teamId: winnerId, deficit, leaderId, clueId: r.clueId, step: i + 1 };
+    }
+  });
+
+  // The replay must land exactly on the saved scores, or the story it tells isn't trustworthy.
+  for (const t of state.teams) {
+    if (scores.get(t.id) !== t.score) return null;
+  }
+  return best;
+}
+
+// ---- Results export (CSV) ----
+
+type CsvValue = string | number | boolean | null | undefined;
+
+/**
+ * One CSV cell. Text that a spreadsheet could read as a formula (leading = + - @, tab or CR)
+ * gets a leading apostrophe; real numbers are written as-is so negative scores stay numeric.
+ */
+export function escapeCsvCell(value: CsvValue): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+  let s = typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value;
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Safe, readable file name for the results download: "My Game!" -> "my-game-results.csv". */
+export function resultsFilename(title: string): string {
+  const slug = title
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    .replace(/-+$/g, '');
+  return `${slug || 'game'}-results.csv`;
+}
+
+export const RESULTS_CSV_HEADER = [
+  'Team',
+  'Final score',
+  'Rank',
+  'Correct',
+  'Incorrect',
+  'Accuracy %',
+  'Points gained',
+  'Points lost',
+  'Daily Double hit',
+  'Final wager',
+  'Final result',
+] as const;
+
+/** Standings as CSV text (CRLF lines), best team first; ties share a rank (1, 1, 3). */
+export function buildResultsCsv(state: GameState): string {
+  const stats = new Map(computeTeamStats(state).map((s) => [s.teamId, s]));
+  const sorted = state.teams
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => b.t.score - a.t.score || a.i - b.i);
+  const rows = sorted.map(({ t }) => {
+    const rank = sorted.findIndex((x) => x.t.score === t.score) + 1;
+    const st = stats.get(t.id);
+    const wager = state.final?.wagers[t.id];
+    const finalRight = state.final?.results[t.id];
+    const hasFinal = wager !== undefined && finalRight !== undefined;
+    return [
+      t.name,
+      t.score,
+      rank,
+      st?.correct ?? 0,
+      st?.incorrect ?? 0,
+      st?.accuracy != null ? Math.round(st.accuracy * 100) : null,
+      st?.pointsGained ?? 0,
+      st?.pointsLost ?? 0,
+      st?.dailyDoubleHit ? 'Yes' : 'No',
+      hasFinal ? wager : null,
+      hasFinal ? (finalRight ? 'Correct' : 'Incorrect') : '',
+    ] as CsvValue[];
+  });
+  return [RESULTS_CSV_HEADER as readonly CsvValue[], ...rows]
+    .map((r) => r.map(escapeCsvCell).join(','))
+    .join('\r\n');
+}
+
 /**
  * After editing a game that is in progress, categories may have been reordered or added. Match each
  * new category to the old one it came from (most identical clue+answer pairs; ties prefer the same

@@ -104,9 +104,9 @@ interface GeneratedGameData {
 // Set before the dev-bypass reload so the New Game wizard reopens afterwards.
 const RESUME_WIZARD_KEY = 'jeop3:resumeWizard';
 
-export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
+export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartWithWizardHandled }: MainMenuProps) {
   // Clerk auth
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
   const { user } = useUser();
   const isLocalDev = typeof window !== 'undefined' &&
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -193,6 +193,20 @@ export function MainMenu({ onSelectGame, onOpenEditor }: MainMenuProps) {
       // sessionStorage unavailable — user just clicks Create Game again
     }
   }, [isSignedIn]);
+
+  // "New game" from the finale: behave exactly like clicking Create Game once auth is settled, then
+  // tell the caller to clear its one-shot flag. (Signed out -> the usual sign-in prompt.)
+  useEffect(() => {
+    if (!startWithWizard || !authLoaded) return;
+    if (isSignedIn) {
+      setShowWizard(true);
+    } else {
+      signInIntent.current = 'create';
+      setShowSignInPrompt(true);
+    }
+    onStartWithWizardHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startWithWizard, authLoaded, isSignedIn]);
 
   // Game info dialog state
   const [gameInfoMetadata, setGameInfoMetadata] = useState<any>(null);

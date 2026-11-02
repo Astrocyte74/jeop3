@@ -27,6 +27,8 @@ interface ClueData {
 
 export function App() {
   const [mode, setMode] = useState<AppMode>('menu');
+  // One-shot: the finale's "New game" sends us to the menu with the New Game wizard open
+  const [openWizardOnMenu, setOpenWizardOnMenu] = useState(false);
   const [finalOpen, setFinalOpen] = useState(false);
   const [currentGame, setCurrentGame] = useState<Game | null>(null);
   const [gameId, setGameId] = useState<string | null>(null);
@@ -493,6 +495,8 @@ export function App() {
       {mode === 'menu' && (
         <MainMenu
           onSelectGame={handleSelectGame}
+          startWithWizard={openWizardOnMenu}
+          onStartWithWizardHandled={() => setOpenWizardOnMenu(false)}
           onOpenEditor={(game?: Game, libraryGameId?: string) => {
             setEditorGameId(libraryGameId ?? null);
             // Use the provided game or create a blank game for editing
@@ -529,6 +533,10 @@ export function App() {
             onUndo={handleUndo}
             onSetActiveTeam={handleSetActiveTeam}
             onResetBoard={handleResetBoard}
+            onNewGame={() => {
+              setOpenWizardOnMenu(true);
+              handleExitToMenu();
+            }}
             onUpdateTeamName={handleUpdateTeamName}
             onUpdateTeamScore={handleUpdateTeamScore}
             onAddTeam={handleAddTeam}

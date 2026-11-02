@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Crown, Eye, Home, RotateCcw, Star, X } from 'lucide-react';
+import { Check, Crown, Download, Eye, Home, Plus, RotateCcw, Star, TrendingUp, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { teamColor, teamInitials } from '@/lib/teamColors';
 import type { GameState } from '@/lib/storage';
-import { computeTeamStats, type TeamStats } from '@/lib/gameState';
+import { buildResultsCsv, computeComeback, computeTeamStats, resultsFilename, type TeamStats } from '@/lib/gameState';
 import { playSfx } from '@/lib/sfx';
 import { AnimatedScore, formatScore } from '@/components/board/AnimatedScore';
 import { Confetti } from '@/components/board/Confetti';
@@ -23,6 +23,8 @@ interface EndGameProps {
   /** Sum of the dollar values of every played clue. */
   pointsInPlay: number;
   onPlayAgain?: () => void;
+  /** Leave the game and start the New Game wizard from the menu. The button only shows when this is set. */
+  onNewGame?: () => void;
   onBackToMenu: () => void;
   onViewBoard: () => void;
   /** Full game state. When it carries a result log, per-team stats are shown; older saves without one hide them. */
@@ -43,7 +45,7 @@ function joinNames(names: string[]): string {
 const BUILD_STEP_MS = 420;
 const REVEAL_PAD_MS = 650;
 
-export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAgain, onBackToMenu, onViewBoard, state }: EndGameProps) {
+export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAgain, onNewGame, onBackToMenu, onViewBoard, state }: EndGameProps) {
   const reduced = useReducedMotion();
 
   // Rank with ties sharing a place (1, 1, 3 ...)
@@ -133,7 +135,22 @@ export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAga
     () => (state?.log ?? []).filter((r) => r.dailyDouble),
     [state],
   );
+  const comeback = useMemo(() => (state ? computeComeback(state) : null), [state]);
   const nameOf = (id: string) => teams.find((t) => t.id === id)?.name ?? 'A team';
+
+  const exportResults = () => {
+    if (!state) return;
+    // BOM so Excel reads non-ASCII team names as UTF-8
+    const blob = new Blob(['\uFEFF', buildResultsCsv(state)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = resultsFilename(gameTitle);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   const stats: Array<{ value: string; label: string }> = [
     { value: String(cluesPlayed), label: cluesPlayed === 1 ? 'clue played' : 'clues played' },
@@ -281,6 +298,14 @@ export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAga
               <span className="finale-stat-label">{s.label}</span>
             </li>
           ))}
+          {comeback && (
+            <li className="finale-comeback">
+              <TrendingUp className="w-6 h-6" strokeWidth={2.6} aria-hidden="true" />
+              <span className="finale-stat-label">
+                Comeback: <b>{nameOf(comeback.teamId)}</b> overcame a {formatScore(comeback.deficit)} deficit
+              </span>
+            </li>
+          )}
         </ul>
 
         <div className="finale-actions">
@@ -295,10 +320,22 @@ export function EndGame({ gameTitle, teams, cluesPlayed, pointsInPlay, onPlayAga
               Play again
             </Button>
           )}
+          {onNewGame && (
+            <Button size="lg" variant="outline" className="finale-btn" onClick={onNewGame}>
+              <Plus className="w-5 h-5" />
+              New game
+            </Button>
+          )}
           <Button size="lg" variant="outline" className="finale-btn" onClick={onViewBoard}>
             <Eye className="w-5 h-5" />
             View board
           </Button>
+          {state && (
+            <Button size="lg" variant="outline" className="finale-btn" onClick={exportResults}>
+              <Download className="w-5 h-5" />
+              Export results
+            </Button>
+          )}
           <Button size="lg" variant="ghost" className="finale-btn" onClick={onBackToMenu}>
             <Home className="w-5 h-5" />
             Back to menu

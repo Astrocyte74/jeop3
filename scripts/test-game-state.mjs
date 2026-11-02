@@ -290,6 +290,118 @@ test('default rules take turns, keep penalties and allow steals', () => {
   assert.deepEqual(gr.DEFAULT_RULES, { turnMode: 'rotate', wrongAnswerPenalty: true, allowSteal: true });
 });
 
+// ---- computeComeback ----
+const play = (state, clueId, teamId, correct, amount) =>
+  gs.applyClueResult(state, { clueId, teamId, correct, amount });
+
+test('computeComeback: finds the winner\'s largest deficit and the moment it happened', () => {
+  let s = fresh();
+  s = play(s, '0:0', 'a', true, 200); // A 200, B 0
+  s = play(s, '0:1', 'b', false, 400); // B -400
+  s = play(s, '0:2', 'a', true, 600); // A 800, B -400
+  s = play(s, '1:0', 'a', true, 600); // A 1400
+  s = play(s, '1:1', 'b', true, 800); // B 400
+  // flip: B must overtake -> make B the winner
+  s = play(s, '1:2', 'b', true, 1000); // B 1400
+  s = play(s, '1:3', 'b', true, 1000); // B 2400, A 1400 -> B wins
+  const c = gs.computeComeback(s);
+  assert.deepEqual(c, { teamId: 'b', deficit: 1800, leaderId: 'a', clueId: '1:0', step: 4 });
+});
+
+test('computeComeback: counts Final Jeopardy swings', () => {
+  let s = fresh();
+  s = play(s, '0:0', 'a', true, 1000); // A 1000
+  s = gs.applyFinalResults(s, [
+    { teamId: 'a', wager: 500, correct: false },
+    { teamId: 'b', wager: 0, correct: true },
+  ]); // A 500, B 0 -> A still wins, B never ahead
+  assert.equal(gs.computeComeback(s), null);
+  let t = play(fresh(), '0:0', 'a', true, 400);
+  t = gs.applyFinalResults(t, [
+    { teamId: 'a', wager: 400, correct: false },
+    { teamId: 'b', wager: 1000, correct: true },
+  ]); // A 0, B 1000
+  assert.deepEqual(gs.computeComeback(t), { teamId: 'b', deficit: 400, leaderId: 'a', clueId: '0:0', step: 1 });
+});
+
+test('computeComeback: wire-to-wire winner is null', () => {
+  let s = fresh();
+  s = play(s, '0:0', 'a', true, 200);
+  s = play(s, '0:1', 'b', true, 200); // level, never behind
+  s = play(s, '0:2', 'a', true, 600);
+  assert.equal(gs.computeComeback(s), null);
+});
+
+test('computeComeback: ties, missing log and empty log are null', () => {
+  let s = fresh();
+  s = play(s, '0:0', 'a', true, 200);
+  s = play(s, '0:1', 'b', true, 400);
+  s = play(s, '0:2', 'a', true, 200); // 400 - 400
+  assert.equal(gs.computeComeback(s), null);
+  assert.equal(gs.computeComeback({ ...fresh(), log: undefined }), null);
+  assert.equal(gs.computeComeback(fresh()), null);
+});
+
+test('computeComeback: manual score edits or removed teams make the replay untrustworthy', () => {
+  let s = fresh();
+  s = play(s, '0:0', 'a', true, 600);
+  s = play(s, '0:1', 'b', true, 200);
+  s = play(s, '0:2', 'b', true, 800);
+  assert.ok(gs.computeComeback(s)); // sanity: B came from 600 behind
+  const edited = { ...s, teams: s.teams.map((t) => (t.id === 'b' ? { ...t, score: t.score + 100 } : t)) };
+  assert.equal(gs.computeComeback(edited), null);
+  const removed = { ...s, teams: s.teams.filter((t) => t.id !== 'a') };
+  assert.equal(gs.computeComeback(removed), null);
+});
+
+// ---- CSV export ----
+test('escapeCsvCell quotes, doubles quotes and neutralises spreadsheet formulas', () => {
+  assert.equal(gs.escapeCsvCell('plain'), 'plain');
+  assert.equal(gs.escapeCsvCell('a,b'), '"a,b"');
+  assert.equal(gs.escapeCsvCell('say "hi"'), '"say ""hi"""');
+  assert.equal(gs.escapeCsvCell('line1\nline2'), '"line1\nline2"');
+  assert.equal(gs.escapeCsvCell('=SUM(A1)'), "'=SUM(A1)");
+  assert.equal(gs.escapeCsvCell('+1'), "'+1");
+  assert.equal(gs.escapeCsvCell('-2'), "'-2");
+  assert.equal(gs.escapeCsvCell('@cmd'), "'@cmd");
+  assert.equal(gs.escapeCsvCell('=1,2'), '"\'=1,2"');
+  assert.equal(gs.escapeCsvCell(-200), '-200'); // real numbers stay numeric
+  assert.equal(gs.escapeCsvCell(null), '');
+  assert.equal(gs.escapeCsvCell(undefined), '');
+  assert.equal(gs.escapeCsvCell(NaN), '');
+});
+
+test('resultsFilename slugs the title safely', () => {
+  assert.equal(gs.resultsFilename('Movie Night!'), 'movie-night-results.csv');
+  assert.equal(gs.resultsFilename('../../etc/Pâté"x'), 'etc-pate-x-results.csv');
+  assert.equal(gs.resultsFilename('   '), 'game-results.csv');
+  assert.equal(gs.resultsFilename('日本語'), 'game-results.csv');
+});
+
+test('buildResultsCsv lists teams by rank with stats, Daily Double and Final Jeopardy', () => {
+  let s = fresh();
+  s = { ...s, teams: [{ id: 'a', name: '=Evil, "Inc"', score: 0 }, { id: 'b', name: 'Bees', score: 0 }] };
+  s = gs.applyClueResult(s, { clueId: '0:1', teamId: 'b', correct: true, amount: 800, dailyDouble: true });
+  s = play(s, '0:2', 'a', true, 600);
+  s = play(s, '0:3', 'a', false, 200);
+  s = gs.applyFinalResults(s, [
+    { teamId: 'a', wager: 100, correct: false },
+    { teamId: 'b', wager: 300, correct: true },
+  ]);
+  const lines = gs.buildResultsCsv(s).split('\r\n');
+  assert.equal(lines[0], gs.RESULTS_CSV_HEADER.join(','));
+  assert.equal(lines[1], 'Bees,1100,1,2,0,100,1100,0,Yes,300,Correct');
+  assert.equal(lines[2], '"\'=Evil, ""Inc""",300,2,1,2,33,600,300,No,100,Incorrect');
+  assert.equal(lines.length, 3);
+});
+
+test('buildResultsCsv shares ranks on ties and tolerates a game with no log or final', () => {
+  const s = { ...fresh(), log: undefined };
+  const lines = gs.buildResultsCsv(s).split('\r\n');
+  assert.equal(lines[1], 'A,0,1,0,0,,0,0,No,,');
+  assert.equal(lines[2], 'B,0,1,0,0,,0,0,No,,');
+});
+
 // Real boards have distinct clues per category; the shared board() fixture does not.
 const distinctBoard = (cats) => ({
   title: 'Test',

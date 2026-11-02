@@ -30,6 +30,18 @@ import { EndGame } from '@/components/EndGame';
 const revealedGames = new Set<string>();
 const REVEAL_MS = 2800;
 
+const BOARD_HINT_KEY = 'jeop3:boardHintDismissed';
+function isBoardHintDismissed(): boolean {
+  try { return localStorage.getItem(BOARD_HINT_KEY) === '1'; } catch { return false; }
+}
+function dismissBoardHint(): void {
+  try { localStorage.setItem(BOARD_HINT_KEY, '1'); } catch { /* best effort */ }
+}
+/** Phones and tablets without a keyboard have no use for the shortcut hint. */
+function isTouchOnly(): boolean {
+  try { return window.matchMedia('(hover: none) and (pointer: coarse)').matches; } catch { return false; }
+}
+
 interface GameBoardProps {
   game: Game;
   state: GameState;
@@ -44,6 +56,8 @@ interface GameBoardProps {
   onUndo?: () => void;
   onSetActiveTeam: (teamId: string) => void;
   onResetBoard?: () => void;
+  /** From the finale: leave the game and start the New Game wizard on the menu. */
+  onNewGame?: () => void;
   onUpdateTeamName?: (teamId: string, name: string) => void;
   onUpdateTeamScore?: (teamId: string, score: number) => void;
   onAddTeam?: (name: string) => void;
@@ -62,6 +76,7 @@ export function GameBoard({
   onUndo,
   onSetActiveTeam,
   onResetBoard,
+  onNewGame,
   onUpdateTeamName,
   onUpdateTeamScore,
   onAddTeam,
@@ -70,7 +85,7 @@ export function GameBoard({
   // Clerk auth
   const { isSignedIn } = useAuth();
 
-  const categories = game.categories || [];
+  const categories = useMemo(() => game.categories || [], [game.categories]);
   const rowCount = game.rows || categories[0]?.clues?.length || 5;
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
@@ -139,6 +154,154 @@ export function GameBoard({
   const showFinale = allPlayed && !finalPending && !finaleDismissed;
   const showFinalPrompt = finalPending && !finalPromptDismissed;
   const reducedMotion = prefersReducedMotion();
+
+  // ---- Keyboard control of the board ----
+  // Arrows move a highlight between playable tiles (played tiles are skipped, empty columns too),
+  // Home/End jump to the first/last column (same row, or the nearest playable row), Enter/Space opens
+  // the highlighted clue, Escape clears it. Tiles use a roving tabindex: only one is in the Tab order.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const [navPos, setNavPos] = useState<{ c: number; r: number } | null>(null);
+  const [navActive, setNavActive] = useState(false);
+  const [hintVisible, setHintVisible] = useState(() => !isBoardHintDismissed() && !isTouchOnly());
+
+  const isPlayable = (c: number, r: number) => Boolean(categories[c]?.clues?.[r]) && !state.used[`${c}:${r}`];
+  // The highlighted tile; if it was just played, slide to the closest tile still in play
+  const navCell = useMemo(() => {
+    if (!navPos) return null;
+    if (isPlayable(navPos.c, navPos.r)) return navPos;
+    let best: { c: number; r: number } | null = null;
+    let bestDist = Infinity;
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < categories.length; c++) {
+        if (!isPlayable(c, r)) continue;
+        const d = Math.abs(c - navPos.c) + Math.abs(r - navPos.r);
+        if (d < bestDist) { best = { c, r }; bestDist = d; }
+      }
+    }
+    return best;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navPos, state.used, categories, rowCount]);
+  const firstPlayable = useMemo(() => {
+    for (let r = 0; r < rowCount; r++) {
+      for (let c = 0; c < categories.length; c++) {
+        if (categories[c]?.clues?.[r] && !state.used[`${c}:${r}`]) return { c, r };
+      }
+    }
+    return null;
+  }, [categories, rowCount, state.used]);
+  const tabStop = navCell ?? firstPlayable;
+
+  // Latest values for the (once-registered) key listener
+  const navRef = useRef({ categories, rowCount, used: state.used, navCell, navActive, blocked: false, onOpenClue });
+  navRef.current = {
+    categories,
+    rowCount,
+    used: state.used,
+    navCell,
+    navActive,
+    blocked:
+      showFinale || showFinalPrompt || addTeamDialogOpen || removeTeamDialogOpen ||
+      editingTeamId !== null || editingScoreTeamId !== null,
+    onOpenClue,
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const nav = navRef.current;
+      if (nav.blocked || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      const key = e.key;
+      const isArrow = key === 'ArrowUp' || key === 'ArrowDown' || key === 'ArrowLeft' || key === 'ArrowRight';
+      const isJump = key === 'Home' || key === 'End';
+      const isOpen = key === 'Enter' || key === ' ';
+      if (!isArrow && !isJump && !isOpen && key !== 'Escape') return;
+
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"], [role="menu"], [role="listbox"]')) return;
+      // A dialog, menu or popover is open: not the board's keys (checked in capture phase, so a dialog
+      // that closes on this very key press is still seen as open)
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return;
+      const onTile = !!target?.classList?.contains('clue-btn');
+      const onBare = !target || target === document.body || target === document.documentElement;
+      const onButton = target?.tagName === 'BUTTON';
+
+      const playable = (c: number, r: number) =>
+        Boolean(nav.categories[c]?.clues?.[r]) && !nav.used[`${c}:${r}`];
+      // Playable tile in column c nearest to row r (ties go to the upper one)
+      const nearestInColumn = (c: number, r: number) => {
+        for (let d = 0; d < nav.rowCount; d++) {
+          if (r - d >= 0 && playable(c, r - d)) return { c, r: r - d };
+          if (r + d < nav.rowCount && playable(c, r + d)) return { c, r: r + d };
+        }
+        return null;
+      };
+      const focusTile = (cell: { c: number; r: number }) => {
+        setNavPos(cell);
+        setNavActive(true);
+        dismissBoardHint();
+        setHintVisible(false);
+        requestAnimationFrame(() => {
+          boardRef.current?.querySelector<HTMLElement>(`[data-clue="${cell.c}:${cell.r}"]`)?.focus({ preventScroll: false });
+        });
+      };
+
+      if (key === 'Escape') {
+        if (!nav.navActive) return;
+        e.preventDefault();
+        setNavActive(false);
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        return;
+      }
+
+      if (isOpen) {
+        // On a focused tile the button's own click handles Enter/Space
+        if (onTile || !onBare || !nav.navActive || !nav.navCell || e.repeat) return;
+        e.preventDefault();
+        playSfx('select');
+        nav.onOpenClue(nav.navCell.c, nav.navCell.r);
+        return;
+      }
+
+      // Arrows / Home / End: from the page itself, a tile, or any button (e.g. a team card)
+      if (!onBare && !onTile && !onButton) return;
+      e.preventDefault();
+      const from = nav.navCell;
+      let next: { c: number; r: number } | null = null;
+      if (!from) {
+        for (let r = 0; r < nav.rowCount && !next; r++) {
+          for (let c = 0; c < nav.categories.length && !next; c++) if (playable(c, r)) next = { c, r };
+        }
+      } else if (key === 'ArrowDown' || key === 'ArrowUp') {
+        const step = key === 'ArrowDown' ? 1 : -1;
+        for (let r = from.r + step; r >= 0 && r < nav.rowCount; r += step) {
+          if (playable(from.c, r)) { next = { c: from.c, r }; break; }
+        }
+      } else {
+        const cols = nav.categories.length;
+        const order: number[] = [];
+        if (key === 'Home') for (let c = 0; c < cols; c++) order.push(c);
+        else if (key === 'End') for (let c = cols - 1; c >= 0; c--) order.push(c);
+        else {
+          const step = key === 'ArrowRight' ? 1 : -1;
+          for (let c = from.c + step; c >= 0 && c < cols; c += step) order.push(c);
+        }
+        for (const c of order) {
+          next = nearestInColumn(c, from.r);
+          if (next) break;
+        }
+      }
+      if (next) focusTile(next);
+      else if (from) focusTile(from);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  // Shortcut hint: shown once the opening reveal is done, fades away on its own
+  useEffect(() => {
+    if (!hintVisible || revealing) return;
+    const t = window.setTimeout(() => setHintVisible(false), 20000);
+    return () => window.clearTimeout(t);
+  }, [hintVisible, revealing]);
 
   // AI generation hook
   const { generate: generateAI } = useAIGeneration();
@@ -362,6 +525,7 @@ export function GameBoard({
           cluesPlayed={usedCount}
           pointsInPlay={pointsPlayed}
           onPlayAgain={onResetBoard}
+          onNewGame={onNewGame}
           onBackToMenu={onExit}
           onViewBoard={() => setFinaleDismissed(true)}
           state={state}
@@ -742,6 +906,8 @@ export function GameBoard({
       <div className="max-w-[1800px] mx-auto mb-6">
         <div className="board-wrap">
           <div
+            ref={boardRef}
+            onPointerDown={() => setNavActive(false)}
             className={`game-board ${revealing ? 'board-reveal' : ''}`}
             style={{
               gridTemplateColumns: `repeat(${categories.length}, minmax(0, 1fr))`,
@@ -783,7 +949,17 @@ export function GameBoard({
                         onOpenClue(categoryIndex, rowIndex);
                       }}
                       disabled={used}
-                      className="clue-btn"
+                      className={`clue-btn ${navActive && navCell?.c === categoryIndex && navCell.r === rowIndex ? 'is-kbd' : ''}`}
+                      data-clue={clueId}
+                      tabIndex={tabStop && tabStop.c === categoryIndex && tabStop.r === rowIndex ? 0 : -1}
+                      onFocus={(e) => {
+                        // Tabbing onto a tile (not a mouse click) joins the keyboard highlight
+                        try {
+                          if (!e.currentTarget.matches(':focus-visible')) return;
+                        } catch { return; }
+                        setNavPos({ c: categoryIndex, r: rowIndex });
+                        setNavActive(true);
+                      }}
                       style={{ ['--order' as string]: rowIndex * categories.length + categoryIndex }}
                       aria-label={`${category.title} for $${clue.value}${used ? ' (played)' : ''}`}
                     >
@@ -799,6 +975,27 @@ export function GameBoard({
 
       {/* Scoreboard Bottom Bar (TV Style) */}
       <div className="w-full bg-slate-900/80 backdrop-blur-sm border-t border-slate-700 sticky bottom-0 z-50 mt-8">
+        {!allPlayed && (
+          <div
+            className={`board-hint ${hintVisible && !revealing ? '' : 'is-hidden'}`}
+            role="note"
+            aria-hidden={!(hintVisible && !revealing)}
+          >
+            <span><kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> move</span>
+            <span><kbd>Enter</kbd> open</span>
+            <span><kbd>Esc</kbd> clear</span>
+            <span><kbd>Ctrl/&#8984;</kbd><kbd>Z</kbd> undo</span>
+            <button
+              type="button"
+              className="board-hint-close"
+              aria-label="Hide keyboard shortcuts"
+              tabIndex={hintVisible ? 0 : -1}
+              onClick={() => { dismissBoardHint(); setHintVisible(false); }}
+            >
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="group flex items-center justify-center gap-3 flex-wrap">
             {state.teams.map((team, teamIndex) => {

@@ -105,9 +105,79 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
 }
 
-.clue-btn:not(:disabled):focus-visible {
+.clue-btn:not(:disabled):focus-visible,
+.clue-btn.is-kbd:not(:disabled) {
   outline: 3px solid var(--theme-gold, #ffd700);
   outline-offset: -5px;
+}
+
+/* Keyboard highlight (arrow keys): lifts like hover so a presenter can see it from across the room */
+.clue-btn.is-kbd:not(:disabled) {
+  transform: scale(1.045);
+  z-index: 2;
+  box-shadow:
+    inset 0 0 0 2px var(--theme-gold, #ffd700),
+    0 0 34px color-mix(in oklab, var(--theme-gold, #ffd700) 35%, transparent);
+}
+
+/* Shortcut hint, tucked above the scoreboard */
+.board-hint {
+  position: absolute;
+  right: 16px;
+  bottom: calc(100% + 8px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 600;
+  backdrop-filter: blur(6px);
+  transition: opacity 0.6s ease, visibility 0.6s;
+}
+
+.board-hint.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.board-hint kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-right: 3px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-bottom-width: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+
+.board-hint-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.board-hint-close:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .board-hint {
+    display: none;
+  }
 }
 
 /* ---- Start-of-game reveal: headers drop in, then values cascade ---- */
@@ -495,6 +565,7 @@
   }
 
   .clue-btn:not(:disabled):hover,
+  .clue-btn.is-kbd:not(:disabled),
   .team-chip.selected,
   .team-chip:hover {
     transform: none;
@@ -800,7 +871,7 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: clamp(18px, 4vw, 72px);
+  gap: clamp(6px, 1.2vh, 12px) clamp(18px, 4vw, 72px);
   margin-top: clamp(4px, 1.2vh, 16px);
   opacity: 0;
   transform: translateY(10px);
@@ -824,6 +895,26 @@
   font-size: clamp(13px, 1.1vw, 20px);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.6);
+}
+
+/* Comeback: the one stat that tells a story, so it carries the winner's colour */
+.finale-stats li.finale-comeback {
+  align-items: center;
+  gap: 10px;
+  padding: 6px 18px 6px 14px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in oklab, var(--finale-accent) 70%, transparent);
+  background: color-mix(in oklab, var(--finale-accent) 14%, transparent);
+  color: var(--finale-accent);
+}
+
+.finale-comeback .finale-stat-label {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.finale-comeback .finale-stat-label b {
+  color: #fff;
+  font-weight: 800;
 }
 
 /* Actions */
