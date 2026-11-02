@@ -212,3 +212,55 @@ hymn facts are tied to historical editions through 1989. Judge faith claims for
 fidelity to the cited LDS sources. Keep source fidelity, factual concerns,
 individual clue usability and cross-clue giveaways separate. Do not infer a
 model’s general factual accuracy from its score on these curated packs.
+
+To run a single OpenRouter model on the same cached-source pipeline:
+
+```sh
+node scripts/compare-openrouter-cached.mjs scripts/fixtures/lds-hymns.json eval-results/new-mercury-hymns inception/mercury-3
+```
+
+This uses the existing `OPENROUTER_API_KEY` from the environment or `server/.env`
+and makes paid API calls. It checks the live model catalog, requests low reasoning
+with required parameter support, and retains exact prompts, provider responses,
+usage, cost, stage timings and any errors. There is no client retry, forced JSON
+schema or model substitution; normal application fallback is retained and counted.
+The 16,384-token completion cap leaves room for reasoning. Use
+`EVAL_REASONING_EFFORT` to override low. Live retrieval and the final independent
+verifier are excluded, as in the cached-source subscription comparison.
+
+Compare individual clue quality separately from cross-clue giveaways. API timing
+includes routing and provider latency but not the subscription CLI's startup and
+system context, so cross-transport timings are observations of these workflows,
+not a controlled measure of model inference speed alone.
+
+## Local app providers and generation lifecycle
+
+The local server can offer Terra 6.1 and Luna through a signed-in Codex CLI,
+alongside separately selected OpenAI API routes and Mercury 3 through OpenRouter.
+Copy the opt-in `CODEX_*` settings from `server/.env.example` and run `codex login`
+with ChatGPT locally. `AI_DEFAULT_MODEL=codex:gpt-6.1-terra` selects Terra for a
+browser without an existing preference. Restart the AI server after configuration
+changes. Subscription calls use plan limits, not the configured API keys, and
+never fall back to a paid API. The adapter binds the server to loopback and rejects
+nonlocal subscription origins. It is for this local app, not a hosted public API.
+
+Generation now carries an AbortSignal and typed progress events through retrieval,
+model calls and verification. Cancel closes active provider requests, kills a local
+CLI process group, and prevents later stages/retries from starting. The progress
+bar remains a time estimate; the displayed stage and completed counts are real.
+
+Final Jeopardy is enabled by default and can be switched off. One source-grounded
+candidate must pass a different model's factual gate; an unavailable, incomplete
+or rejected check omits the Final with a warning. Source and verification metadata
+survive preview, saving and editor changes (edited wording invalidates the badge).
+
+An advisory whole-board pass flags answer giveaways, repeated facts, ambiguous
+clues and difficulty ordering. Literal giveaways are checked deterministically
+as well. This pass does not rewrite clues or replace factual verification. Edits
+make its stored snapshot stale. A model check is still not proof of accuracy.
+The verifier cannot be the generator under another transport: subscription Terra
+and API Terra count as the same model. With no `AI_VERIFIER_MODEL`, Luna
+subscription uses Terra; other models use the first different enabled model.
+
+Run `npm run test:ai`, `npm run test:state`,
+`npx tsc --noEmit -p tsconfig.app.json` and `npm run build` before handoff.
