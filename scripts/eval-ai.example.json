@@ -1,0 +1,14 @@
+{
+  "models": [
+    { "id": "openai:gpt-6-luna", "reasoningEffort": "low" },
+    { "id": "openai:gpt-6-luna", "reasoningEffort": "high" },
+    { "id": "openai:gpt-6.1-terra", "reasoningEffort": "low" }
+  ],
+  "verifierModel": "or:google/gemini-2.5-flash",
+  "repeats": 1,
+  "cases": [
+    { "topic": "Lighthouses", "titles": ["Famous Towers", "Lighthouse Keepers", "Island Lights", "Harbor Beacons", "Lighthouse Engineering", "Historic Rescues"] },
+    { "topic": "Ancient Rome", "titles": ["Roman Emperors", "Roman Buildings", "Roman Gods"] },
+    { "topic": "Solar System", "titles": ["Space Missions", "Planets", "Named Moons"] }
+  ]
+}

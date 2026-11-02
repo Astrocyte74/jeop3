@@ -1,0 +1,155 @@
+{
+  "topic": "Lighthouses",
+  "titles": [
+    "Famous Towers",
+    "Lighthouse Keepers",
+    "Island Lights",
+    "Harbor Beacons",
+    "Lighthouse Engineering",
+    "Historic Rescues"
+  ],
+  "method": "Controlled source-grounded writing pilot. Editorial paraphrases assembled before generation from checked sources; not raw retrieval, not a memory test and not the production multistage pipeline. Source notes constrain disputed details. One run per model.",
+  "sources": [
+    {
+      "id": "S01",
+      "urls": [
+        "https://www.nlb.org.uk/lighthouses/sanda/"
+      ],
+      "notes": "Sanda Island Lighthouse in Scotland was established in 1850, designed by Alan Stevenson, and is operated by the Northern Lighthouse Board. It stands at Ship Rock, a detached rock, with a distinctive three-stage arrangement against the rock face. Trinity House proposed moving the Mull of Kintyre light to Sanda, but the proposal was rejected. In 1900 boatman Daniel Dempsey and his two sons received silver medals for rescuing a schooner crew. The vessel name and exact rescue date are not established here."
+    },
+    {
+      "id": "S02",
+      "urls": [
+        "https://www.nlb.org.uk/history/stevenson-engineers/"
+      ],
+      "notes": "The Northern Lighthouse Board lists 13 major lights under Alan Stevenson, including Sanda and Skerryvore."
+    },
+    {
+      "id": "S03",
+      "urls": [
+        "https://newporthistory.org/history-bytes-ida-lewis/"
+      ],
+      "notes": "Ida Lewis tended Lime Rock Light in Newport Harbor, Rhode Island. She became nationally famous after rescuing two soldiers in March 1869. Her first rescue, in 1858, saved four teenage boys. These are separate rescue events."
+    },
+    {
+      "id": "S04",
+      "urls": [
+        "https://www.rmg.co.uk/stories/maritime-history/grace-darling"
+      ],
+      "notes": "In 1838 Grace Darling and her father William, keeper of Longstone Lighthouse, rescued nine survivors of the wrecked steamship Forfarshire. They rowed to the survivors in a small boat. Longstone is in the Farne Islands off the English coast."
+    },
+    {
+      "id": "S05",
+      "urls": [
+        "https://uslhs.org/resources/keepers-log/select-articles/saga-abbie-burgess-grant"
+      ],
+      "notes": "Abbie Burgess kept the lights burning at Matinicus Rock, Maine, during a severe storm in 1856 while her father was away obtaining supplies. Do not claim she rowed her family to safety."
+    },
+    {
+      "id": "S06",
+      "urls": [
+        "https://www.nps.gov/articles/000/-h-our-history-lesson-kate-walker-lighthouse-keeper-and-hero-of-new-york-harbor.htm"
+      ],
+      "notes": "Robbins Reef Lighthouse is in New York Harbor, near Staten Island and New Jersey. Kate Walker became responsible for keeping it after her husband John died in 1890, but her permanent appointment came in 1895. She retired in 1919. The light guided ships in the busy harbor."
+    },
+    {
+      "id": "S07",
+      "urls": [
+        "https://www.history.uscg.mil/Browse-by-Topic/Assets/Land/All/Article/1893911/turkey-point-light-station/"
+      ],
+      "notes": "Fannie Salter was keeper at Turkey Point Light Station, Maryland. She retired in August 1947 after 22 years as keeper."
+    },
+    {
+      "id": "S08",
+      "urls": [
+        "https://home.nps.gov/places/boston-light.htm"
+      ],
+      "notes": "Boston Light stands on Little Brewster Island in Boston Harbor, Massachusetts. The original light began operating in 1716. Its first keeper was George Worthylake, who drowned with five other people in 1718. Avoid specifying an exact first-light day because sources disagree."
+    },
+    {
+      "id": "S09",
+      "urls": [
+        "https://dnr.wisconsin.gov/topic/parks/rockisland/lighthouse"
+      ],
+      "notes": "Pottawatomie Light Station is on Rock Island, Wisconsin. The station was established in 1836; its current buildings date to 1858. Include its location when using the dates as identifying details."
+    },
+    {
+      "id": "S10",
+      "urls": [
+        "https://www.nps.gov/places/lighthouse.htm"
+      ],
+      "notes": "Molokai Light stands on the Kalaupapa peninsula of Molokai, Hawaii. Its current tower began operating in 1909. Do not use an oldest-still-standing superlative: that has not been independently settled in this source pack."
+    },
+    {
+      "id": "S11",
+      "urls": [
+        "https://www.trinityhouse.co.uk/lighthouses-and-lightvessels/eddystone-lighthouse"
+      ],
+      "notes": "Henry Winstanley built the first Eddystone lighthouse from 1696 to 1698 on rocks in the open sea off Plymouth, England. A later Eddystone tower by John Rudyerd burned in 1755. Keeper Henry Hall swallowed molten lead while fighting the fire; the keepers were pulled through the sea to a rescue boat using ropes, and Hall died 12 days later. John Smeaton built the next tower, completed in 1759, using an oak-tree profile, stone blocks, dovetail joints and marble dowels. Its upper tower was later re-erected on Plymouth Hoe."
+    },
+    {
+      "id": "S12",
+      "urls": [
+        "https://www.discoverwyretrails.co.uk/en/page/5547"
+      ],
+      "notes": "Captain Denham devised a three-light system to guide ships into the port of Fleetwood through shoals and sandbanks of the Wyre Estuary. The three lights were Wyre Light, the Lower Lighthouse and the Pharos Lighthouse. Navigators lined them up to enter port safely. They were first lit on 1 December 1840. Alexander Mitchell designed Wyre Light with iron piles screwed into the seabed, supporting a platform and wooden house. Do not confuse Fleetwood’s Pharos Lighthouse with the ancient Pharos of Alexandria."
+    },
+    {
+      "id": "S13",
+      "urls": [
+        "https://www.guinnessworldrecords.com/world-records/717360-first-electric-powered-lighthouse"
+      ],
+      "notes": "Souter Lighthouse began operating in 1871. It was the first lighthouse purpose-built for electric illumination. This is distinct from being the first existing lighthouse ever to use an electric light. Souter is a coastal light; no harbor function is established here."
+    },
+    {
+      "id": "S14",
+      "urls": [
+        "https://fcit.usf.edu/photo-of-the-month-fresnel-lens/"
+      ],
+      "notes": "Augustin-Jean Fresnel developed a lens with concentric sections that preserved the focusing surfaces while reducing the thickness and amount of glass. The lighter construction allowed large, powerful lighthouse optics."
+    },
+    {
+      "id": "S15",
+      "urls": [
+        "https://fitzmuseum.cam.ac.uk/research/online-resources/pharos"
+      ],
+      "notes": "The Lighthouse of Alexandria, also called the Pharos, was one of the Seven Wonders of the Ancient World. It served Alexandria’s harbor in Egypt."
+    },
+    {
+      "id": "S16",
+      "urls": [
+        "https://www.nlb.org.uk/lighthouses/bell-rock/"
+      ],
+      "notes": "Robert Stevenson engineered Bell Rock Lighthouse off Scotland. The reef is submerged at high tide. The light was first exhibited in 1811. The challenge required construction on a rock only accessible during parts of the tidal cycle."
+    },
+    {
+      "id": "S17",
+      "urls": [
+        "https://www.nps.gov/caha/learn/historyculture/movingthelighthouse.htm"
+      ],
+      "notes": "Cape Hatteras Lighthouse in North Carolina was moved about 2,900 feet inland in 1999 to protect it from shoreline erosion."
+    },
+    {
+      "id": "S18",
+      "urls": [
+        "https://www.nlb.org.uk/lighthouses/skerryvore/"
+      ],
+      "notes": "Skerryvore, Scotland’s tallest lighthouse, stands on a reef southwest of Tiree. Designed by Alan Stevenson, it was built using granite quarried on the Isle of Mull. Its first light was exhibited on 1 February 1844. A signal tower at Hynish on Tiree communicated with Skerryvore by semaphore before radio. Skerryvore was automated in 1994."
+    },
+    {
+      "id": "S19",
+      "urls": [
+        "https://www.history.uscg.mil/Browse-by-Topic/Notable-People/Award-Recipients/Gold-Lifesaving-Medal/"
+      ],
+      "notes": "Marcus A. Hanna, keeper at Cape Elizabeth, Maine, saved two men from the wrecked schooner Australia on 28 January 1885. He received the Gold Lifesaving Medal for the rescue."
+    },
+    {
+      "id": "S20",
+      "urls": [
+        "https://api.parliament.uk/historic-hansard/written-answers/1970/nov/12/hereford-express-cattle",
+        "https://api.parliament.uk/historic-hansard/written-answers/1970/nov/12/hereford-express-cattle"
+      ],
+      "notes": "The Hereford Express stranded in 1970. Its cattle cargo comprised 96 fat steers, 142 fat heifers and 24 store steers, totaling 262. An SSPCA inspector boarded after 140 cattle had drowned; three animals reached land alive. He returned the next day with an RAF marksman. Use SSPCA, not RSPCA. Treat this as an animal-rescue and humane-destruction episode, not a successful rescue of all the cattle."
+    }
+  ]
+}

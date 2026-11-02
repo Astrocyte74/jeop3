@@ -40,3 +40,7 @@ public/icons
 
 # Playwright CLI test artifacts (browser screenshots/snapshots)
 .playwright-cli/
+.playwright-mcp/
+
+# Local paired AI eval runs (full source excerpts, generated clues and reviewer notes)
+eval-results/
