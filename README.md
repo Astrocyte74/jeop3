@@ -131,10 +131,22 @@ lsof -ti:7476 | xargs kill -9
 
 ### Icons Not Showing
 
-Icons are loaded from the `/icons` directory. If they're missing:
-- Make sure you're running from the project root
-- Check that `/public/icons/size-256/meta.json` exists
-- Or games will work fine with just text (no icons needed)
+Icons come from the [Thiings collection](https://www.thiings.co/things). For local
+development, link your extracted collection into the app (from the project root):
+
+```bash
+ln -s "$HOME/projects/icons" public/icons
+```
+
+Replace the source path if your collection is stored elsewhere. Each resolution
+needs `size-128`, `size-256`, `size-512`, or `size-1024`, containing `meta.json`
+and an `images/` directory. The metadata must include the collection's `items`
+array with image filenames. Reload the app after restoring the link.
+
+The local link is gitignored. Vite copies public assets when building locally;
+production can instead use the hosted collection through `VITE_ICON_BASE_URL`.
+The app defaults to 512px; 1024px source images provide more room for large TV
+layouts and can be used to prepare smaller versions. Games also work without icons.
 
 ## Project Structure
 
