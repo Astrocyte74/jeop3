@@ -121,7 +121,7 @@ export function computeTeamStats(state: GameState): TeamStats[] {
       incorrect,
       accuracy: mine.length ? correct / mine.length : null,
       pointsGained: mine.filter((r) => r.delta > 0).reduce((n, r) => n + r.delta, 0),
-      pointsLost: -mine.filter((r) => r.delta < 0).reduce((n, r) => n + r.delta, 0),
+      pointsLost: mine.filter((r) => r.delta < 0).reduce((n, r) => n - r.delta, 0),
       dailyDoubleHit: mine.some((r) => r.dailyDouble && r.correct) || undefined,
     };
   });
