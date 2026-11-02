@@ -20,6 +20,17 @@ await build({
 after(() => rm(dir, { recursive: true, force: true }));
 const gs = await import(pathToFileURL(out).href);
 
+const draftOut = join(dir, 'finalDraft.mjs');
+await build({
+  entryPoints: ['src/components/editor/finalDraft.ts'],
+  outfile: draftOut,
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  logLevel: 'silent',
+});
+const fd = await import(pathToFileURL(draftOut).href);
+
 const clue = (value, extra = {}) => ({ value, clue: `clue ${value}`, response: `answer ${value}`, ...extra });
 const column = (title, extra = {}) => ({ title, clues: [200, 400, 600, 800, 1000].map((v) => clue(v, extra[v] ?? {})) });
 const board = (cats = 5, extra = {}) => ({
@@ -198,4 +209,52 @@ test('computeTeamStats: per-team correct/incorrect, accuracy, points and Daily D
 test('computeTeamStats: a missed Daily Double is not a "hit"', () => {
   const s = gs.applyClueResult(fresh(), { clueId: '0:1', teamId: 'a', correct: false, amount: 500, dailyDouble: true });
   assert.equal(gs.computeTeamStats(s)[0].dailyDoubleHit, undefined);
+});
+
+test('classifyFinal: no draft, an all-empty draft and a whitespace-only draft are "none"', () => {
+  assert.deepEqual(fd.classifyFinal(undefined), { kind: 'none' });
+  assert.deepEqual(fd.classifyFinal({ category: '', clue: '', response: '' }), { kind: 'none' });
+  assert.deepEqual(fd.classifyFinal({ category: '  ', clue: '\n', response: ' ' }), { kind: 'none' });
+});
+
+test('classifyFinal: a half-filled draft reports exactly the missing fields', () => {
+  assert.deepEqual(fd.classifyFinal({ category: 'Rivers', clue: '', response: '  ' }), {
+    kind: 'partial',
+    missing: ['clue', 'response'],
+  });
+});
+
+test('classifyFinal: a complete draft is trimmed and keeps AI provenance/verification/source metadata', () => {
+  const verification = {
+    model: 'm',
+    checkedAt: '2026-11-01T00:00:00Z',
+    reason: 'ok',
+    clue: 'The longest river',
+    response: 'What is the Nile?',
+    category: 'Rivers',
+  };
+  const result = fd.classifyFinal({
+    category: '  Rivers ',
+    clue: ' The longest river ',
+    response: ' What is the Nile? ',
+    provenance: 'answer_first',
+    verification,
+    sourceMaterial: 'Wikipedia: Nile',
+    sourceUrl: 'https://example.com/nile',
+  });
+  assert.equal(result.kind, 'complete');
+  assert.deepEqual(result.value, {
+    category: 'Rivers',
+    clue: 'The longest river',
+    response: 'What is the Nile?',
+    provenance: 'answer_first',
+    verification,
+    sourceMaterial: 'Wikipedia: Nile',
+    sourceUrl: 'https://example.com/nile',
+  });
+});
+
+test('classifyFinal: a manual draft stays free of metadata keys', () => {
+  const result = fd.classifyFinal({ category: 'A', clue: 'B', response: 'C' });
+  assert.deepEqual(result, { kind: 'complete', value: { category: 'A', clue: 'B', response: 'C' } });
 });
