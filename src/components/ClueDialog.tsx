@@ -711,6 +711,16 @@ export function ClueDialog({
               </div>
             )}
 
+            {!dd && teams.length > 0 && showResponse && missedIds.length === 0 && !settling && (
+              <p className="cs-prompt">
+                <strong>Who got it right?</strong>
+                <span>
+                  Correct earns {formatMoney(value)}
+                  {rules.wrongAnswerPenalty ? ` · Wrong loses ${formatMoney(value)}` : ' · Wrong costs nothing'}
+                </span>
+              </p>
+            )}
+
             {dd ? null : teams.length > 0 ? (
               <TeamTiles
                 teams={teams}
@@ -765,9 +775,6 @@ export function ClueDialog({
           </>
         ) : (
           <>
-            <span><kbd>1</kbd>–<kbd>9</kbd> award team</span>
-            <span><kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>9</kbd> wrong answer</span>
-            {onSkipClue && <span><kbd>0</kbd> nobody got it</span>}
             <span><kbd>Esc</kbd> close without scoring</span>
           </>
         )}

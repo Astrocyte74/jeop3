@@ -530,26 +530,54 @@
 }
 
 /* Team tiles */
+.cs-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  margin: 2px 0 -2px;
+  text-align: center;
+}
+.cs-prompt strong {
+  font-family: var(--font-board, 'Anton', sans-serif);
+  font-weight: 400;
+  font-size: clamp(22px, 3.4vh, 34px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+}
+.cs-prompt span {
+  font-size: clamp(13px, 1.9vh, 16px);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Teams are neutral tiles with only a colour stripe + avatar: red and green are reserved for the
+   Correct / Wrong buttons so a team never looks like a verdict. */
 .cs-tiles {
   list-style: none;
   margin: 0;
   padding: 10px 0 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   gap: 14px;
 }
 
 .cs-tile {
   position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: clamp(10px, 1.6vh, 16px) 14px clamp(10px, 1.6vh, 16px) 16px;
   border-radius: 18px;
-  background: color-mix(in oklab, var(--tc-soft) 100%, rgba(8, 14, 44, 0.7));
-  border: 2px solid color-mix(in oklab, var(--tc) 55%, transparent);
-  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), opacity 0.3s, box-shadow 0.3s, border-color 0.2s;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-left: 7px solid var(--tc);
+  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), opacity 0.3s, box-shadow 0.3s, border-color 0.2s, background 0.2s;
 }
 .cs-tile[data-active='true'] {
-  border-color: var(--tc);
+  background: rgba(255, 255, 255, 0.1);
 }
 .cs-tile[data-dim='true'] {
   opacity: 0.35;
@@ -564,7 +592,7 @@
   padding: 1px 7px;
   border-radius: 8px;
   background: #0b1130;
-  border: 1px solid color-mix(in oklab, var(--tc) 70%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.35);
   color: #fff;
   font-family: var(--font-sans, sans-serif);
   font-size: 12px;
@@ -572,29 +600,12 @@
   text-align: center;
 }
 
-.cs-tile-main,
-.cs-tile-minus {
-  border: 0;
-  cursor: pointer;
-  color: #fff;
-  background: transparent;
-  transition: background 0.18s, color 0.18s;
-}
-.cs-tile-main {
+.cs-tile-id {
   display: flex;
   align-items: center;
   gap: 14px;
   min-width: 0;
-  padding: clamp(10px, 1.6vh, 16px) 18px;
-  border-radius: 16px 0 0 16px;
-  text-align: left;
-}
-.cs-tile-main:hover:not(:disabled) {
-  background: var(--tc);
-  color: var(--tc-on);
-}
-.cs-tile-main:disabled {
-  cursor: default;
+  flex: 1 1 150px;
 }
 
 .cs-avatar {
@@ -610,11 +621,6 @@
   font-size: clamp(16px, 2.4vh, 22px);
   letter-spacing: 0.04em;
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--tc) 30%, transparent);
-}
-.cs-tile-main:hover:not(:disabled) .cs-avatar {
-  background: var(--tc-on);
-  color: var(--tc);
-  box-shadow: none;
 }
 
 .cs-tile-text {
@@ -635,35 +641,65 @@
   font-size: clamp(16px, 2.4vh, 22px);
   letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
-  opacity: 0.75;
-}
-.cs-tile-delta {
-  flex: none;
-  font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: clamp(20px, 3.2vh, 30px);
-  letter-spacing: 0.02em;
-  color: var(--tc);
-}
-.cs-tile-main:hover:not(:disabled) .cs-tile-delta {
-  color: var(--tc-on);
+  opacity: 0.7;
 }
 
-.cs-tile-minus {
-  display: grid;
-  place-items: center;
-  width: clamp(52px, 8vh, 68px);
-  border-left: 2px solid color-mix(in oklab, var(--tc) 35%, transparent);
-  border-radius: 0 16px 16px 0;
-  color: rgba(255, 255, 255, 0.65);
+.cs-tile-actions {
+  flex: none;
+  display: flex;
+  gap: 10px;
 }
-.cs-tile-minus:hover:not(:disabled) {
+.cs-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: clamp(44px, 6.4vh, 56px);
+  padding: 0 clamp(14px, 1.4vw, 22px);
+  border-radius: 14px;
+  border: 2px solid;
+  font-family: var(--font-board, 'Anton', sans-serif);
+  font-size: clamp(17px, 2.6vh, 24px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s;
+}
+.cs-act svg {
+  width: 1.15em;
+  height: 1.15em;
+}
+.cs-act:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.cs-act:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.cs-act--yes {
+  color: #c8ffd9;
+  background: rgba(34, 197, 94, 0.16);
+  border-color: rgba(34, 197, 94, 0.75);
+}
+.cs-act--yes:hover:not(:disabled) {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #03200e;
+}
+.cs-act--no {
+  color: rgba(255, 255, 255, 0.78);
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.24);
+}
+.cs-act--no:hover:not(:disabled) {
   background: #e5384a;
+  border-color: #e5384a;
   color: #fff;
 }
 
 /* Tile states */
 .cs-tile[data-state='steal'] {
   border-color: var(--cs-gold);
+  border-left-color: var(--tc);
   animation: cs-steal-glow 1.1s ease-in-out infinite alternate;
 }
 @keyframes cs-steal-glow {
@@ -689,36 +725,41 @@
 
 .cs-tile[data-state='missed'] {
   border-color: #e5384a;
-  background: rgba(229, 56, 74, 0.14);
+  border-left-color: var(--tc);
+  background: rgba(229, 56, 74, 0.12);
 }
 .cs-tile[data-state='missed'] .cs-tile-name {
   text-decoration: line-through;
   text-decoration-thickness: 2px;
 }
-.cs-tile[data-state='missed'] .cs-tile-delta {
-  color: #ff8a93;
-}
-.cs-tile[data-state='missed'] .cs-tile-minus {
-  background: rgba(229, 56, 74, 0.35);
+.cs-tile[data-state='missed'] .cs-act--no {
+  background: rgba(229, 56, 74, 0.3);
+  border-color: #e5384a;
   color: #fff;
 }
 
 .cs-tile[data-state='won'] {
-  transform: scale(1.05);
-  border-color: var(--tc);
-  background: var(--tc);
-  box-shadow: 0 0 50px 4px color-mix(in oklab, var(--tc) 60%, transparent);
+  transform: scale(1.04);
+  border-color: #22c55e;
+  border-left-color: var(--tc);
+  background: rgba(34, 197, 94, 0.22);
+  box-shadow: 0 0 50px 4px rgba(34, 197, 94, 0.4);
 }
-.cs-tile[data-state='won'] .cs-tile-main {
-  color: var(--tc-on);
+.cs-tile[data-state='won'] .cs-act--yes {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #03200e;
 }
-.cs-tile[data-state='won'] .cs-avatar {
-  background: var(--tc-on);
-  color: var(--tc);
-  box-shadow: none;
+
+/* Once the answer is up it is the star: the clue steps back so the page has one focal point. */
+.cs-stage[data-reveal='true'] .cs-clue-text {
+  opacity: 0.72;
+  transform: scale(0.82);
+  text-shadow: none;
+  transition: opacity 0.5s, transform 0.5s cubic-bezier(0.2, 0.85, 0.2, 1);
 }
-.cs-tile[data-state='won'] .cs-tile-delta {
-  color: var(--tc-on);
+.cs-stage[data-reveal='true'] .cs-answer[data-revealed='true'] {
+  height: clamp(110px, 21vh, 230px);
 }
 
 /* ---------- Shortcut hints ---------- */

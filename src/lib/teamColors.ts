@@ -11,14 +11,16 @@ export interface TeamColor {
   name: string;
 }
 
+// Red and green are deliberately absent: on the clue screen they mean "wrong" and "right", so a team
+// can never look like a verdict.
 export const TEAM_COLORS: TeamColor[] = [
-  { name: 'Coral', main: '#ef5350', soft: 'rgba(239,83,80,0.16)', onMain: '#ffffff' },
-  { name: 'Sky', main: '#29b6f6', soft: 'rgba(41,182,246,0.16)', onMain: '#06202e' },
-  { name: 'Lime', main: '#9ccc3c', soft: 'rgba(156,204,60,0.16)', onMain: '#1a2406' },
+  { name: 'Sky', main: '#4da3ff', soft: 'rgba(77,163,255,0.16)', onMain: '#041a33' },
   { name: 'Amber', main: '#ffb300', soft: 'rgba(255,179,0,0.16)', onMain: '#2b1d00' },
   { name: 'Violet', main: '#ab7df5', soft: 'rgba(171,125,245,0.16)', onMain: '#ffffff' },
-  { name: 'Teal', main: '#26c6a6', soft: 'rgba(38,198,166,0.16)', onMain: '#032620' },
+  { name: 'Cyan', main: '#22d3ee', soft: 'rgba(34,211,238,0.16)', onMain: '#052a33' },
   { name: 'Pink', main: '#ff6fae', soft: 'rgba(255,111,174,0.16)', onMain: '#35081c' },
+  { name: 'Indigo', main: '#7c8cff', soft: 'rgba(124,140,255,0.16)', onMain: '#0b1033' },
+  { name: 'Sand', main: '#d6b98c', soft: 'rgba(214,185,140,0.16)', onMain: '#2a1f0e' },
   { name: 'Slate', main: '#90a4ae', soft: 'rgba(144,164,174,0.16)', onMain: '#10181c' },
 ];
 

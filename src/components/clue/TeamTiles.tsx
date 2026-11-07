@@ -1,4 +1,4 @@
-import { Minus } from 'lucide-react';
+import { Check, Undo2, X } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import type { Team } from '@/lib/storage';
 import { teamColor, teamInitials } from '@/lib/teamColors';
@@ -61,13 +61,7 @@ export function TeamTiles({
               </kbd>
             )}
             {state === 'steal' && <span className="cs-steal-flag">Steal</span>}
-            <button
-              type="button"
-              className="cs-tile-main"
-              onClick={() => onAward(team.id)}
-              disabled={locked || missed}
-              aria-label={`Award ${formatMoney(value)} to ${team.name}${i < 9 ? ` (key ${i + 1})` : ''}`}
-            >
+            <div className="cs-tile-id">
               <span className="cs-avatar" aria-hidden="true">
                 {teamInitials(team.name)}
               </span>
@@ -75,27 +69,37 @@ export function TeamTiles({
                 <span className="cs-tile-name">{team.name}</span>
                 <span className="cs-tile-score">{formatMoney(team.score)}</span>
               </span>
-              <span className="cs-tile-delta" aria-hidden="true">
-                {missed ? (penalty ? `−$${value}` : 'Miss') : `+$${value}`}
-              </span>
-            </button>
-            <button
-              type="button"
-              className="cs-tile-minus"
-              onClick={() => onDeduct(team.id)}
-              disabled={locked}
-              aria-pressed={missed}
-              aria-label={
-                missed
-                  ? `Undo deduction for ${team.name}`
-                  : penalty
-                    ? `Deduct ${formatMoney(value)} from ${team.name}${i < 9 ? ` (Shift+${i + 1})` : ''}`
-                    : `Mark ${team.name} as missed${i < 9 ? ` (Shift+${i + 1})` : ''}`
-              }
-              title={missed ? 'Undo' : penalty ? `Wrong answer: −$${value}` : 'Wrong answer'}
-            >
-              <Minus className="w-6 h-6" strokeWidth={3} />
-            </button>
+            </div>
+            <div className="cs-tile-actions">
+              <button
+                type="button"
+                className="cs-act cs-act--yes"
+                onClick={() => onAward(team.id)}
+                disabled={locked || missed}
+                aria-label={`${team.name} got it right: award ${formatMoney(value)}${i < 9 ? ` (key ${i + 1})` : ''}`}
+              >
+                <Check strokeWidth={3} aria-hidden="true" />
+                <span>Correct</span>
+              </button>
+              <button
+                type="button"
+                className="cs-act cs-act--no"
+                onClick={() => onDeduct(team.id)}
+                disabled={locked}
+                aria-pressed={missed}
+                aria-label={
+                  missed
+                    ? `Undo wrong answer for ${team.name}`
+                    : penalty
+                      ? `${team.name} got it wrong: deduct ${formatMoney(value)}${i < 9 ? ` (Shift+${i + 1})` : ''}`
+                      : `${team.name} got it wrong${i < 9 ? ` (Shift+${i + 1})` : ''}`
+                }
+                title={missed ? 'Undo' : i < 9 ? `Wrong answer (Shift+${i + 1})` : 'Wrong answer'}
+              >
+                {missed ? <Undo2 strokeWidth={3} aria-hidden="true" /> : <X strokeWidth={3} aria-hidden="true" />}
+                <span>{missed ? 'Undo' : 'Wrong'}</span>
+              </button>
+            </div>
           </li>
         );
       })}
