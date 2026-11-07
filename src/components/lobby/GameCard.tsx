@@ -8,12 +8,14 @@ interface GameCardProps {
   game: GameSummary;
   selected: boolean;
   onSelect: () => void;
+  /** Double-click (or Enter on the focused card) starts the game. */
+  onPlay?: () => void;
   /** The "..." menu, rendered over the cover */
   menu: ReactNode;
 }
 
 /** A box on the shelf: lit thumbnail, title, and progress. */
-export function GameCard({ game, selected, onSelect, menu }: GameCardProps) {
+export function GameCard({ game, selected, onSelect, onPlay, menu }: GameCardProps) {
   const played = timeAgo(game.lastPlayed);
   const statusText =
     game.status === 'done' ? 'Finished' : game.status === 'inProgress' ? `${game.completed}/${game.clueCount} played` : 'Not started';
@@ -23,6 +25,8 @@ export function GameCard({ game, selected, onSelect, menu }: GameCardProps) {
       <button
         type="button"
         onClick={onSelect}
+        onDoubleClick={onPlay}
+        title={onPlay ? 'Click to select · double-click to play' : undefined}
         aria-pressed={selected}
         className="lobby-card-btn flex w-full flex-col text-left"
       >

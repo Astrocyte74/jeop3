@@ -2315,7 +2315,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
     <div className="lobby-root px-5 py-6 xl:px-10" style={lobbyVars(currentThemeData)}>
       <div className="relative mx-auto grid max-w-[1920px] gap-8 lg:grid-cols-[clamp(24rem,30vw,40rem)_minmax(0,1fr)]">
         {/* Stage: logo, selected game, teams */}
-        <aside className="lobby-scroll -mx-2 flex flex-col gap-4 px-2 pb-2 pt-1 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
+        <aside className="lobby-scroll -mx-2 flex flex-col gap-4 px-2 pb-2 pt-1 [&>*]:shrink-0 lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:self-start lg:overflow-y-auto">
           <LobbyLogo />
           <GameHero
             game={selectedSummary}
@@ -2549,6 +2549,10 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
                       game={summary}
                       selected={selectedGameId === game.id}
                       onSelect={() => setSelectedGameId(game.id)}
+                      onPlay={() => {
+                        recordGamePlay(game.id);
+                        onSelectGame(game.id, fullGameFor(game), teams);
+                      }}
                       menu={
                         <GameCardMenu
                           onOpen={() => setSelectedGameId(game.id)}
