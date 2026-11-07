@@ -1333,7 +1333,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 {/* Which columns this content will fill — the starting point */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{editingSourceId ? 'Editing' : 'Now filling'}</Label>
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{editingSourceId ? 'Editing' : 'Planning'}</Label>
                     <span className="font-board text-sm uppercase tracking-wider text-yellow-400">{editingSourceId ? editingRangeLabel : spanRangeLabel}</span>
                   </div>
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -1482,7 +1482,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                 ) : (
                   <div className="flex items-center gap-2.5 rounded-xl border border-green-600/40 bg-green-500/10 p-3 text-sm text-green-300">
                     <Check className="w-4 h-4 flex-shrink-0" />
-                    All 6 columns filled — ready to generate!
+                    All 6 columns planned — ready to generate!
                   </div>
                 )}
 
@@ -1567,8 +1567,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
                   {/* In normal flow (not absolute) so a tall preview on a short window can't overlap it */}
                   <div className="relative self-start mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                    Live preview — updates as you build
+                    <span className="w-2 h-2 rounded-full bg-slate-500" />
+                    Board plan — clues not generated yet
                   </div>
 
                   <div className="relative text-center">
@@ -1582,7 +1582,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       </p>
                     ) : (
                       <p className="text-xs text-slate-500 mt-2 capitalize">
-                        {difficulty} difficulty · {plannedColumnCount * 5} clues · {6 - plannedColumnCount} column{6 - plannedColumnCount === 1 ? '' : 's'} open
+                        {difficulty} difficulty · {plannedColumnCount * 5} planned clues · {getTotalCategoryCount()} of 6 columns added
                       </p>
                     )}
                   </div>
@@ -1615,8 +1615,11 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                               )}
                             </div>
                           ) : span.state === 'draft' || span.state === 'next' ? (
-                            <div className={`h-6 rounded-md border border-dashed border-yellow-500/50 bg-yellow-500/5 flex items-center justify-center gap-1 px-1 text-[10px] font-bold uppercase tracking-wider text-yellow-500/90 overflow-hidden whitespace-nowrap ${span.state === 'next' ? 'animate-pulse' : ''}`}>
-                              {span.state === 'next' ? '↓ next' : 'filling…'}
+                            <div role="status" className="min-h-6 rounded-md border border-dashed border-yellow-500/50 bg-yellow-500/5 flex items-center justify-center gap-1 px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-yellow-500/90 text-center leading-tight">
+                              {span.state === 'next' ? '↓ next'
+                                : span.columns.some(col => col.pending) ? 'Suggesting titles…'
+                                : span.columns.some(col => col.name) ? 'Preview ready — not added'
+                                : 'Not added yet'}
                             </div>
                           ) : (
                             <div className="h-6" />
@@ -1701,7 +1704,14 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   </div>
 
                   <p className="relative text-[11px] text-slate-600 mt-5 text-center max-w-md">
-                    Draft titles sketch your board as you build (hover a column to reroll it) — final categories, clues and team names are written when you hit Generate.
+                    {previewSpans.some(span => span.columns.some(col => col.pending))
+                      ? 'AI is suggesting category titles only. No clues are being written yet.'
+                      : 'These are suggested category titles, not generated clues.'}
+                    {' '}{draftInput && !editingSourceId && getRemainingCategories() > 0
+                      ? `Click “Add to ${spanRangeLabel.toLowerCase()}”, then “Generate game” to write and check the clues.`
+                      : customSources.length > 0
+                        ? 'Click “Generate game” to write and check the clues.'
+                        : 'Add a topic, pasted text or URL, then click “Generate game”.'}
                   </p>
                 </div>
               )}
@@ -2204,7 +2214,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
               <div className="hidden sm:block flex-1" />
               <span className={`hidden sm:block text-xs mr-1 ${customSources.length === 0 ? 'text-yellow-500/80' : 'text-slate-500'}`}>
                 {customSources.length === 0
-                  ? 'Add a topic to a column to begin'
+                  ? 'Add your content to the board first'
                   : `${getTotalCategoryCount()} ${getTotalCategoryCount() === 1 ? 'category' : 'categories'} · ${getTotalCategoryCount() * 5} clues · ${difficulty}`}
               </span>
               <Button

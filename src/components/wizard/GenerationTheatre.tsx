@@ -260,6 +260,21 @@ export function GenerationTheatre({
           })}
         </ol>
 
+        {!failed && (event?.message || stage) && (
+          <div role="status" aria-live="polite" className="mt-2 rounded-xl border border-slate-700/60 bg-slate-900/60 px-3.5 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Current activity</p>
+            <p className="mt-1 text-sm text-slate-200">{event?.message || stage}</p>
+            {event?.categoryTitle && !event.message?.includes(event.categoryTitle) && (
+              <p className="mt-1 text-xs text-slate-400">{event.categoryTitle}</p>
+            )}
+            {event?.total !== undefined && event.total > 0 && event.completed !== undefined && (
+              <p className="mt-1 text-xs tabular-nums text-slate-400">
+                Progress: {event.completed} of {event.total}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Failure details */}
         {failed && (
           <div role="alert" className="th-enter-fast mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-3.5">
