@@ -577,225 +577,224 @@
 }
 
 /* Team tiles */
-.cs-prompt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin: 2px 0 -2px;
-  text-align: center;
-}
-.cs-prompt strong {
-  font-family: var(--font-board, 'Anton', sans-serif);
-  font-weight: 400;
-  font-size: clamp(22px, 3.4vh, 34px);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #fff;
-}
-.cs-prompt span {
-  font-size: clamp(13px, 1.9vh, 16px);
-  color: rgba(255, 255, 255, 0.6);
+/* ---------- Team in play ----------
+   One big banner in the team's colour (and a matching glow around the whole screen) so who is
+   answering reads from across the room. Red/green are not team colours; they only mean wrong/right. */
+.cs-stage[data-turn='true'] {
+  box-shadow:
+    inset 0 0 0 clamp(4px, 0.7vh, 8px) color-mix(in oklab, var(--turn) 85%, transparent),
+    inset 0 0 180px -30px color-mix(in oklab, var(--turn) 38%, transparent);
+  transition: box-shadow 0.4s;
 }
 
-/* Teams are neutral tiles with only a colour stripe + avatar: red and green are reserved for the
-   Correct / Wrong buttons so a team never looks like a verdict. */
-.cs-tiles {
-  list-style: none;
-  margin: 0;
-  padding: 10px 0 0;
+.cs-turn {
+  flex: none;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
-  gap: 14px;
-}
-
-.cs-tile {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px 14px;
-  padding: clamp(10px, 1.6vh, 16px) 14px clamp(10px, 1.6vh, 16px) 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-left: 7px solid var(--tc);
-  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1), opacity 0.3s, box-shadow 0.3s, border-color 0.2s, background 0.2s;
+  gap: 16px;
 }
-.cs-tile[data-active='true'] {
-  background: rgba(255, 255, 255, 0.1);
-}
-.cs-tile[data-dim='true'] {
-  opacity: 0.35;
-}
-
-.cs-key {
-  position: absolute;
-  top: -11px;
-  left: 16px;
-  z-index: 1;
-  min-width: 24px;
-  padding: 1px 7px;
-  border-radius: 8px;
-  background: #0b1130;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  color: #fff;
-  font-family: var(--font-sans, sans-serif);
-  font-size: 12px;
-  font-weight: 700;
-  text-align: center;
-}
-
-.cs-tile-id {
+.cs-turn-banner {
+  grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 14px;
-  min-width: 0;
-  flex: 1 1 150px;
+  gap: clamp(14px, 2vw, 28px);
+  max-width: min(100%, 72vw);
+  padding: clamp(8px, 1.4vh, 16px) clamp(24px, 3vw, 56px) clamp(8px, 1.4vh, 16px) clamp(10px, 1.4vw, 18px);
+  border-radius: 999px;
+  background: var(--tc);
+  color: var(--tc-on);
+  box-shadow: 0 14px 44px -12px color-mix(in oklab, var(--tc) 75%, transparent);
+  animation: cs-turn-in 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) both;
 }
-
-.cs-avatar {
+@keyframes cs-turn-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.cs-turn-banner[data-steal='true'] {
+  outline: 5px solid var(--cs-gold);
+  outline-offset: 4px;
+}
+.cs-turn-avatar {
   flex: none;
   display: grid;
   place-items: center;
-  width: clamp(40px, 6vh, 56px);
+  width: clamp(52px, 9vh, 92px);
+  aspect-ratio: 1;
+  border-radius: 999px;
+  background: var(--tc-on);
+  color: var(--tc);
+  font-family: var(--font-board, 'Anton', sans-serif);
+  font-size: clamp(22px, 4vh, 40px);
+  letter-spacing: 0.04em;
+}
+.cs-turn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1;
+}
+.cs-turn-label {
+  font-size: clamp(12px, 1.9vh, 18px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.cs-turn-name {
+  font-family: var(--font-board, 'Anton', sans-serif);
+  font-size: clamp(34px, 7vh, 72px);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cs-turn-chips {
+  grid-column: 3;
+  justify-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.cs-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  font-size: clamp(13px, 1.9vh, 17px);
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.cs-chip:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+.cs-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.cs-chip-av {
+  display: grid;
+  place-items: center;
+  width: clamp(26px, 4vh, 34px);
   aspect-ratio: 1;
   border-radius: 999px;
   background: var(--tc);
   color: var(--tc-on);
   font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: clamp(16px, 2.4vh, 22px);
-  letter-spacing: 0.04em;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--tc) 30%, transparent);
+  font-size: 13px;
 }
-
-.cs-tile-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.cs-tile-name {
+.cs-chip-name {
+  max-width: 11ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 700;
-  font-size: clamp(16px, 2.4vh, 22px);
 }
-.cs-tile-score {
-  font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: clamp(16px, 2.4vh, 22px);
-  letter-spacing: 0.03em;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.7;
+.cs-chip kbd {
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.25);
+  font-family: var(--font-sans, sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+}
+.cs-chip[data-missed='true'] {
+  opacity: 0.6;
+  border-color: rgba(229, 56, 74, 0.7);
+}
+.cs-chip[data-missed='true'] .cs-chip-name {
+  text-decoration: line-through;
 }
 
-.cs-tile-actions {
-  flex: none;
-  display: flex;
-  gap: 10px;
+/* ---------- Correct / Wrong ---------- */
+.cs-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(10px, 1.4vw, 20px);
+  padding-top: 6px;
 }
-.cs-act {
-  display: inline-flex;
+.cs-bigact {
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  height: clamp(44px, 6.4vh, 56px);
-  padding: 0 clamp(14px, 1.4vw, 22px);
-  border-radius: 14px;
-  border: 2px solid;
+  justify-content: center;
+  gap: clamp(10px, 1.2vw, 18px);
+  height: clamp(64px, 11vh, 108px);
+  border-radius: 22px;
+  border: 3px solid;
   font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: clamp(17px, 2.6vh, 24px);
-  letter-spacing: 0.04em;
+  font-size: clamp(26px, 5vh, 48px);
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s;
+  transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s, box-shadow 0.2s;
 }
-.cs-act svg {
-  width: 1.15em;
-  height: 1.15em;
+.cs-bigact svg {
+  width: 1.1em;
+  height: 1.1em;
 }
-.cs-act:active:not(:disabled) {
-  transform: translateY(1px);
+.cs-bigact small {
+  font-family: var(--font-sans, sans-serif);
+  font-size: 0.42em;
+  font-weight: 700;
+  letter-spacing: 0;
+  opacity: 0.85;
 }
-.cs-act:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-.cs-act--yes {
-  color: #c8ffd9;
-  background: rgba(34, 197, 94, 0.16);
-  border-color: rgba(34, 197, 94, 0.75);
-}
-.cs-act--yes:hover:not(:disabled) {
-  background: #22c55e;
-  border-color: #22c55e;
-  color: #03200e;
-}
-.cs-act--no {
-  color: rgba(255, 255, 255, 0.78);
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.24);
-}
-.cs-act--no:hover:not(:disabled) {
-  background: #e5384a;
-  border-color: #e5384a;
-  color: #fff;
-}
-
-/* Tile states */
-.cs-tile[data-state='steal'] {
-  border-color: var(--cs-gold);
-  border-left-color: var(--tc);
-  animation: cs-steal-glow 1.1s ease-in-out infinite alternate;
-}
-@keyframes cs-steal-glow {
-  from {
-    box-shadow: 0 0 0 0 color-mix(in oklab, var(--cs-gold) 0%, transparent);
-  }
-  to {
-    box-shadow: 0 0 28px 2px color-mix(in oklab, var(--cs-gold) 55%, transparent);
-  }
-}
-.cs-steal-flag {
+.cs-bigact kbd {
   position: absolute;
-  top: -11px;
-  right: 16px;
-  z-index: 1;
-  padding: 1px 10px;
-  border-radius: 8px;
-  background: var(--cs-gold);
-  color: var(--cs-ink);
+  top: 8px;
+  right: 12px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  font-family: var(--font-sans, sans-serif);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: 0;
+  opacity: 0.55;
 }
-
-.cs-tile[data-state='missed'] {
-  border-color: #e5384a;
-  border-left-color: var(--tc);
-  background: rgba(229, 56, 74, 0.12);
+.cs-bigact:active:not(:disabled) {
+  transform: translateY(2px);
 }
-.cs-tile[data-state='missed'] .cs-tile-name {
-  text-decoration: line-through;
-  text-decoration-thickness: 2px;
+.cs-bigact:disabled {
+  cursor: default;
 }
-.cs-tile[data-state='missed'] .cs-act--no {
-  background: rgba(229, 56, 74, 0.3);
-  border-color: #e5384a;
-  color: #fff;
-}
-
-.cs-tile[data-state='won'] {
-  transform: scale(1.04);
-  border-color: #22c55e;
-  border-left-color: var(--tc);
-  background: rgba(34, 197, 94, 0.22);
-  box-shadow: 0 0 50px 4px rgba(34, 197, 94, 0.4);
-}
-.cs-tile[data-state='won'] .cs-act--yes {
-  background: #22c55e;
-  border-color: #22c55e;
+.cs-bigact--yes {
   color: #03200e;
+  background: linear-gradient(180deg, #4ade80, #22c55e);
+  border-color: #86efac;
+  box-shadow: 0 10px 34px -12px rgba(34, 197, 94, 0.8);
+}
+.cs-bigact--yes:hover:not(:disabled),
+.cs-bigact--yes[data-won='true'] {
+  filter: brightness(1.08);
+  box-shadow: 0 0 46px 2px rgba(34, 197, 94, 0.6);
+}
+.cs-bigact--no {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+.cs-bigact--no:hover:not(:disabled) {
+  background: #e5384a;
+  border-color: #ff8a93;
+  color: #fff;
 }
 
 /* Once the answer is up it is the star: the clue steps back so the page has one focal point. */
@@ -873,23 +872,21 @@
   .cs-answer,
   .cs-dock,
   .cs-icon,
-  .cs-tile,
   .cs-reveal {
     transition: none;
   }
-  .cs-ring[data-expired='true'],
-  .cs-tile[data-state='steal'] {
+  .cs-ring[data-expired='true'] {
     animation: none;
   }
-  .cs-tile[data-state='won'] {
-    transform: none;
+  .cs-turn-banner {
+    animation: none;
   }
   .cs-reveal:hover {
     transform: none;
   }
 }
 
-/* "Nobody got it" — a quiet escape hatch under the team tiles */
+/* "Nobody got it" — a quiet escape hatch under Correct / Wrong */
 .cs-skip {
   align-self: center;
   display: inline-flex;

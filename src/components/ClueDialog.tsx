@@ -7,9 +7,10 @@ import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
 import { ThinkTimer } from '@/components/clue/ThinkTimer';
-import { TeamTiles } from '@/components/clue/TeamTiles';
+import { TurnBanner } from '@/components/clue/TurnBanner';
+import { AnswerActions } from '@/components/clue/AnswerActions';
 import { nextTeamId, useGameRules } from '@/lib/gameRules';
-import { formatMoney } from '@/components/clue/format';
+import { teamColor } from '@/lib/teamColors';
 import { DailyDoubleSplash } from '@/components/clue/DailyDoubleSplash';
 import { WagerPanel } from '@/components/clue/WagerPanel';
 import { DailyDoubleScoring } from '@/components/clue/DailyDoubleScoring';
@@ -108,6 +109,8 @@ export function ClueDialog({
   const rules = useGameRules();
   // Whose pick opened this clue; in 'rotate' mode the pick passes to the team after them.
   const [openerId, setOpenerId] = useState(activeTeamId);
+  // Manual choice of who is answering (null = follow the opener / steal order). Reset on every new clue.
+  const [pickedId, setPickedId] = useState<string | null>(null);
 
   // --- Daily Double state --------------------------------------------------
   // splash -> wager (active team) -> play (clue revealed, wagering team scores).
@@ -129,6 +132,7 @@ export function ClueDialog({
       setLockedTeamId(null);
       setDdOutcome(null);
       setOpenerId(activeTeamId);
+      setPickedId(null);
     }
   }
   const ddPre = dd && ddPhase !== 'play';
@@ -275,13 +279,15 @@ export function ClueDialog({
     (teamId: string) => {
       if (settling || !showResponseRef.current) return;
       if (missedIds.includes(teamId)) {
-        // Tapping a missed team again undoes it
+        // Tapping a missed team again undoes it, and puts them back in play
         setMissedIds((ids) => ids.filter((id) => id !== teamId));
+        setPickedId(teamId);
         playSfx('select');
         return;
       }
       const next = [...missedIds, teamId];
       setMissedIds(next);
+      setPickedId(null); // the steal order takes over
       playSfx('incorrect');
       if (next.length >= teams.length || !rules.allowSteal) settle(next, null);
     },
@@ -358,7 +364,29 @@ export function ClueDialog({
     return null;
   }, [missedIds, teams]);
 
-  const teamName = (id: string | null) => teams.find((t) => t.id === id)?.name ?? '';
+  // The one team answering right now: a manual pick, else the steal order after a miss, else the
+  // team that opened the clue (or the snake player).
+  const inPlayId = useMemo(() => {
+    if (teams.length === 0) return null;
+    const known = (id: string | null | undefined) => (id && teams.some((t) => t.id === id) ? id : null);
+    if (missedIds.length > 0) {
+      const manual = known(pickedId);
+      return manual && !missedIds.includes(manual) ? manual : stealId;
+    }
+    const snakeTeam = hasSnakeResult ? known(snakeGameResult?.teamId) : null;
+    return known(pickedId) ?? snakeTeam ?? known(openerId) ?? teams[0].id;
+  }, [teams, missedIds, pickedId, stealId, hasSnakeResult, snakeGameResult, openerId]);
+  const inPlayIndex = teams.findIndex((t) => t.id === inPlayId);
+
+  /** Change who is answering (another team buzzed first, say). */
+  const selectTeam = useCallback(
+    (teamId: string) => {
+      if (settling || missedIds.includes(teamId)) return;
+      setPickedId(teamId);
+      playSfx('select');
+    },
+    [settling, missedIds],
+  );
 
   // --- Keyboard ------------------------------------------------------------
   useEffect(() => {
@@ -396,12 +424,27 @@ export function ClueDialog({
         return;
       }
 
+      const key = e.key.toLowerCase();
+      const onButton = (e.target as HTMLElement | null)?.closest?.('button, a');
+      if (!dd && showResponseRef.current && inPlayId) {
+        if ((key === 'enter' && !onButton) || key === 'c') {
+          e.preventDefault();
+          awardTeam(inPlayId);
+          return;
+        }
+        if (key === 'w' || key === 'backspace') {
+          e.preventDefault();
+          deductTeam(inPlayId);
+          return;
+        }
+      }
+
       const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
-      if (digit && showResponseRef.current) {
+      if (digit) {
         const team = teams[Number(digit[1]) - 1];
         if (dd) {
           // Only the wagering team's key counts; no one else can score or steal.
-          if (team && team.id === lockedTeamId) {
+          if (showResponseRef.current && team && team.id === lockedTeamId) {
             e.preventDefault();
             scoreDailyDouble(!e.shiftKey);
           }
@@ -409,14 +452,11 @@ export function ClueDialog({
         }
         if (team) {
           e.preventDefault();
-          if (e.shiftKey) deductTeam(team.id);
-          else awardTeam(team.id);
+          if (e.shiftKey && showResponseRef.current) deductTeam(team.id);
+          else selectTeam(team.id);
         }
         return;
       }
-
-      // Icon controls only operate after reveal, when pictures are enabled.
-      if (!showResponse || !iconsEnabled) return;
 
       // Press 'i' to toggle matched keywords
       if (e.key === 'i' || e.key === 'I') {
@@ -442,7 +482,7 @@ export function ClueDialog({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showResponse, iconsEnabled, answerIcons, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue]);
+  }, [isOpen, showResponse, iconsEnabled, answerIcons, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue, inPlayId, selectTeam]);
 
   // Keep Tab inside the dialog
   const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -504,7 +544,8 @@ export function ClueDialog({
       data-reveal={showResponse}
       data-dd={dd}
       data-dd-phase={dd ? ddPhase : undefined}
-      style={originStyle}
+      style={{ ...originStyle, ...(!dd && inPlayIndex >= 0 ? ({ '--turn': teamColor(inPlayIndex).main } as CSSProperties) : null) }}
+      data-turn={!dd && inPlayIndex >= 0 ? 'true' : undefined}
       onKeyDown={trapTab}
     >
       {/* Header */}
@@ -542,6 +583,19 @@ export function ClueDialog({
           </button>
         </div>
       </header>
+
+      {!dd && !ddPre && inPlayId && (
+        <TurnBanner
+          teams={teams}
+          inPlayId={inPlayId}
+          steal={missedIds.length > 0}
+          value={value}
+          missedIds={missedIds}
+          locked={settling}
+          onSelect={selectTeam}
+          onUndoMiss={deductTeam}
+        />
+      )}
 
       {ddPre && (
         <main className="dd-main">
@@ -692,47 +746,26 @@ export function ClueDialog({
               />
             )}
 
+            {!dd && teams.length > 0 && inPlayId && (
+              <AnswerActions
+                value={value}
+                penalty={rules.wrongAnswerPenalty}
+                locked={settling}
+                won={wonId !== null}
+                onCorrect={() => awardTeam(inPlayId)}
+                onWrong={() => deductTeam(inPlayId)}
+              />
+            )}
+
             {!dd && mustConfirmSteal && !settling && (
               <div className="cs-steal-bar" role="status">
-                <p>
-                  {missedIds.map(teamName).join(', ')} missed{rules.wrongAnswerPenalty ? ` (${formatMoney(-value)})` : ''}.
-                  {stealId && (
-                    <>
-                      {' '}
-                      <strong>{teamName(stealId)}</strong> can steal for {formatMoney(value)}.
-                    </>
-                  )}
-                </p>
                 <button type="button" onClick={closeWithMisses}>
                   No steal, close clue
                 </button>
               </div>
             )}
 
-            {!dd && teams.length > 0 && showResponse && missedIds.length === 0 && !settling && (
-              <p className="cs-prompt">
-                <strong>Who got it right?</strong>
-                <span>
-                  Correct earns {formatMoney(value)}
-                  {rules.wrongAnswerPenalty ? ` · Wrong loses ${formatMoney(value)}` : ' · Wrong costs nothing'}
-                </span>
-              </p>
-            )}
-
-            {dd ? null : teams.length > 0 ? (
-              <TeamTiles
-                teams={teams}
-                value={value}
-                activeTeamId={activeTeamId}
-                missedIds={missedIds}
-                stealId={stealId}
-                wonId={wonId}
-                locked={settling}
-                penalty={rules.wrongAnswerPenalty}
-                onAward={awardTeam}
-                onDeduct={deductTeam}
-              />
-            ) : (
+            {!dd && teams.length === 0 && (
               <p className="cs-no-teams">No teams yet. Close the clue and add a team to keep score.</p>
             )}
 
