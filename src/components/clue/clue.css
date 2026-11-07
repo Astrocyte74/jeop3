@@ -578,8 +578,8 @@
 
 /* Team tiles */
 /* ---------- Team in play ----------
-   One big banner in the team's colour (and a matching glow around the whole screen) so who is
-   answering reads from across the room. Red/green are not team colours; they only mean wrong/right. */
+   The bottom scoreboard fills the answering team's card, and the whole screen gets a matching glow, so
+   who is answering reads from across the room. Red/green are not team colours; they only mean wrong/right. */
 .cs-stage[data-turn='true'] {
   box-shadow:
     inset 0 0 0 clamp(4px, 0.7vh, 8px) color-mix(in oklab, var(--turn) 85%, transparent),
@@ -587,139 +587,18 @@
   transition: box-shadow 0.4s;
 }
 
-.cs-turn {
+.cs-teams {
   flex: none;
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  gap: 16px;
+  padding: clamp(8px, 1.4vh, 14px) 0 0;
+  margin: 0 -8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  animation: cs-content-in 0.4s 0.2s ease-out both;
 }
-.cs-turn-banner {
-  grid-column: 2;
-  display: flex;
-  align-items: center;
-  gap: clamp(14px, 2vw, 28px);
-  max-width: min(100%, 72vw);
-  padding: clamp(8px, 1.4vh, 16px) clamp(24px, 3vw, 56px) clamp(8px, 1.4vh, 16px) clamp(10px, 1.4vw, 18px);
-  border-radius: 999px;
-  background: var(--tc);
-  color: var(--tc-on);
-  box-shadow: 0 14px 44px -12px color-mix(in oklab, var(--tc) 75%, transparent);
-  animation: cs-turn-in 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) both;
-}
-@keyframes cs-turn-in {
-  from {
-    opacity: 0;
-    transform: scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-.cs-turn-banner[data-steal='true'] {
-  outline: 5px solid var(--cs-gold);
-  outline-offset: 4px;
-}
-.cs-turn-avatar {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: clamp(52px, 9vh, 92px);
-  aspect-ratio: 1;
-  border-radius: 999px;
-  background: var(--tc-on);
-  color: var(--tc);
-  font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: clamp(22px, 4vh, 40px);
-  letter-spacing: 0.04em;
-}
-.cs-turn-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  line-height: 1;
-}
-.cs-turn-label {
-  font-size: clamp(12px, 1.9vh, 18px);
-  font-weight: 800;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  opacity: 0.8;
-}
-.cs-turn-name {
-  font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: clamp(34px, 7vh, 72px);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.cs-turn-chips {
-  grid-column: 3;
-  justify-self: end;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-.cs-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 10px 5px 5px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
-  font-size: clamp(13px, 1.9vh, 17px);
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-}
-.cs-chip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.45);
-}
-.cs-chip:disabled {
+.cs-teams .team-card button:disabled {
   cursor: default;
-  opacity: 0.6;
 }
-.cs-chip-av {
-  display: grid;
-  place-items: center;
-  width: clamp(26px, 4vh, 34px);
-  aspect-ratio: 1;
-  border-radius: 999px;
-  background: var(--tc);
-  color: var(--tc-on);
-  font-family: var(--font-board, 'Anton', sans-serif);
-  font-size: 13px;
-}
-.cs-chip-name {
-  max-width: 11ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cs-chip kbd {
-  padding: 0 6px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(0, 0, 0, 0.25);
-  font-family: var(--font-sans, sans-serif);
-  font-size: 11px;
-  font-weight: 700;
-}
-.cs-chip[data-missed='true'] {
-  opacity: 0.6;
-  border-color: rgba(229, 56, 74, 0.7);
-}
-.cs-chip[data-missed='true'] .cs-chip-name {
-  text-decoration: line-through;
+.cs-teams .team-card:not(.is-active):not(.is-missed) button:not(:disabled) {
+  cursor: pointer;
 }
 
 /* ---------- Correct / Wrong ---------- */
@@ -878,7 +757,7 @@
   .cs-ring[data-expired='true'] {
     animation: none;
   }
-  .cs-turn-banner {
+  .cs-teams {
     animation: none;
   }
   .cs-reveal:hover {

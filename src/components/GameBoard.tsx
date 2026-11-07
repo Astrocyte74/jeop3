@@ -516,9 +516,6 @@ export function GameBoard({
     setTeamToRemove(null);
   };
 
-  const activeTeam = state.teams.find((t) => t.id === state.activeTeamId);
-  const activeColor = teamColor(Math.max(0, state.teams.findIndex((t) => t.id === state.activeTeamId)));
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 relative">
       {showFinale && (
@@ -888,17 +885,6 @@ export function GameBoard({
             {gameMode === 'snake' && (
               <span className="text-4xl animate-pulse" title="Snake Mode Active">🐍</span>
             )}
-            {activeTeam && !allPlayed && (
-              <span
-                key={activeTeam.id}
-                className="turn-pill"
-                aria-live="polite"
-                style={{ ['--tc' as string]: activeColor.main, ['--tc-on' as string]: activeColor.onMain, ['--tc-soft' as string]: activeColor.soft }}
-              >
-                <span className="turn-avatar" aria-hidden="true">{teamInitials(activeTeam.name)}</span>
-                <span><b>{activeTeam.name}</b> chooses</span>
-              </span>
-            )}
           </div>
           {game.subtitle && (
             <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
@@ -1019,6 +1005,7 @@ export function GameBoard({
                   } ${editingTeamId === team.id || editingScoreTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
                   style={{ ['--tc' as string]: tc.main, ['--tc-on' as string]: tc.onMain, ['--tc-soft' as string]: tc.soft }}
                 >
+                  {state.activeTeamId === team.id && !allPlayed && <span className="team-tag">Picks</span>}
                   {/* Dropdown menu button - shown on hover when not editing */}
                   {(onUpdateTeamName || onUpdateTeamScore) && editingTeamId !== team.id && editingScoreTeamId !== team.id && (
                     <DropdownMenu>

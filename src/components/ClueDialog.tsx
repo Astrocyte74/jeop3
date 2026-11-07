@@ -7,7 +7,7 @@ import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
 import { ThinkTimer } from '@/components/clue/ThinkTimer';
-import { TurnBanner } from '@/components/clue/TurnBanner';
+import { TeamDock } from '@/components/clue/TeamDock';
 import { AnswerActions } from '@/components/clue/AnswerActions';
 import { nextTeamId, useGameRules } from '@/lib/gameRules';
 import { teamColor } from '@/lib/teamColors';
@@ -584,18 +584,6 @@ export function ClueDialog({
         </div>
       </header>
 
-      {!dd && !ddPre && inPlayId && (
-        <TurnBanner
-          teams={teams}
-          inPlayId={inPlayId}
-          steal={missedIds.length > 0}
-          value={value}
-          missedIds={missedIds}
-          locked={settling}
-          onSelect={selectTeam}
-          onUndoMiss={deductTeam}
-        />
-      )}
 
       {ddPre && (
         <main className="dd-main">
@@ -810,6 +798,19 @@ export function ClueDialog({
           </>
         )}
       </footer>
+
+      {!ddPre && teams.length > 0 && (
+        <TeamDock
+          teams={teams}
+          inPlayId={dd ? (lockedTeamId ?? wagerTeam?.id ?? null) : inPlayId}
+          steal={!dd && missedIds.length > 0}
+          missedIds={missedIds}
+          interactive={!dd}
+          locked={settling}
+          onSelect={selectTeam}
+          onUndoMiss={deductTeam}
+        />
+      )}
     </div>
   );
 }
