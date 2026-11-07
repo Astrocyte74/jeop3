@@ -6,7 +6,7 @@
 // the JSON that comes back. This keeps the harness in sync with production — no
 // prompt-text duplication.
 //
-//   node scripts/test-prompts.mjs
+//   node scripts/prompts-probe.mjs
 //
 import { build as esbuild } from 'esbuild';
 
