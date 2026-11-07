@@ -569,54 +569,6 @@ export function ClueDialog({
       <main className={dd ? 'cs-main dd-clue-in' : 'cs-main'}>
         {/* Clue */}
         <section className="cs-clue-zone" aria-label="Clue">
-          {activeIcon && (
-            <figure className="cs-icon">
-              <div className="cs-icon-art">
-                <img
-                  key={activeIcon.icon.file_name}
-                  src={iconMatcher.buildIconUrl(activeIcon) || undefined}
-                  alt={activeIcon.icon.title}
-                  loading="lazy"
-                />
-              </div>
-              <div className="cs-icon-meta">
-                {activeIcons.length > 1 &&
-                  activeIcons.map((_, idx) => (
-                    <button
-                      type="button"
-                      key={idx}
-                      onClick={() => setCurrentAnswerIconIndex(idx)}
-                      className="cs-dot"
-                      data-on={idx === activeIconIndex}
-                      aria-label={`Go to icon ${idx + 1}`}
-                      aria-current={idx === activeIconIndex}
-                    />
-                  ))}
-                <button
-                  type="button"
-                  onClick={() => setShowMatchedKeywords((v) => !v)}
-                  className="cs-info"
-                  title="Show icon details (press 'i')"
-                  aria-label="Show icon details"
-                  aria-pressed={showMatchedKeywords}
-                >
-                  <Info className="w-4 h-4" />
-                </button>
-              </div>
-              {showMatchedKeywords && (
-                <figcaption className="cs-icon-detail">
-                  <strong>{activeIcon.icon.title}</strong>
-                  {activeIcon.matchedTokens.length > 0 && (
-                    <span className="cs-tokens">
-                      {activeIcon.matchedTokens.map((token) => (
-                        <span key={token}>{token}</span>
-                      ))}
-                    </span>
-                  )}
-                </figcaption>
-              )}
-            </figure>
-          )}
           <div className="cs-fit" ref={clueFitRef}>
             <p className="cs-clue-text" ref={clueTextRef}>
               {clue}
@@ -650,6 +602,54 @@ export function ClueDialog({
               )}
             </div>
             <div className="cs-face cs-face--front" aria-live="polite" aria-hidden={!showResponse}>
+            {activeIcon && (
+              <figure className="cs-icon">
+                <div className="cs-icon-art">
+                  <img
+                    key={activeIcon.icon.file_name}
+                    src={iconMatcher.buildIconUrl(activeIcon) || undefined}
+                    alt={activeIcon.icon.title}
+                    loading="lazy"
+                  />
+                </div>
+                <div className="cs-icon-meta">
+                  {activeIcons.length > 1 &&
+                    activeIcons.map((_, idx) => (
+                      <button
+                        type="button"
+                        key={idx}
+                        onClick={() => setCurrentAnswerIconIndex(idx)}
+                        className="cs-dot"
+                        data-on={idx === activeIconIndex}
+                        aria-label={`Go to icon ${idx + 1}`}
+                        aria-current={idx === activeIconIndex}
+                      />
+                    ))}
+                  <button
+                    type="button"
+                    onClick={() => setShowMatchedKeywords((v) => !v)}
+                    className="cs-info"
+                    title="Show icon details (press 'i')"
+                    aria-label="Show icon details"
+                    aria-pressed={showMatchedKeywords}
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
+                </div>
+                {showMatchedKeywords && (
+                  <figcaption className="cs-icon-detail">
+                    <strong>{activeIcon.icon.title}</strong>
+                    {activeIcon.matchedTokens.length > 0 && (
+                      <span className="cs-tokens">
+                        {activeIcon.matchedTokens.map((token) => (
+                          <span key={token}>{token}</span>
+                        ))}
+                      </span>
+                    )}
+                  </figcaption>
+                )}
+              </figure>
+            )}
               <div className="cs-fit" ref={answerFitRef}>
                 {showResponse && (
                   <p className="cs-answer-text" ref={answerTextRef}>

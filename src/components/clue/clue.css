@@ -211,6 +211,53 @@
     transform: none;
   }
 }
+/* The picture lives in the gold answer bar (it illustrates the answer, and only appears on reveal), so
+   the clue text never has to re-flow to make room for it. */
+.cs-stage .cs-face--front .cs-icon {
+  position: relative;
+  flex: none;
+  width: auto;
+  height: 100%;
+  gap: 2px;
+  justify-content: center;
+  transition: none;
+}
+.cs-face--front .cs-icon-art {
+  width: auto;
+  height: calc(100% - 28px);
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+}
+.cs-face--front .cs-icon-art img {
+  filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.3));
+}
+.cs-face--front .cs-dot {
+  background: rgba(0, 0, 0, 0.25);
+}
+.cs-face--front .cs-dot[data-on='true'] {
+  background: var(--cs-ink);
+}
+.cs-face--front .cs-info {
+  color: rgba(0, 0, 0, 0.55);
+}
+.cs-face--front .cs-info:hover,
+.cs-face--front .cs-info[aria-pressed='true'] {
+  color: var(--cs-ink);
+  background: rgba(0, 0, 0, 0.1);
+}
+.cs-face--front .cs-icon-detail {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 100%;
+  margin-top: 8px;
+  min-width: 180px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(6, 12, 40, 0.94);
+  color: #fff;
+}
 .cs-icon-meta {
   display: flex;
   align-items: center;
