@@ -789,7 +789,6 @@ export function ClueDialog({
           </>
         ) : !showResponse ? (
           <>
-            <span><kbd>Space</kbd> show answer</span>
             <span><kbd>Esc</kbd> close</span>
           </>
         ) : (
