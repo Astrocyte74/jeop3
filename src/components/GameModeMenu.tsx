@@ -132,10 +132,21 @@ export function GameModeMenu({
               }
             : { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.18)' }
         }
-        title={isControlled ? `Current: ${currentModeInfo?.label || 'Game Mode'}` : 'Select Game Mode'}
+        title={isControlled ? `Game mode: ${currentModeInfo?.label || 'Regular'}. Open to switch (Trivia Snake is a bonus round).` : 'Select Game Mode'}
       >
         <TriggerIcon className="h-4 w-4" style={snakeActive ? { color: '#39ff88' } : undefined} />
-        <span className="hidden sm:inline">{currentModeInfo ? currentModeInfo.label : 'Game mode'}</span>
+        <span className="hidden sm:inline">
+          {currentModeInfo ? (
+            <>
+              <span className="opacity-60">Mode:</span> {currentModeInfo.label}
+            </>
+          ) : (
+            'Game mode'
+          )}
+        </span>
+        {isControlled && currentMode === 'regular' && (
+          <Worm className="h-4 w-4" style={{ color: '#39ff88' }} aria-label="Trivia Snake is available" />
+        )}
         <ChevronDown className={`h-4 w-4 opacity-70 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 

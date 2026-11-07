@@ -548,6 +548,8 @@ export function ClueDialog({
       data-turn={!dd && inPlayIndex >= 0 ? 'true' : undefined}
       onKeyDown={trapTab}
     >
+      <div className="cs-drain" aria-hidden="true" />
+
       {/* Header */}
       <header className="cs-top">
         {dd && <div className="dd-badge">Daily Double</div>}
@@ -623,7 +625,7 @@ export function ClueDialog({
           <div className="cs-flip">
             <div className="cs-face cs-face--back" aria-hidden={showResponse}>
               {timerSecs > 0 && !hasSnakeResult && (
-                <ThinkTimer key={`${timerSecs}:${clue}`} seconds={timerSecs} running={timerRunning} />
+                <ThinkTimer key={`${timerSecs}:${clue}`} seconds={timerSecs} running={timerRunning} stageRef={stageRef} />
               )}
               <button type="button" className="cs-reveal" onClick={reveal} tabIndex={showResponse ? -1 : 0}>
                 <Eye className="w-7 h-7" />

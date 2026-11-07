@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { playSfx } from '@/lib/sfx';
 
 interface ThinkTimerProps {
   seconds: number;
   running: boolean;
+  /** The stage element: gets data-timer (calm|warn|urgent|expired|off) and --timer-frac so the whole
+   *  screen frame can show the time left. Written straight to the DOM, so it costs no re-renders. */
+  stageRef?: RefObject<HTMLElement | null>;
 }
 
 const R = 46;
 const C = 2 * Math.PI * R;
 
 /** Countdown ring. Click to pause/resume. Ticks over the last 5 seconds. */
-export function ThinkTimer({ seconds, running }: ThinkTimerProps) {
+export function ThinkTimer({ seconds, running, stageRef }: ThinkTimerProps) {
   const [remainingMs, setRemainingMs] = useState(seconds * 1000);
   const [paused, setPaused] = useState(false);
 
@@ -36,6 +39,20 @@ export function ThinkTimer({ seconds, running }: ThinkTimerProps) {
   const frac = seconds > 0 ? remainingMs / (seconds * 1000) : 0;
   const urgent = secs <= 5;
   const expired = secs === 0;
+
+  useEffect(() => {
+    const el = stageRef?.current;
+    if (!el) return;
+    el.style.setProperty('--timer-frac', String(frac));
+    el.setAttribute('data-timer', !running || seconds === 0 ? 'off' : expired ? 'expired' : urgent ? 'urgent' : secs <= 10 ? 'warn' : 'calm');
+  }, [frac, secs, expired, urgent, running, seconds, stageRef]);
+  useEffect(
+    () => () => {
+      const el = stageRef?.current;
+      el?.setAttribute('data-timer', 'off');
+    },
+    [stageRef],
+  );
 
   return (
     <button

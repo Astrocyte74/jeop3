@@ -818,3 +818,66 @@
 .cs-teams .team-key {
   font-size: clamp(11px, 0.9vw, 15px);
 }
+
+/* ---------- Time left, shown on the screen frame ----------
+   A bar along the top edge drains as the think timer runs (amber in the last 10 s). In the last 5 s the
+   whole frame pulses red, and at zero it stays red. Driven by ThinkTimer via data-timer / --timer-frac. */
+.cs-drain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 61;
+  height: clamp(6px, 0.9vh, 10px);
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.55);
+  transform-origin: left center;
+  transform: scaleX(var(--timer-frac, 1));
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, background 0.4s, box-shadow 0.4s;
+}
+.cs-stage[data-timer='calm'] .cs-drain,
+.cs-stage[data-timer='warn'] .cs-drain,
+.cs-stage[data-timer='urgent'] .cs-drain {
+  opacity: 1;
+}
+.cs-stage[data-timer='warn'] .cs-drain {
+  background: #ffc247;
+  box-shadow: 0 0 18px rgba(255, 194, 71, 0.7);
+}
+.cs-stage[data-timer='urgent'] .cs-drain {
+  background: #ff5a4a;
+  box-shadow: 0 0 20px rgba(255, 90, 74, 0.8);
+}
+.cs-stage[data-timer='urgent']::after,
+.cs-stage[data-timer='expired']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 clamp(6px, 1vh, 12px) rgba(255, 70, 55, 0.92),
+    inset 0 0 180px -20px rgba(255, 60, 45, 0.45);
+}
+.cs-stage[data-timer='urgent']::after {
+  animation: cs-frame-pulse 0.8s ease-in-out infinite alternate;
+}
+@keyframes cs-frame-pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-stage[data-timer='urgent']::after {
+    animation: none;
+  }
+  .cs-drain {
+    transition: none;
+  }
+}
