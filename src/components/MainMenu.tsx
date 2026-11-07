@@ -2286,8 +2286,10 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
   const currentThemeData = themes[currentTheme];
 
   const customGamesNow = loadCustomGames();
+  // Built-in games carry their data on the list entry itself; only custom games are in customGamesNow.
   const fullGameFor = (game: GameMeta): Game =>
     customGamesNow.find((g) => g.id === game.id)?.game ||
+    game.game ||
     ({ id: game.id, title: game.title, subtitle: game.subtitle || '', categories: [], rows: 5 } as Game);
 
   // Presentation-only derived data for the lobby (progress rings, hero preview, filter chips)
