@@ -35,7 +35,7 @@ import { NewGameWizard, type WizardCompleteData, type CustomSource } from '@/com
 import { GameMetadata } from '@/components/GameMetadata';
 import type { AIPromptType, AIDifficulty, Clue as AIClue, AICategory, GenerationProgress, AIContext } from '@/lib/ai/types';
 import type { PreviewData } from '@/components/ai';
-import { Sparkles, Plus } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import './lobby/lobby.css';
 import { LobbyLogo } from './lobby/LobbyLogo';
 import { GameHero } from './lobby/GameHero';
@@ -2495,16 +2495,6 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
             </DropdownMenu>
             )}
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 gap-2 border-white/25 bg-transparent px-3 text-white hover:bg-white/10"
-                disabled={aiLoading}
-                onClick={handleCreateClick}
-              >
-                <Plus className="size-4" />
-                Create Game
-              </Button>
               <TableSettings
                 currentTheme={currentTheme}
                 onThemeChange={handleThemeChange}

@@ -182,10 +182,12 @@
   from { opacity: 0; transform: scale(0.82); filter: brightness(1.8); }
   to { opacity: 1; transform: scale(1); filter: brightness(1); }
 }
-.lobby-miniboard-cover { gap: 3px; width: 100%; }
-.lobby-miniboard-cover .lobby-mini-head { height: 0.7rem; background: linear-gradient(160deg, hsl(var(--hue) 78% 48%), hsl(var(--hue) 78% 30%)); }
+/* Shelf covers are deliberately muted: the hero above is the one vivid thing on the page, so a wall of
+   fifteen boards reads as a calm shelf. Hue survives as a hint, not a flood. */
+.lobby-miniboard-cover { --tile-a: hsl(var(--hue) 28% 36%); --tile-b: hsl(var(--hue) 32% 24%); gap: 3px; width: 100%; }
+.lobby-miniboard-cover .lobby-mini-head { height: 0.7rem; background: linear-gradient(160deg, hsl(var(--hue) 34% 44%), hsl(var(--hue) 36% 30%)); }
 .lobby-miniboard-cover .lobby-mini-tile { height: 0.85rem; border-radius: 3px; }
-.lobby-miniboard-cover .lobby-mini-tile:not(.is-used) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 8px hsl(var(--hue) 90% 60% / 0.25); }
+.lobby-miniboard-cover .lobby-mini-tile:not(.is-used) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 
 /* ---------- game cards ---------- */
 .lobby-card {
@@ -225,9 +227,25 @@
   height: 6.25rem;
   padding: 0.85rem 0.9rem;
   background:
-    radial-gradient(120% 140% at 20% 0%, hsl(var(--hue) 70% 32% / 0.55), transparent 70%),
-    hsl(var(--hue) 45% 9%);
+    radial-gradient(120% 140% at 20% 0%, hsl(var(--hue) 34% 26% / 0.5), transparent 70%),
+    hsl(var(--hue) 22% 10%);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Progress along the bottom edge of a cover (replaces the ring that was on every started card) */
+.lobby-card-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.lobby-card-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--lb-accent);
+  border-radius: 0 3px 3px 0;
 }
 .lobby-card-new {
   display: flex;

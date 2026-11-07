@@ -76,7 +76,7 @@ export function LibraryToolbar({ searchQuery, onSearchChange, sort, onSortChange
             }`}
           >
             {f.label}
-            <span className="ml-1.5 text-xs tabular-nums text-white/40">{counts[f.key]}</span>
+            {counts[f.key] > 0 && <span className="ml-1.5 text-xs tabular-nums text-white/40">{counts[f.key]}</span>}
           </button>
         ))}
       </div>
