@@ -4,6 +4,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuSub,
@@ -12,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { type GameMode } from '@/components/GameModeMenu';
 import { GameRulesMenu } from '@/components/GameRulesMenu';
+import { setIconsEnabled, useIconsEnabled } from '@/lib/iconSettings';
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy, Eye, Undo2 } from 'lucide-react';
 import { themes, applyTheme, getStoredTheme, setIconSize, getIconSize, type ThemeKey, type IconSize } from '@/lib/themes';
@@ -89,6 +91,7 @@ export function GameBoard({
   const rowCount = game.rows || categories[0]?.clues?.length || 5;
   const [currentTheme, setCurrentTheme] = useState<ThemeKey>(getStoredTheme());
   const [iconSize, setIconSizeState] = useState<IconSize>(getIconSize());
+  const iconsEnabled = useIconsEnabled();
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
   const [editingScoreTeamId, setEditingScoreTeamId] = useState<string | null>(null);
@@ -697,6 +700,10 @@ export function GameBoard({
                     ))}
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+
+                <DropdownMenuCheckboxItem checked={iconsEnabled} onCheckedChange={setIconsEnabled}>
+                  Show answer icons
+                </DropdownMenuCheckboxItem>
 
                 {/* Icon Size Submenu */}
                 <DropdownMenuSub>

@@ -145,8 +145,16 @@ array with image filenames. Reload the app after restoring the link.
 
 The local link is gitignored. Vite copies public assets when building locally;
 production can instead use the hosted collection through `VITE_ICON_BASE_URL`.
-The app defaults to 512px; 1024px source images provide more room for large TV
-layouts and can be used to prepare smaller versions. Games also work without icons.
+The app prefers 512px by default and falls back to the 1024px collection when the
+selected resolution is absent. A single `size-1024` folder is sufficient; smaller
+copies are optional. Search reads `meta.json` directly (title, slug, tags and
+category); no separate `icons.json` index is needed. The `images/` folder is still
+required to display results. Games also work without icons.
+
+Automatic icons appear only after revealing the answer. Toggle **Show answer
+icons** in Table settings or the in-game settings menu; the preference is saved
+on this device. Matching prioritizes answer names and uses the clue/category as
+supporting context. Weak matches are omitted.
 
 ## Project Structure
 

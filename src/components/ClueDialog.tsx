@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback, useId, type CSSPrope
 import type { Team } from '@/lib/storage';
 import { X, Eye, Info, Trophy, XCircle, Timer } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
+import { useIconsEnabled } from '@/lib/iconSettings';
 import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
@@ -88,6 +89,7 @@ export function ClueDialog({
   boardMaxValue,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
+  const iconsEnabled = useIconsEnabled();
   const titleId = useId();
   const stageRef = useRef<HTMLDivElement>(null);
   const clueFitRef = useRef<HTMLDivElement>(null);
@@ -151,9 +153,7 @@ export function ClueDialog({
   }, [isOpen, dailyDouble, snakeGameResult, onSetActiveTeam]);
 
   const [showMatchedKeywords, setShowMatchedKeywords] = useState(false);
-  const [clueIcons, setClueIcons] = useState<IconMatch[]>([]);
   const [answerIcons, setAnswerIcons] = useState<IconMatch[]>([]);
-  const [currentClueIconIndex, setCurrentClueIconIndex] = useState(0);
   const [currentAnswerIconIndex, setCurrentAnswerIconIndex] = useState(0);
 
   useEffect(() => {
@@ -163,16 +163,11 @@ export function ClueDialog({
         setShowResponse(false);
       }
       setShowMatchedKeywords(false);
-      setCurrentClueIconIndex(0);
       setCurrentAnswerIconIndex(0);
       setMissedIds([]);
       setWonId(null);
       setSettling(false);
       window.clearTimeout(settleTimer.current);
-
-      // Find matching icons for clue only (doesn't give away answer)
-      const clueMatches = iconMatcher.findMatches(clue, undefined, categoryTitle, 5);
-      setClueIcons(clueMatches);
 
       // Find matching icons for clue + answer (shown after reveal)
       const answerMatches = iconMatcher.findMatches(clue, response, categoryTitle, 5);
@@ -420,6 +415,9 @@ export function ClueDialog({
         return;
       }
 
+      // Icon controls only operate after reveal, when pictures are enabled.
+      if (!showResponse || !iconsEnabled) return;
+
       // Press 'i' to toggle matched keywords
       if (e.key === 'i' || e.key === 'I') {
         setShowMatchedKeywords((prev) => !prev);
@@ -427,9 +425,9 @@ export function ClueDialog({
       }
 
       // Arrow keys to navigate icons
-      const icons = showResponse ? answerIcons : clueIcons;
-      const currentIndex = showResponse ? currentAnswerIconIndex : currentClueIconIndex;
-      const setCurrentIndex = showResponse ? setCurrentAnswerIconIndex : setCurrentClueIconIndex;
+      const icons = answerIcons;
+      const currentIndex = currentAnswerIconIndex;
+      const setCurrentIndex = setCurrentAnswerIconIndex;
 
       if (icons.length > 1) {
         if (e.key === 'ArrowLeft') {
@@ -444,7 +442,7 @@ export function ClueDialog({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showResponse, clueIcons, answerIcons, currentClueIconIndex, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue]);
+  }, [isOpen, showResponse, iconsEnabled, answerIcons, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue]);
 
   // Keep Tab inside the dialog
   const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -488,8 +486,8 @@ export function ClueDialog({
 
   if (!isOpen) return null;
 
-  const activeIcons = showResponse ? answerIcons : clueIcons;
-  const activeIconIndex = showResponse ? currentAnswerIconIndex : currentClueIconIndex;
+  const activeIcons = showResponse && iconsEnabled ? answerIcons : [];
+  const activeIconIndex = currentAnswerIconIndex;
   const activeIcon = activeIcons[activeIconIndex] || activeIcons[0];
   const timerRunning = isOpen && !showResponse && !hasSnakeResult;
   const mustConfirmSteal = missedIds.length > 0;
@@ -587,7 +585,7 @@ export function ClueDialog({
                     <button
                       type="button"
                       key={idx}
-                      onClick={() => (showResponse ? setCurrentAnswerIconIndex : setCurrentClueIconIndex)(idx)}
+                      onClick={() => setCurrentAnswerIconIndex(idx)}
                       className="cs-dot"
                       data-on={idx === activeIconIndex}
                       aria-label={`Go to icon ${idx + 1}`}

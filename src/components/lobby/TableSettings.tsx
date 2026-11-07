@@ -6,6 +6,7 @@ import { themes, type ThemeKey, type IconSize } from '@/lib/themes';
 import { lobbyVars } from './gameInfo';
 import { isSfxMuted, setSfxMuted, playSfx } from '@/lib/sfx';
 import { setGameRules, useGameRules, type TurnMode } from '@/lib/gameRules';
+import { setIconsEnabled, useIconsEnabled } from '@/lib/iconSettings';
 
 const ICON_SIZES: Array<{ size: IconSize; note: string }> = [
   { size: '128', note: 'Fastest' },
@@ -35,6 +36,7 @@ export function TableSettings({ currentTheme, onThemeChange, iconSize, onIconSiz
   const [open, setOpen] = useState(false);
   const [muted, setMuted] = useState(() => isSfxMuted());
   const rules = useGameRules();
+  const iconsEnabled = useIconsEnabled();
 
   const toggleSound = () => {
     const next = !muted;
@@ -182,7 +184,19 @@ export function TableSettings({ currentTheme, onThemeChange, iconSize, onIconSiz
           </div>
 
           <section>
-            <SectionTitle hint="Resolution of clue pictures. Bigger looks sharper on a TV but loads slower.">Icon size</SectionTitle>
+            <SectionTitle hint="Pictures appear only after you reveal the answer.">Answer icons</SectionTitle>
+            <button
+              type="button"
+              role="switch"
+              aria-label="Show answer icons"
+              aria-checked={iconsEnabled}
+              onClick={() => setIconsEnabled(!iconsEnabled)}
+              className="mb-4 flex w-full items-center justify-between rounded-xl border border-white/12 bg-black/20 px-4 py-3 text-left text-sm hover:bg-white/5"
+            >
+              Show answer icons
+              <span className={`lobby-switch ${iconsEnabled ? 'is-on' : ''}`} aria-hidden="true" />
+            </button>
+            <SectionTitle hint="Bigger looks sharper on a TV but loads slower. Uses 1024px if a smaller size is unavailable.">Icon size</SectionTitle>
             <div role="radiogroup" aria-label="Icon size" className="grid grid-cols-4 gap-2">
               {ICON_SIZES.map(({ size, note }) => {
                 const active = iconSize === size;
