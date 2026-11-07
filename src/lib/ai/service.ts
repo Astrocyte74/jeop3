@@ -341,7 +341,9 @@ export function sourceMatchesTopic(topic: string | undefined, title: string, tex
   const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   const topics = words(topic).filter(w => w.length > 2 && !filler.has(w));
   const stem = (w: string) => w === 'roman' || w === 'rome' ? 'rome' : w.replace(/ies$/, 'y').replace(/(ch|sh|x|ss)es$/, '$1').replace(/s$/, '');
-  const leadWords = words(title + ' ' + text.slice(0, 1200));
+  // Inspect the introductory paragraph, not incidental mentions in later sections.
+  const lead = text.trim().split(/\n\s*\n/)[0].slice(0, 1200);
+  const leadWords = words(title + ' ' + lead);
   return !topics.length || topics.some(w => leadWords.some(l => stem(l) === stem(w) || (w === 'tech' && l === 'technology')));
 }
 
@@ -356,7 +358,9 @@ export async function searchAndFetchCategorySource(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
   const scoped = contextTopic?.trim() && contextTopic.toLowerCase() !== 'random';
-  const queries = scoped ? [`${contextTopic} ${query}`, contextTopic!] : [query];
+  // Playful category labels are presentation, not reliable search terms. Anchor
+  // retrieval in the requested subject before trying the category angle.
+  const queries = scoped ? [...new Set([contextTopic!, `${contextTopic} ${query}`])] : [query];
   const seen = new Set<string>();
   for (const searchQuery of queries) {
     checkAbort(options.signal);

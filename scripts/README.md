@@ -264,3 +264,74 @@ subscription uses Terra; other models use the first different enabled model.
 
 Run `npm run test:ai`, `npm run test:state`,
 `npx tsc --noEmit -p tsconfig.app.json` and `npm run build` before handoff.
+
+## Verification incident capture and UI diagnostics
+
+Run the four single-column production cases (Space exploration with the exact
+`To Infinity And Beyond` title, Apollo 11, World capitals, and pasted Apollo 11
+text) against a running proxy:
+
+```sh
+node scripts/diagnose-ai-verification.mjs eval-results/new-verification-run http://localhost:7476/api
+```
+
+This uses Gemini 2.5 Flash via OpenRouter and the server-selected independent
+verifier. It calls production prompt builders and board/Final pipelines, retains
+raw HTTP requests/responses, source excerpts, progress events and errors, and
+never saves a game. Each case is captured even if another fails. To repeat one
+case, set `AI_DIAGNOSTIC_CASES=space`, `apollo`, `capitals`, or `paste`.
+These are live model calls. Output directories must be new; keep captures local.
+
+For the exact raw verifier model output (including malformed responses), set
+`AI_VERIFICATION_LOG` to an absolute JSONL file path when starting the server.
+The parent directory must exist. Each record contains an audit ID, request,
+server-built prompt, selected model, raw response, and parsed verdicts or error.
+Logging is opt-in because source excerpts can be private; logs are not game data.
+Normal console logs include accepted/total counts only after schema validation.
+
+On a failed board, `generateTopicSpan` / `generateContentSpan` throw
+`VerificationError`. Read `error.details`, or consume the same object from the
+last `onProgress` event:
+
+```ts
+{
+  stage: 'verifying',
+  status: 'failed',
+  message: 'Independent fact check could not complete the board: ...',
+  verificationFailure: {
+    code: 'VERIFICATION_INCOMPLETE',
+    retryable: true,
+    message: 'Independent fact check could not complete the board: ...',
+    model: 'codex:gpt-6.1-terra',
+    categories: [{ title: 'To Infinity And Beyond', accepted: 0, required: 5 }],
+    clues: [{
+      id: '0:0', categoryIndex: 0, clueIndex: 0,
+      category: 'To Infinity And Beyond',
+      clue: 'This author wrote Beyond Infinity.', response: 'Eugenia Cheng',
+      verdict: 'true', onTopic: false,
+      reason: 'The pair concerns mathematics rather than space exploration.'
+    }]
+  }
+}
+```
+
+`clues` contains rejected candidates, including runner-ups; IDs and indices are
+local to the current span's candidate batch, not final dollar-value positions.
+Category counts reflect selection after verification and deduplication. An empty
+candidate batch is an incomplete board with empty reasons, not a verifier outage.
+`verifyCategories` also returns `rejected` alongside its existing categories/audit.
+
+Unavailable service, HTTP errors, timeouts, empty output and malformed/partial
+verdict schemas instead produce `VERIFICATION_UNAVAILABLE`, `retryable: true`,
+an explicit unavailable message and `clues: []`. There are no invented negative
+verdicts. `/api/ai/verify` returns HTTP 502 (429 for rate limits) with
+`{ error, message, code: 'VERIFICATION_UNAVAILABLE', retryable: true }`;
+successful responses retain `{ model, verdicts, usage, durationMs }`.
+User cancellation still propagates as cancellation without a failure event.
+No unchecked fallback runs after the verification gate.
+
+Manual live benchmark scripts use `*-probe.mjs` names (previously `*-test.mjs`;
+`test-prompts.mjs` is now `prompts-probe.mjs`). Run these directly and individually.
+They require services and some share temporary filenames, so they must not be
+picked up concurrently by automatic test discovery. `node --test` runs the offline
+regression suite; `npm run test:ai` runs the focused AI contracts.

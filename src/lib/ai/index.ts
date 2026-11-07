@@ -60,3 +60,6 @@ export {
 } from './stats';
 
 export type { GenerationStats } from './stats';
+
+export { VerificationError } from './verification';
+export type { VerificationFailure } from './types';

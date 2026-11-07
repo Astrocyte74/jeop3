@@ -31,7 +31,8 @@ test('abort after extraction cannot trigger writing, fallback or verification',a
   assert.deepEqual(calls,['extract-board-answers']);
 });
 test('abort during verifier does not return checked categories',async()=>{
- const c=new AbortController();await assert.rejects(modules.verification.verifyCategories(cats,'History',async(t,i)=>{c.abort();return good(t,i);},{signal:c.signal}),{name:'AbortError'});
+ const c=new AbortController();const events=[];await assert.rejects(modules.verification.verifyCategories(cats,'History',async(t,i)=>{c.abort();return good(t,i);},{signal:c.signal,onProgress:e=>events.push(e)}),{name:'AbortError'});
+ assert.ok(events.every(e=>!e.verificationFailure));
 });
 test('aborted retrieval does not fall through to AI fact sheets',async()=>{
  const original=globalThis.fetch;const c=new AbortController();let calls=0;

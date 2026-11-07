@@ -1,6 +1,6 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -8,7 +8,7 @@ import { build } from 'esbuild';
 import contract from '../server/verification.cjs';
 const dir = await mkdtemp(join(tmpdir(), 'jeop3-check-'));
 const modules = {};
-for (const name of ['board', 'verification', 'service']) {
+for (const name of ['board', 'verification', 'service', 'prompts']) {
   const out = join(dir, `${name}.mjs`);
   await build({ entryPoints: [`src/lib/ai/${name}.ts`], bundle: true, format: 'esm', outfile: out, logLevel: 'silent', define: { 'import.meta.env.VITE_AI_API_URL': '"http://test/api"' } });
   modules[name] = await import(pathToFileURL(out));
@@ -30,7 +30,7 @@ test('verdicts map by ID, false/unsure/off-topic are removed', async () => {
 });
 test('missing, duplicated, extra and malformed verdicts fail closed', async () => {
   for (const mutate of [r => r.verdicts.pop(), r => r.verdicts[1].id = '0:0', r => r.verdicts[0].id = 'other', r => r.verdicts[0].onTopic = 'true', r => r.verdicts[0].verdict = 'TRUE']) {
-    await assert.rejects(verifyCategories(cats, 'Lighthouses', async (_, items) => { const r = good(items); mutate(r); return r; }));
+    await assert.rejects(verifyCategories(cats, 'Lighthouses', async (_, items) => { const r = good(items); mutate(r); return r; }), error => error.details.code === 'VERIFICATION_UNAVAILABLE');
   }
   await assert.rejects(verifyCategories(cats, 'Lighthouses', async () => { throw new Error('offline'); }), /offline/);
 });
@@ -86,7 +86,7 @@ test('retrieval tries later hits and searches the actual topic', async () => {
   try {
     const result = await modules.service.searchAndFetchCategorySource('Island Lights', null, 'Lighthouses');
     assert.equal(result.url, 'right');
-    assert.equal(calls[0].query, 'Lighthouses Island Lights');
+    assert.equal(calls[0].query, 'Lighthouses');
   } finally { globalThis.fetch = original; }
 });
 test('empty grounding cannot turn a single retrieved article into six categories', async () => {
@@ -111,4 +111,114 @@ test('checked runner-ups fill rejected slots and preserve dollar values', async 
   assert.ok(result.categories[0].clues.every(c => c.verification));
   assert.equal(result.alternatives[0].clues.length, 1);
   assert.ok(result.alternatives[0].clues[0].verification);
+});
+
+// The exact wrong sense from the Space exploration incident. The old 1200-char
+// scan matched "exploration" in the Topics section and accepted a maths book.
+const mathsBook = 'Beyond Infinity is a popular mathematics book by Eugenia Cheng centered on concepts of infinity. It was published by Basic Books in 2017.\n\nTopics\nAfter an exploration of number systems, it discusses set theory, the dimensions of spaces, and infinite sizes of sets. '.repeat(2);
+test('playful title cannot override the requested topic during retrieval', async () => {
+  const original = globalThis.fetch;
+  const queries = [];
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    if (url.endsWith('search-wikipedia')) {
+      queries.push(body.query);
+      return Response.json({ results: [
+        { title: 'Beyond Infinity (mathematics book)', url: 'maths' },
+        { title: 'Space exploration', url: 'space' },
+      ] });
+    }
+    return Response.json({ text: body.url === 'maths' ? mathsBook : 'Space exploration uses astronomy and space technology to explore outer space. '.repeat(10) });
+  };
+  try {
+    assert.equal(modules.service.sourceMatchesTopic('Space exploration', 'Beyond Infinity (mathematics book)', mathsBook), false);
+    const result = await modules.service.searchAndFetchCategorySource('To Infinity And Beyond', null, 'Space exploration');
+    assert.equal(queries[0], 'Space exploration');
+    assert.equal(result.url, 'space');
+  } finally { globalThis.fetch = original; }
+});
+
+test('HTTP, network, timeout, empty and invalid verifier replies are retryable outages', async () => {
+  const original = globalThis.fetch;
+  for (const response of [
+    () => { throw new TypeError('Network unavailable'); },
+    () => { throw new DOMException('Timed out', 'TimeoutError'); },
+    () => Response.json(contract.verificationUnavailable(new Error('Model not enabled')), { status: 502 }),
+    () => Response.json(contract.verificationUnavailable(new Error('Rate limit exceeded')), { status: 429 }),
+    () => new Response(''),
+    () => new Response('<html>Bad gateway</html>', { status: 502 }),
+    () => Response.json({}),
+    () => Response.json({ model: 'reviewer', verdicts: [] }),
+    () => Response.json({ ...good(cats[0].clues.map((_, i) => ({ id: `0:${i}` }))), model: '' }),
+  ]) {
+    const events = [];
+    globalThis.fetch = async () => response();
+    try {
+      await assert.rejects(verifyCategories(cats, 'Lighthouses', undefined, { model: 'generator', onProgress: e => events.push(e) }), error => {
+        assert.equal(error.details.code, 'VERIFICATION_UNAVAILABLE');
+        assert.equal(error.details.retryable, true);
+        assert.deepEqual(error.details.clues, []); // never fabricate rejections
+        assert.doesNotMatch(error.message, /richer source|0\/5/);
+        assert.deepEqual(events.at(-1).verificationFailure, error.details);
+        return true;
+      });
+    } finally { globalThis.fetch = original; }
+  }
+});
+
+test('incomplete board error and progress preserve each rejected clue and its reason', async () => {
+  const events = [];
+  const generate = async type => type === 'categories-generate-from-content'
+    ? { categories: [{ title: 'Keepers', clues: Array.from({ length: 5 }, (_, i) => clue(i + 1)) }] } : null;
+  const reasons = {
+    '0:0': { verdict: 'true', onTopic: false, reason: 'Mathematics, not space exploration.' },
+    '0:1': { verdict: 'false', reason: 'Wrong mission.' },
+    '0:2': { verdict: 'unsure', reason: 'Cannot substantiate this date.' },
+  };
+  await assert.rejects(modules.board.generateContentSpan(generate, {
+    referenceMaterial: 'source', titles: ['Keepers'], count: 1, difficulty: 'normal', theme: 'Space exploration',
+    onProgress: e => events.push(e), verify: async (_, items) => { const r = good(items, reasons); r.verdicts.reverse(); return r; },
+  }), error => {
+    assert.equal(error.details.code, 'VERIFICATION_INCOMPLETE');
+    assert.deepEqual(error.details.categories, [{ title: 'Keepers', accepted: 2, required: 5 }]);
+    assert.equal(error.details.clues.length, 3);
+    assert.deepEqual(error.details.clues[0], {
+      id: '0:0', categoryIndex: 0, clueIndex: 0, category: 'Keepers', clue: 'Statement number 1', response: 'Person 1',
+      ...reasons['0:0'],
+    });
+    assert.equal(error.details.clues[2].reason, reasons['0:2'].reason);
+    assert.deepEqual(events.at(-1).verificationFailure, error.details);
+    assert.equal(events.at(-1).stage, 'verifying');
+    assert.equal(events.at(-1).status, 'failed');
+    return true;
+  });
+});
+
+test('no generated candidates is an incomplete board, without calling the verifier', async () => {
+  await assert.rejects(modules.board.generateContentSpan(async () => null, {
+    referenceMaterial: 'source', titles: ['Keepers'], count: 1, difficulty: 'normal',
+    verify: async () => { assert.fail('No batch to verify'); },
+  }), error => error.details.code === 'VERIFICATION_INCOMPLETE' && error.details.clues.length === 0);
+});
+
+test('answer extraction receives the actual topic as well as the playful title', () => {
+  const prompt = modules.prompts.buildPrompt('extract-board-answers', {
+    theme: 'Space exploration', topicList: ['To Infinity And Beyond'], count: 1, referenceMaterial: mathsBook,
+  }, 'normal');
+  assert.match(prompt.user, /Requested game topic: "Space exploration"/);
+  assert.match(prompt.user, /Only extract facts relevant to this topic/);
+});
+
+test('opt-in audit retains raw malformed output and the actual failure', async () => {
+  const old = process.env.AI_VERIFICATION_LOG;
+  const path = join(dir, 'audit.jsonl');
+  process.env.AI_VERIFICATION_LOG = path;
+  try {
+    const record = { request: { topic: 'Space exploration' }, rawResponse: '{"verdicts":', error: 'Invalid JSON' };
+    await contract.logVerification(record);
+    assert.deepEqual(JSON.parse(await readFile(path, 'utf8')), record);
+  } finally {
+    if (old === undefined) delete process.env.AI_VERIFICATION_LOG;
+    else process.env.AI_VERIFICATION_LOG = old;
+  }
 });

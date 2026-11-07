@@ -47,4 +47,23 @@ function parseVerdicts(raw, items) {
   }
   return rows;
 }
-module.exports = { modelIdentity, chooseVerifier, verificationPrompt, parseVerdicts };
+function verificationUnavailable(error) {
+  return {
+    error: 'Independent verification unavailable',
+    message: error.message,
+    code: 'VERIFICATION_UNAVAILABLE',
+    retryable: true,
+  };
+}
+
+// Explicit opt-in: requests may contain private pasted source material.
+async function logVerification(record) {
+  if (!process.env.AI_VERIFICATION_LOG) return;
+  try {
+    await require('node:fs/promises').appendFile(process.env.AI_VERIFICATION_LOG,
+      JSON.stringify(record) + '\n', { mode: 0o600 });
+  } catch (error) {
+    console.error('Could not write verification audit:', error.message);
+  }
+}
+module.exports = { modelIdentity, chooseVerifier, verificationPrompt, parseVerdicts, verificationUnavailable, logVerification };

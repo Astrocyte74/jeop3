@@ -315,6 +315,7 @@ Return JSON only:
         const titles = context.topicList && context.topicList.length > 0 ? context.topicList : null;
         const count = context.count || 6;
         return `You are PLANNING a Jeopardy board from the source below. Extract SPECIFIC answer candidates — do NOT write any clues yet.
+Requested game topic: ${JSON.stringify(context.theme || 'random')}. Interpret playful category titles within this topic. Only extract facts relevant to this topic; incidental off-topic source facts are not candidates.
 
 Source:
 """${ref}"""

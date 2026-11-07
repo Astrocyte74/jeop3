@@ -9,7 +9,7 @@ const { callCodex, subscriptionAvailable, assertLocalSubscription } = require('.
 const { requestSignal, timedSignal, retryDelay } = require('./cancellation.cjs');
 const express = require('express');
 const cors = require('cors');
-const { chooseVerifier, verificationPrompt, parseVerdicts } = require('./verification.cjs');
+const { chooseVerifier, verificationPrompt, parseVerdicts, verificationUnavailable, logVerification } = require('./verification.cjs');
 require('dotenv').config({ path: require('node:path').join(__dirname, '.env') });
 const codexAvailable = subscriptionAvailable();
 
@@ -210,7 +210,8 @@ app.post('/api/ai/generate', async (req, res) => {
 // Final factual gate. Routing stays server-side and never silently uses the generator.
 app.post('/api/ai/verify', async (req, res) => {
   const signal = requestSignal(req, res);
-  if (!checkRateLimit(req.ip)) return res.status(429).json({ error: 'Rate limit exceeded' });
+  if (!checkRateLimit(req.ip)) return res.status(429).json(verificationUnavailable(new Error('Rate limit exceeded')));
+  const audit = { id: require('node:crypto').randomUUID(), startedAt: new Date().toISOString(), request: req.body };
   try {
     const { topic, items, generatorModel, verifierModel } = req.body;
     const generator = selectModel({ model: generatorModel });
@@ -220,16 +221,24 @@ app.post('/api/ai/verify', async (req, res) => {
     const verifierId = chooseVerifier(generatorId, preferred, getAllModels());
     const selected = selectModel({ model: verifierId });
     const prompt = verificationPrompt(topic, items);
+    audit.model = verifierId;
+    audit.prompt = prompt;
     const started = Date.now();
     console.log(`[${new Date().toISOString()}] AI Start: ${verifierId} | Type: verify-clues`);
     const { content, usage } = await callProvider(selected, prompt, 'verify-clues', 'low', signal, req);
+    audit.rawResponse = content;
     signal.throwIfAborted();
-    console.log(`[${new Date().toISOString()}] AI Success: ${verifierId} | Type: verify-clues | Time: ${Date.now() - started}ms`);
     const verdicts = parseVerdicts(content, items);
+    audit.verdicts = verdicts;
+    console.log(`[${new Date().toISOString()}] AI Verified: ${verifierId} | Accepted: ${verdicts.filter(v => v.verdict === 'true' && v.onTopic).length}/${items.length} | Audit: ${audit.id}`);
     res.json({ verdicts, model: `${selected.provider}:${selected.model}`, usage, durationMs: Date.now() - started });
   } catch (error) {
+    audit.error = error.message;
     if (signal.aborted) return;
-    res.status(502).json({ error: `Verification failed: ${error.message}` });
+    console.error(`[${new Date().toISOString()}] Verification unavailable | Audit: ${audit.id} | ${error.message}`);
+    res.status(502).json(verificationUnavailable(error));
+  } finally {
+    await logVerification(audit);
   }
 });
 

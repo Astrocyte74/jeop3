@@ -4,6 +4,25 @@
  */
 
 export type GenerationStage = 'categories' | 'facts' | 'retrieval' | 'answers' | 'clues' | 'judging' | 'verifying' | 'final' | 'titles' | 'teams';
+/** Serializable diagnostics shared by thrown errors and progress events. */
+export interface VerificationFailure {
+  code: 'VERIFICATION_UNAVAILABLE' | 'VERIFICATION_INCOMPLETE';
+  retryable: boolean;
+  message: string;
+  model?: string;
+  clues: Array<{
+    id: string;
+    categoryIndex: number;
+    clueIndex: number;
+    category: string;
+    clue: string;
+    response: string;
+    verdict: 'true' | 'false' | 'unsure';
+    onTopic: boolean;
+    reason: string;
+  }>;
+  categories?: Array<{ title: string; accepted: number; required: number }>;
+}
 export interface GenerationProgress {
   stage: GenerationStage;
   categoryIndex?: number;
@@ -12,6 +31,7 @@ export interface GenerationProgress {
   total?: number;
   message?: string;
   status?: 'started' | 'complete' | 'failed';
+  verificationFailure?: VerificationFailure;
 }
 export interface BoardReviewIssue {
   kind: 'answer-leak' | 'repeated-fact' | 'ambiguous' | 'difficulty';

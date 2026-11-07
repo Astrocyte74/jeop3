@@ -19,7 +19,7 @@ import { checkAbort, isAbort, progress, type GenerationOptions } from './progres
 import { filterAnswerBoard, nearDupKey } from './answers';
 import { retrieveExemplars } from './exemplars';
 import { searchAndFetchCategorySource } from './service';
-import { verifyCategories, type Verifier } from './verification';
+import { verifyCategories, VerificationError, type Verifier } from './verification';
 import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
 
 export type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty, options?: GenerationOptions) => Promise<any>;
@@ -292,7 +292,15 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
     alternativesByTitle.forEach(a => { a.clues = a.clues.filter(cl => !used.has(nearDupKey(cl.response))); });
     const incomplete = categories.filter(cat => cat.clues.length !== 5);
     if (incomplete.length || categories.length !== count) {
-      throw new Error(`Independent fact check could not complete the board: ${incomplete.map(c => `${c.title} (${c.clues.length}/5)`).join(', ')}. Add richer source material or try again.`);
+      const failure = new VerificationError({
+        code: 'VERIFICATION_INCOMPLETE', retryable: true,
+        message: `Independent fact check could not complete the board: ${incomplete.map(c => `${c.title} (${c.clues.length}/5)`).join(', ')}. ${checked.rejected.length} candidate(s) rejected; review the clue reasons or try again.`,
+        model: checked.audit.model || undefined,
+        clues: checked.rejected,
+        categories: categories.map(c => ({ title: c.title, accepted: c.clues.length, required: 5 })),
+      });
+      progress(opts, 'verifying', failure.message, { status: 'failed', verificationFailure: failure.details });
+      throw failure;
     }
   }
   return {

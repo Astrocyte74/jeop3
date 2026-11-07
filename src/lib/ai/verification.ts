@@ -1,6 +1,6 @@
 import { checkAbort, timedSignal, progress, type GenerationOptions } from './progress';
 import { getAIApiBase } from './service';
-import type { AICategory, Clue, ClueVerification } from './types';
+import type { AICategory, Clue, ClueVerification, VerificationFailure } from './types';
 
 export interface VerificationItem {
   id: string;
@@ -16,17 +16,41 @@ export interface VerificationResult {
 }
 export type Verifier = (topic: string, items: VerificationItem[], options?: GenerationOptions) => Promise<VerificationResult>;
 
+export class VerificationError extends Error {
+  readonly details: VerificationFailure;
+
+  constructor(details: VerificationFailure) {
+    super(details.message);
+    this.name = 'VerificationError';
+    this.details = details;
+  }
+}
+
+function unavailable(error: unknown): VerificationError {
+  if (error instanceof VerificationError) return error;
+  const reason = error instanceof Error ? error.message : 'Unknown verifier failure';
+  return new VerificationError({
+    code: 'VERIFICATION_UNAVAILABLE', retryable: true,
+    message: `Independent fact check unavailable: ${reason}. Please retry.`, clues: [],
+  });
+}
+
 export const requestVerification: Verifier = async (topic, items, options = {}) => {
   checkAbort(options.signal);
-  const response = await fetch(`${getAIApiBase()}/ai/verify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal: timedSignal(options.signal, 150000),
-    body: JSON.stringify({ topic, items, generatorModel: options.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('jeop3:aiModel') : undefined) }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Independent verification unavailable');
-  return data;
+  try {
+    const response = await fetch(`${getAIApiBase()}/ai/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: timedSignal(options.signal, 150000),
+      body: JSON.stringify({ topic, items, generatorModel: options.model || (typeof localStorage !== 'undefined' ? localStorage.getItem('jeop3:aiModel') : undefined) }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || data.error || 'Independent verification unavailable');
+    return data;
+  } catch (error) {
+    checkAbort(options.signal);
+    throw unavailable(error);
+  }
 };
 
 /** Strict ID matching: an omitted, duplicated or malformed verdict never passes. */
@@ -38,13 +62,22 @@ export async function verifyCategories(categories: AICategory[], topic: string, 
     source: cat.sourceType === 'ai_synthesized' ? undefined : cat.sourceMaterial?.slice(0, 8000),
     sourceUrl: cat.sourceType === 'ai_synthesized' ? undefined : cat.sourceUrl,
   })));
-  if (!items.length) throw new Error('No clues to verify');
-  const result = await verify(topic, items, options);
-  checkAbort(options.signal);
-  if (!result || typeof result.model !== 'string' || !result.model.trim() || !Array.isArray(result.verdicts) || result.verdicts.length !== items.length) throw new Error('Incomplete independent verification');
-  const expected = new Set(items.map(i => i.id));
-  for (const row of result.verdicts) {
-    if (!row || !expected.delete(row.id) || !['true', 'false', 'unsure'].includes(row.verdict) || typeof row.onTopic !== 'boolean' || typeof row.reason !== 'string' || !row.reason.trim()) throw new Error('Invalid independent verification');
+  // No candidate is a generation shortfall, not a verifier outage.
+  if (!items.length) return { categories, audit: { model: '', verdicts: [], items }, rejected: [] };
+  let result: VerificationResult;
+  try {
+    result = await verify(topic, items, options);
+    checkAbort(options.signal);
+    if (!result || typeof result.model !== 'string' || !result.model.trim() || !Array.isArray(result.verdicts) || result.verdicts.length !== items.length) throw new Error('Incomplete independent verification');
+    const expected = new Set(items.map(i => i.id));
+    for (const row of result.verdicts) {
+      if (!row || !expected.delete(row.id) || !['true', 'false', 'unsure'].includes(row.verdict) || typeof row.onTopic !== 'boolean' || typeof row.reason !== 'string' || !row.reason.trim()) throw new Error('Invalid independent verification');
+    }
+  } catch (error) {
+    checkAbort(options.signal);
+    const failure = unavailable(error);
+    progress(options, 'verifying', failure.message, { status: 'failed', verificationFailure: failure.details });
+    throw failure;
   }
   const verdicts = new Map(result.verdicts.map(v => [v.id, v]));
   const checkedAt = new Date().toISOString();
@@ -57,8 +90,14 @@ export async function verifyCategories(categories: AICategory[], topic: string, 
     };
     return [{ ...clue, verification }];
   }) }));
+  const rejected: VerificationFailure['clues'] = items.flatMap(item => {
+    const v = verdicts.get(item.id)!;
+    if (v.verdict === 'true' && v.onTopic) return [];
+    const [categoryIndex, clueIndex] = item.id.split(':').map(Number);
+    return [{ id: item.id, categoryIndex, clueIndex, category: item.category, clue: item.clue, response: item.response, verdict: v.verdict, onTopic: v.onTopic, reason: v.reason }];
+  });
   checked.forEach((cat, i) => progress(options, 'verifying', `Checked ${cat.title}`, { categoryIndex: i, categoryTitle: cat.title, completed: i + 1, total: checked.length, status: cat.clues.length === categories[i].clues.length ? 'complete' : 'failed' }));
-  return { categories: checked, audit: { ...result, items } };
+  return { categories: checked, audit: { ...result, items }, rejected };
 }
 
 /** Edits invalidate the displayed check without relying on every editing path. */
