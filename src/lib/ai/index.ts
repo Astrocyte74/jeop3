@@ -62,4 +62,4 @@ export {
 export type { GenerationStats } from './stats';
 
 export { VerificationError } from './verification';
-export type { VerificationFailure } from './types';
+export type { VerificationFailure, SourcePolicy, SourceDocument, ClueEvidence, GenerationProgress } from './types';

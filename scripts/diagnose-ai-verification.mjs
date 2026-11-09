@@ -39,6 +39,8 @@ try {
     ['space', 'Space exploration', ['To Infinity And Beyond']],
     ['apollo', 'Apollo 11'], ['capitals', 'World capitals'],
     ['paste', 'Apollo 11', ['Moon Landing'], paste],
+    ['gospel', 'Word of Wisdom', ['The Word of Wisdom']],
+    ['multi', 'Space exploration', ['First Steps', 'Robotic Explorers']],
   ]) {
     if (process.env.AI_DIAGNOSTIC_CASES && !process.env.AI_DIAGNOSTIC_CASES.split(',').includes(key)) continue;
     run = { key, topic, model, calls: [], events: [] };
@@ -46,13 +48,13 @@ try {
     try {
       const titles = fixedTitles || (await generate('category-names-draft', { count: 1, gameTopic: topic }, 'normal')).names.slice(0, 1);
       run.titles = titles;
-      const opts = { titles, count: 1, difficulty: 'normal', model, onProgress: e => run.events.push(e) };
+      const opts = { titles, count: titles.length, difficulty: 'normal', model, onProgress: e => run.events.push(e) };
       run.result = source
         ? await generateContentSpan(generate, { ...opts, referenceMaterial: source, sourceMaterial: source, theme: topic })
         : await generateTopicSpan(generate, { ...opts, topic });
       run.final = await generateFinalJeopardy(generate, run.result.categories, topic, { model });
     } catch (e) { run.error = { message: e.message, ...e }; }
     await writeFile(join(out, `${key}.json`), JSON.stringify(run, null, 2), { mode: 0o600 });
-    console.log(`${key}: ${run.error?.message || '5/5 verified'}; capture ${join(out, `${key}.json`)}`);
+    console.log(`${key}: ${run.error?.message || `${run.result.categories.reduce((n, c) => n + c.clues.length, 0)} clues verified`}; capture ${join(out, `${key}.json`)}`);
   }
 } finally { globalThis.fetch = originalFetch; await rm(temp, { recursive: true, force: true }); }

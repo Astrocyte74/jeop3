@@ -468,3 +468,20 @@ export type {
   AIServerConfig,
   AIValidator
 } from './types';
+
+/** Multi-source topic research; the backend enforces official gospel domains. */
+export async function researchCategorySources(topic: string, query: string, options: GenerationOptions & {
+  sourcePolicy?: 'auto' | import('./types').SourcePolicy;
+  excludeUrls?: string[];
+} = {}): Promise<{ sources: import('./types').SourceDocument[]; policy: import('./types').SourcePolicy; warnings: string[] }> {
+  checkAbort(options.signal);
+  const response = await fetch(`${getAIApiBase()}/research-sources`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    signal: timedSignal(options.signal, 150000),
+    body: JSON.stringify({ topic, query, policy: options.sourcePolicy, excludeUrls: options.excludeUrls }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Source research unavailable');
+  if (!Array.isArray(data.sources) || !['general', 'lds-official'].includes(data.policy)) throw new Error('Invalid source research response');
+  return data;
+}

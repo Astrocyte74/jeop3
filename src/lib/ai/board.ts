@@ -12,15 +12,18 @@ import { checkAbort, isAbort, progress, type GenerationOptions } from './progres
  *   5. select the best 5 per category, ordered by JUDGED difficulty -> $200-$1000
  *   6. if a category is still short, patch the gaps from a single-pass fallback
  *      (keep the good clues, then independently verify every candidate)
- *   7. remove false/uncertain/off-topic pairs; use checked runner-ups or fail
+ *   7. remove false/uncertain/off-topic pairs; use checked runner-ups
+ *   8. research/repair only deficient categories once, verify replacements or fail
  *
- * Each clue is tagged provenance: "answer_first" (judged/selected) | "fallback".
+ * Each clue is tagged provenance: "answer_first" | "fallback" | "repair".
  */
 import { filterAnswerBoard, nearDupKey } from './answers';
 import { retrieveExemplars } from './exemplars';
-import { searchAndFetchCategorySource } from './service';
+import { researchCategorySources } from './service';
+import { categoryDocuments, materialFor } from './evidence';
+import { repairCategories } from './repair';
 import { verifyCategories, VerificationError, type Verifier } from './verification';
-import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue } from './types';
+import type { AICategory, AIContext, AIDifficulty, AIPromptType, Clue, SourceDocument, SourcePolicy } from './types';
 
 export type Generate = (promptType: AIPromptType, context: AIContext, difficulty: AIDifficulty, options?: GenerationOptions) => Promise<any>;
 
@@ -34,6 +37,10 @@ export interface ContentSpanInput extends GenerationOptions {
   sourceMaterial?: string;
   sourceUrl?: string;
   categoryGrounding?: AICategory[];
+  reviewMode?: AICategory['reviewMode'];
+  /** One bounded repair pass by default; zero is useful for controlled evals. */
+  retryLimit?: 0 | 1;
+  refreshSources?: (category: AICategory, rejected: import('./types').VerificationFailure['clues']) => Promise<SourceDocument[]>;
   /** false is for controlled offline evaluation only; production defaults to verification. */
   verify?: Verifier | false;
   /** Called before each pipeline step so the UI can show staged progress. */
@@ -151,7 +158,10 @@ function fillCategory(title: string, pipelineClues: Clue[], fallbackClues: Clue[
 }
 
 export async function generateContentSpan(generate: Generate, opts: ContentSpanInput): Promise<ContentSpanResult> {
-  const { referenceMaterial, theme, titles, count, difficulty, existingAnswers = [], sourceMaterial, sourceUrl, onStage } = opts;
+  const { referenceMaterial: inputMaterial, theme, titles, count, difficulty, existingAnswers = [], sourceMaterial = inputMaterial, sourceUrl, onStage } = opts;
+  const providedDocuments = categoryDocuments({ title: 'Provided material', clues: [], sourceMaterial, sourceUrl });
+  const referenceMaterial = opts.categoryGrounding ? inputMaterial : materialFor(providedDocuments);
+  if (!opts.categoryGrounding && sourceMaterial.length > 72000) progress(opts, 'retrieval', 'Using the first 72,000 characters of supplied material', { warnings: ['Supplied material exceeds the evidence window; remaining text was not used.'] });
   const spanNear = new Set<string>(existingAnswers.map(norm));
   const catTitles = titles && titles.length
     ? titles.slice(0, count)
@@ -159,7 +169,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
 
   const call: Generate = async (type, context, level) => {
     checkAbort(opts.signal);
-    const result = await generate(type, context, level, opts);
+    const result = await generate(type, { ...context, reviewMode: opts.reviewMode || 'provided-material' }, level, opts);
     checkAbort(opts.signal);
     return result;
   };
@@ -259,7 +269,8 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
   let categories: AICategory[] = withSource(catTitles.map((title, i) => ({ title, clues: pickedPerCat[i] })), sourceMaterial, sourceUrl);
   categories = categories.map(cat => {
     const grounding = opts.categoryGrounding?.find(g => norm(g.title) === norm(cat.title));
-    return grounding ? { ...grounding, ...cat, sourceMaterial: grounding.sourceMaterial, sourceUrl: grounding.sourceUrl, sourceType: grounding.sourceType } : cat;
+    const sourced = grounding ? { ...grounding, ...cat, sourceMaterial: grounding.sourceMaterial, sourceUrl: grounding.sourceUrl, sourceType: grounding.sourceType } : { ...cat, reviewMode: opts.reviewMode || 'provided-material' as const };
+    return { ...sourced, sources: grounding ? categoryDocuments(sourced) : providedDocuments };
   });
   if (opts.verify !== false) {
     onStage?.('Independently checking facts and topic…');
@@ -269,7 +280,7 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
       ...cat.clues,
       ...(alternativesByTitle.find(a => a.title === cat.title)?.clues || []).map(cl => ({ ...cl, value: 0 })),
     ] }));
-    const checked = await verifyCategories(candidates, theme || 'random', opts.verify, opts);
+    const checked = await verifyCategories(candidates, theme || 'random', opts.verify, { ...opts, requireEvidence: true });
     const used = new Set(existingAnswers.map(nearDupKey));
     alternativesByTitle.length = 0;
     categories = checked.categories.map(cat => {
@@ -290,13 +301,22 @@ export async function generateContentSpan(generate: Generate, opts: ContentSpanI
       return { ...cat, clues };
     });
     alternativesByTitle.forEach(a => { a.clues = a.clues.filter(cl => !used.has(nearDupKey(cl.response))); });
+    let rejected = checked.rejected;
+    if (opts.retryLimit !== 0 && categories.some(cat => cat.clues.length < 5)) {
+      const repaired = await repairCategories(generate, categories, rejected, { ...opts, verify: opts.verify });
+      categories = repaired.categories;
+      rejected = repaired.rejected;
+      patched = true;
+      const finalAnswers = new Set(categories.flatMap(c => c.clues.map(q => nearDupKey(q.response))));
+      alternativesByTitle.forEach(a => { a.clues = a.clues.filter(q => !finalAnswers.has(nearDupKey(q.response))); });
+    }
     const incomplete = categories.filter(cat => cat.clues.length !== 5);
     if (incomplete.length || categories.length !== count) {
       const failure = new VerificationError({
         code: 'VERIFICATION_INCOMPLETE', retryable: true,
-        message: `Independent fact check could not complete the board: ${incomplete.map(c => `${c.title} (${c.clues.length}/5)`).join(', ')}. ${checked.rejected.length} candidate(s) rejected; review the clue reasons or try again.`,
+        message: `Independent fact check could not complete the board: ${incomplete.map(c => `${c.title} (${c.clues.length}/5)`).join(', ')}. ${rejected.length} candidate(s) rejected; review the clue reasons or try again.`,
         model: checked.audit.model || undefined,
-        clues: checked.rejected,
+        clues: rejected,
         categories: categories.map(c => ({ title: c.title, accepted: c.clues.length, required: 5 })),
       });
       progress(opts, 'verifying', failure.message, { status: 'failed', verificationFailure: failure.details });
@@ -317,143 +337,66 @@ export interface TopicSpanInput extends GenerationOptions {
   difficulty: AIDifficulty;
   existingAnswers?: string[];
   verify?: Verifier | false;
-  /** Clerk token for the /search-wikipedia + /fetch-article endpoints. */
+  /** Reserved for authenticated research deployments. */
   authToken?: string | null;
+  sourcePolicy?: 'auto' | SourcePolicy;
+  retryLimit?: 0 | 1;
+  research?: typeof researchCategorySources;
   /** Called before each pipeline step so the UI can show staged progress. */
   onStage?: (stage: string) => void;
 }
 
-/**
- * Topic-mode parity: bring a bare topic ("Ancient Rome") onto the answer-first
- * pipeline. Real grounding is preferable to AI synthesis — so for each category
- * title we first try to retrieve a Wikipedia article and fall back to the AI
- * fact-sheet only when retrieval fails or is thin. This breaks the
- * self-referential loop where the model invents a fact-sheet and then grades
- * clues against its own invention.
- *
- * Per-category retrieval runs against the curated category titles (already
- * produced by the wizard's category-names-draft pass). Each retrieved/synthesized
- * section is concatenated into the same sectioned format the fact-sheet used to
- * produce, then the existing extract → clues → judge → select pipeline runs
- * unchanged.
- *
- * Per-category provenance is recorded in `categorySources` so the UI can later
- * distinguish "grounded in Wikipedia" from "AI fact-sheet" categories.
- */
-export async function generateTopicSpan(
-  generate: Generate,
-  opts: TopicSpanInput
-): Promise<ContentSpanResult> {
-  const { topic, titles, count, difficulty, existingAnswers = [], authToken = null, onStage } = opts;
-  const catTitles = titles && titles.length
-    ? titles.slice(0, count)
-    : Array.from({ length: count }, (_, i) => `${topic} ${i + 1}`);
-
-  // 1. Per-category retrieval (Wikipedia). The fetches are independent HTTP
-  //    calls with no cross-category dependency, so run them in parallel — this
-  //    cuts ~2-3s off a 6-category game vs sequential awaits. Map back to
-  //    category order afterwards. (Distinct from cross-span parallelism, which
-  //    we correctly defer: spans share an existingAnswers dedup chain;
-  //    categories within one span don't.)
+/** Topic research uses real documents only; never a synthesized fact sheet. */
+export async function generateTopicSpan(generate: Generate, opts: TopicSpanInput): Promise<ContentSpanResult> {
+  const { topic, count, difficulty } = opts;
+  const titles = opts.titles?.length ? opts.titles.slice(0, count) : Array.from({ length: count }, (_, i) => `${topic} ${i + 1}`);
+  const research = opts.research || researchCategorySources;
   checkAbort(opts.signal);
-  onStage?.('Researching categories…');
-  progress(opts, 'retrieval', 'Researching categories…', { completed: 0, total: count });
-  let retrievedCount = 0;
-  const retrieved = await Promise.all(
-    catTitles.map(async (title, i) => {
-      const source = await searchAndFetchCategorySource(title, authToken, topic, opts);
-      progress(opts, 'retrieval', source ? `Found source for ${title}` : `No retrieved source for ${title}`, { categoryIndex: i, categoryTitle: title, completed: ++retrievedCount, total: count, status: source ? 'complete' : 'failed' });
-      return source;
-    })
-  );
-  const sections: Array<{ title: string; body: string }> = [];
-  // categorySources is finalized after synthesis — a category's sourceType is
-  // only 'ai_synthesized' if synthesis actually produced confident content.
-  const categorySources: ContentSpanResult['categorySources'] = [];
-  const retrievedByTitle = new Map<string, { url: string }>();
-  const needFactSheet: string[] = [];
-  catTitles.forEach((title, i) => {
-    const r = retrieved[i];
-    if (r) {
-      sections.push({ title, body: r.text });
-      retrievedByTitle.set(title, { url: r.url });
-    } else {
-      needFactSheet.push(title);
-    }
-  });
-
-  // 2. AI fact-sheet fallback for any categories retrieval couldn't ground.
-  //    The fact-sheet prompt marks each section "high" or "low" confidence and
-  //    is told to return EMPTY facts (rather than fabricate) for sections it
-  //    doesn't truly know. We honor that: low-confidence sections are dropped,
-  //    never filled with invented material. This is what stops made-up topics
-  //    ("A Very Obscure Made-Up Topic") from producing confident fiction.
-  const synthesizedTitles = new Set<string>();
-  if (needFactSheet.length) {
-    onStage?.('Filling gaps from AI research…');
-    progress(opts, 'facts', 'Filling gaps from AI research…', { completed: 0, total: needFactSheet.length });
-    let synthSections: Array<{ title: string; confidence: 'high' | 'low'; facts: string[] }> = [];
+  opts.onStage?.('Planning factual research…');
+  progress(opts, 'retrieval', 'Planning factual research…', { completed: 0, total: count });
+  let queries = titles.map(() => topic);
+  if (count > 1) {
+    // Display titles remain untouched. This internal pass translates them into
+    // literal topic angles, using the existing names response contract.
     try {
-      const sheet = await generate(
-        'topic-fact-sheet',
-        { theme: topic, count: needFactSheet.length, topicList: needFactSheet } as AIContext,
-        difficulty, opts
-      );
+      const plan = await generate('category-names-draft', { gameTopic: topic, researchTitles: titles, count }, difficulty, opts);
       checkAbort(opts.signal);
-      synthSections = (sheet?.sections || []) as Array<{ title: string; confidence: 'high' | 'low'; facts: string[] }>;
-    } catch (error) { if (isAbort(error, opts.signal)) throw error; synthSections = []; }
-    for (let i = 0; i < needFactSheet.length; i++) {
-      const title = needFactSheet[i];
-      const sec = synthSections.find(s => norm(s.title) === norm(title));
-      const facts = sec?.facts || [];
-      // Only accept the model's facts when it marked itself confident. A
-      // low-confidence section (or one with no facts) is left out rather
-      // than padded with a generic placeholder that the pipeline would then
-      // mine as if it were real grounding.
-      if (sec?.confidence === 'high' && facts.length) {
-        sections.push({ title, body: facts.map(f => `- ${f}`).join('\n') });
-        synthesizedTitles.add(title);
-      }
-      progress(opts, 'facts', `Researched ${title}`, { categoryIndex: catTitles.indexOf(title), categoryTitle: title, completed: i + 1, total: needFactSheet.length, status: synthesizedTitles.has(title) ? 'complete' : 'failed' });
-      // Missing grounding causes a visible failure below, without an unchecked retry.
-    }
+      if (Array.isArray(plan?.names) && plan.names.length === titles.length && plan.names.every((q: unknown) => typeof q === 'string' && q.trim() && q.length <= 200)) queries = plan.names.map((q: string) => `${topic}: ${q}`);
+    } catch (e) { if (isAbort(e, opts.signal)) throw e; }
   }
-
-  // Finalize per-category provenance. Categories with no confident grounding
-  // are omitted and cause generation to stop below.
-  for (const title of catTitles) {
-    if (retrievedByTitle.has(title)) {
-      categorySources.push({ title, sourceType: 'retrieved', url: retrievedByTitle.get(title)!.url });
-    } else if (synthesizedTitles.has(title)) {
-      categorySources.push({ title, sourceType: 'ai_synthesized' });
-    }
-    // else: no entry — category has no grounding source.
+  const grounding: AICategory[] = [];
+  for (let i = 0; i < titles.length; i++) {
+    checkAbort(opts.signal);
+    opts.onStage?.(`Researching ${titles[i]}…`);
+    const result = await research(topic, queries[i], { ...opts, sourcePolicy: opts.sourcePolicy });
+    checkAbort(opts.signal);
+    progress(opts, 'retrieval', result.sources.length ? `Found ${result.sources.length} sources for ${titles[i]}` : `No usable source for ${titles[i]}`, {
+      categoryIndex: i, categoryTitle: titles[i], completed: i + 1, total: count,
+      status: result.sources.length ? 'complete' : 'failed', sourcePolicy: result.policy,
+      sources: result.sources.map(({ text: _text, ...source }) => source), warnings: result.warnings,
+    });
+    if (!result.sources.length) throw new Error(`No usable source material for: ${titles[i]}. ${result.warnings.join('; ')}. Add sources or try again.`);
+    grounding.push({ title: titles[i], contentTopic: topic, clues: [], sources: result.sources, sourcePolicy: result.policy,
+      researchQuery: queries[i], sourceType: 'retrieved', sourceMaterial: materialFor(result.sources), sourceUrl: result.sources[0]?.url,
+      reviewMode: result.policy === 'lds-official' ? 'lds-teaching' : 'world' });
   }
-
-  // 3. Every requested category needs material. Never stretch one article
-  // across missing categories when the fact sheet was empty.
-  const missing = catTitles.filter(t => !sections.some(s => s.title === t && s.body.length > 50));
-  if (missing.length) throw new Error(`No usable source material for: ${missing.join(', ')}. Add sources or try different categories.`);
-
-  // 4. Concat into one sectioned reference string the existing pipeline mines
-  //    exactly like pasted content, and hand off to the unchanged pipeline.
-  const referenceMaterial = sections.map(s => `${s.title}\n${s.body}`).join('\n\n');
   const result = await generateContentSpan(generate, {
-    referenceMaterial,
-    theme: topic,
-    titles: catTitles,
-    count,
-    difficulty,
-    existingAnswers,
-    categoryGrounding: catTitles.map(title => ({
-      title, contentTopic: topic, clues: [], sourceMaterial: sections.find(s => s.title === title)?.body,
-      sourceType: retrievedByTitle.has(title) ? 'retrieved' : 'ai_synthesized',
-      sourceUrl: retrievedByTitle.get(title)?.url,
-    })),
-    verify: opts.verify,
-    signal: opts.signal, model: opts.model, onProgress: opts.onProgress,
-    onStage,
+    ...opts, titles, theme: topic, referenceMaterial: grounding.map(c => `${c.title}\n${c.sourceMaterial}`).join('\n\n'),
+    categoryGrounding: grounding, reviewMode: grounding[0]?.reviewMode,
+    refreshSources: async (cat, rejected) => {
+      try {
+        const focus = rejected.filter(r => r.onTopic).slice(0, 2).map(r => `${r.response}: ${r.reason}`).join('; ');
+        const more = await research(topic, `${cat.researchQuery || topic} ${focus || 'additional documented facts'}`.slice(0, 1200), {
+          ...opts, sourcePolicy: cat.sourcePolicy, excludeUrls: categoryDocuments(cat).flatMap(d => d.url ? [d.url] : []),
+        });
+        progress(opts, 'retrieval', `Additional research for ${cat.title}`, { categoryTitle: cat.title, attempt: 1, warnings: more.warnings, sourcePolicy: more.policy, sources: more.sources.map(({ text: _text, ...s }) => s) });
+        return more.sources;
+      } catch (error) {
+        if (isAbort(error, opts.signal)) throw error;
+        progress(opts, 'retrieval', `Additional research unavailable for ${cat.title}; using existing sources`, { categoryTitle: cat.title, attempt: 1, warnings: [error instanceof Error ? error.message : 'Research unavailable'] });
+        return [];
+      }
+    },
   });
-  return { ...result, categorySources };
+  return { ...result, categorySources: result.categories.map(c => ({ title: c.title, sourceType: 'retrieved', url: c.sourceUrl })) };
 }
-

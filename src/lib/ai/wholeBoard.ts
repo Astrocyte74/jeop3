@@ -3,6 +3,7 @@ import type { AICategory, BoardReview, BoardReviewIssue } from './types';
 import type { Generate } from './board';
 import { checkAbort, isAbort, progress, type GenerationOptions } from './progress';
 import { verifyCategories, type Verifier } from './verification';
+import { categoryDocuments } from './evidence';
 import { nearDupKey } from './answers';
 
 export function boardItems(categories: AICategory[], final?: FinalJeopardyClue) {
@@ -56,27 +57,29 @@ export async function reviewWholeBoard(generate: Generate, categories: AICategor
 export async function generateFinalJeopardy(generate: Generate, categories: AICategory[], theme: string, options: GenerationOptions & { verify?: Verifier } = {}): Promise<{ final?: FinalJeopardyClue; warning?: string }> {
   progress(options, 'final', 'Writing Final Jeopardy…', { completed: 0, total: 1 });
   // A recalled fact sheet is not evidence for a verified Final.
-  const sources = categories.filter(c => c.sourceType !== 'ai_synthesized' && c.sourceMaterial?.trim());
+  const sources = categories.flatMap(cat => categoryDocuments(cat).map(doc => ({ doc, reviewMode: cat.reviewMode, sourcePolicy: cat.sourcePolicy })));
   try {
     if (!sources.length) throw new Error('No independent source material for Final Jeopardy');
     const candidate = await generate('final-jeopardy', {
       theme, reviewItems: boardItems(categories),
-      finalSources: sources.map(c => ({ title: c.title, text: c.sourceMaterial!.slice(0, 8000), sourceUrl: c.sourceUrl })),
+      reviewMode: sources.some(s => s.reviewMode === 'lds-teaching') ? 'lds-teaching' : sources[0]?.reviewMode,
+      finalSources: sources.map(s => ({ title: s.doc.title, text: s.doc.text, sourceUrl: s.doc.url })),
     }, 'hard', options);
     checkAbort(options.signal);
     if (!candidate || !['category', 'clue', 'response'].every(k => typeof candidate[k] === 'string' && candidate[k].trim()) || !Number.isInteger(candidate.sourceIndex) || !sources[candidate.sourceIndex]) throw new Error('Invalid Final Jeopardy response');
     if (categories.some(c => c.clues.some(q => nearDupKey(q.response) === nearDupKey(candidate.response)))) throw new Error('Final Jeopardy repeats a board answer');
-    const source = sources[candidate.sourceIndex];
+    const chosenSource = sources[candidate.sourceIndex];
+    const source = chosenSource.doc;
     const provisional: FinalJeopardyClue = { category: candidate.category, clue: candidate.clue, response: candidate.response };
     if (literalBoardIssues(boardItems(categories, provisional)).some(i => i.ids.includes('final'))) throw new Error('Final Jeopardy reveals or repeats an answer elsewhere on the board');
-    const checked = await verifyCategories([{ title: candidate.category, sourceMaterial: source.sourceMaterial, sourceUrl: source.sourceUrl, clues: [{ value: 0, clue: candidate.clue, response: candidate.response, provenance: 'final_generated' }] }], theme, options.verify, {
-      ...options, onProgress: event => options.onProgress?.({ ...event, stage: 'final', message: 'Checking Final Jeopardy independently…' }),
+    const checked = await verifyCategories([{ title: candidate.category, sources: [source], reviewMode: chosenSource.reviewMode, sourcePolicy: chosenSource.sourcePolicy, sourceMaterial: source.text, sourceUrl: source.url, clues: [{ value: 0, clue: candidate.clue, response: candidate.response, provenance: 'final_generated' }] }], theme, options.verify, {
+      ...options, requireEvidence: true, onProgress: event => options.onProgress?.({ ...event, stage: 'final', message: 'Checking Final Jeopardy independently…' }),
     });
     checkAbort(options.signal);
     const clue = checked.categories[0]?.clues[0];
     if (!clue?.verification) throw new Error('Final Jeopardy did not pass independent verification');
     progress(options, 'final', 'Final Jeopardy checked', { completed: 1, total: 1, status: 'complete' });
-    return { final: { category: candidate.category, clue: clue.clue, response: clue.response, provenance: clue.provenance, verification: clue.verification, sourceMaterial: source.sourceMaterial, sourceUrl: source.sourceUrl } };
+    return { final: { category: candidate.category, clue: clue.clue, response: clue.response, provenance: clue.provenance, verification: clue.verification, sourceMaterial: source.text, sourceUrl: source.url } };
   } catch (error) {
     if (isAbort(error, options.signal)) throw error;
     progress(options, 'final', 'Final Jeopardy omitted', { completed: 1, total: 1, status: 'failed' });

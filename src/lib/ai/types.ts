@@ -4,6 +4,23 @@
  */
 
 export type GenerationStage = 'categories' | 'facts' | 'retrieval' | 'answers' | 'clues' | 'judging' | 'verifying' | 'final' | 'titles' | 'teams';
+export type SourcePolicy = 'general' | 'lds-official';
+export interface SourceDocument {
+  id: string;
+  title: string;
+  url?: string;
+  text: string;
+  retrievedAt: string;
+  kind: 'wikipedia' | 'web' | 'user';
+}
+export interface ClueEvidence {
+  sourceId: string;
+  title: string;
+  url?: string;
+  quote: string;
+  retrievedAt: string;
+  kind: SourceDocument['kind'];
+}
 /** Serializable diagnostics shared by thrown errors and progress events. */
 export interface VerificationFailure {
   code: 'VERIFICATION_UNAVAILABLE' | 'VERIFICATION_INCOMPLETE';
@@ -20,6 +37,7 @@ export interface VerificationFailure {
     verdict: 'true' | 'false' | 'unsure';
     onTopic: boolean;
     reason: string;
+    attempt?: number;
   }>;
   categories?: Array<{ title: string; accepted: number; required: number }>;
 }
@@ -32,6 +50,11 @@ export interface GenerationProgress {
   message?: string;
   status?: 'started' | 'complete' | 'failed';
   verificationFailure?: VerificationFailure;
+  attempt?: number;
+  missing?: number;
+  sourcePolicy?: SourcePolicy;
+  sources?: Array<Omit<SourceDocument, 'text'>>;
+  warnings?: string[];
 }
 export interface BoardReviewIssue {
   kind: 'answer-leak' | 'repeated-fact' | 'ambiguous' | 'difficulty';
@@ -60,7 +83,7 @@ export type AIPromptType =
   | 'extract-board-answers'   // answer-first pipeline: source -> specific answer candidates
   | 'clues-from-answers'      // answer-first pipeline: clues for pre-chosen answers
   | 'judge-clues'             // answer-first pipeline: score + rank clues, assign difficulty
-  | 'topic-fact-sheet'        // topic-mode parity: topic -> grounding fact-sheet (becomes the source)
+  | 'topic-fact-sheet'        // legacy/evaluation only; never accepted as source evidence
   // Category level
   | 'category-rename'
   | 'category-names-draft'
@@ -89,6 +112,8 @@ export const VALUE_GUIDANCE: Record<number, string> = {
 };
 
 export interface ClueVerification {
+  /** Exact passages from supplied/fetched documents, checked against final wording. */
+  evidence?: ClueEvidence[];
   model: string;
   checkedAt: string;
   reason: string;
@@ -109,6 +134,10 @@ export interface Clue {
 
 // Category data structure (with optional contentTopic for AI)
 export interface AICategory {
+  sources?: SourceDocument[];
+  sourcePolicy?: SourcePolicy;
+  researchQuery?: string;
+  reviewMode?: 'world' | 'provided-material' | 'lds-teaching';
   title: string;
   contentTopic?: string;
   clues: Clue[];
@@ -134,6 +163,12 @@ export interface AIGame {
 
 // AI request context
 export interface AIContext {
+  researchTitles?: string[];
+  sources?: SourceDocument[];
+  sourcePolicy?: SourcePolicy;
+  reviewMode?: 'world' | 'provided-material' | 'lds-teaching';
+  rejectedClues?: VerificationFailure['clues'];
+  missing?: number;
   // Game level
   hasContent?: boolean;
   sampleContent?: string;

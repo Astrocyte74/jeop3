@@ -8,8 +8,9 @@
 const { callCodex, subscriptionAvailable, assertLocalSubscription } = require('./codex.cjs');
 const { requestSignal, timedSignal, retryDelay } = require('./cancellation.cjs');
 const express = require('express');
+const { researchSources, fetchPage } = require('./research.cjs');
 const cors = require('cors');
-const { chooseVerifier, verificationPrompt, parseVerdicts, verificationUnavailable, logVerification } = require('./verification.cjs');
+const { chooseVerifier, verificationPrompt, parseVerdicts, hydrateItems, verificationUnavailable, logVerification } = require('./verification.cjs');
 require('dotenv').config({ path: require('node:path').join(__dirname, '.env') });
 const codexAvailable = subscriptionAvailable();
 
@@ -130,6 +131,7 @@ app.get('/api/health', (req, res) => {
       openai: getAvailableModels().openai,
       codex: getAvailableModels().codex
     },
+    research: { webSearch: !!process.env.OPENROUTER_API_KEY, provider: 'openrouter-exa', searchModel: process.env.AI_SEARCH_MODEL || 'google/gemini-2.5-flash' },
     rpm_limit: RPM_LIMIT,
     port: PORT,
   });
@@ -213,7 +215,8 @@ app.post('/api/ai/verify', async (req, res) => {
   if (!checkRateLimit(req.ip)) return res.status(429).json(verificationUnavailable(new Error('Rate limit exceeded')));
   const audit = { id: require('node:crypto').randomUUID(), startedAt: new Date().toISOString(), request: req.body };
   try {
-    const { topic, items, generatorModel, verifierModel } = req.body;
+    const { topic, generatorModel, verifierModel } = req.body;
+    const items = hydrateItems(req.body.items, req.body.sources);
     const generator = selectModel({ model: generatorModel });
     const generatorId = `${generator.provider}:${generator.model}`;
     const configured = verifierModel || process.env.AI_VERIFIER_MODEL;
@@ -243,14 +246,26 @@ app.post('/api/ai/verify', async (req, res) => {
 });
 
 // =============================================================================
-// Wikipedia retrieval — used by topic-mode parity (per-category grounding).
-// Real sources break the self-referential loop where the model invents a
-// fact-sheet and then grades clues against its own invention. Falls back to
-// the AI fact-sheet client-side when retrieval fails or is thin.
+// Source retrieval — topic research plus legacy Wikipedia/URL helpers.
+// Only fetched material is evidence; there is no synthesized fact-sheet fallback.
 // =============================================================================
 
+// Bounded topic research. Search snippets are never returned as evidence.
+app.post('/api/research-sources', async (req, res) => {
+  const signal = requestSignal(req, res);
+  if (!checkRateLimit(req.ip)) return res.status(429).json({ error: 'Research rate limit exceeded' });
+  try {
+    const result = await researchSources(req.body, signal);
+    signal.throwIfAborted();
+    res.json(result);
+  } catch (error) {
+    if (signal.aborted) return;
+    res.status(502).json({ error: error.message, code: 'RESEARCH_UNAVAILABLE', retryable: true });
+  }
+});
+
 const WIKI_API = 'https://en.wikipedia.org/w/api.php';
-const MAX_ARTICLE_CHARS = 8000; // matches the judge's source window (prompts.ts)
+const MAX_ARTICLE_CHARS = 8000; // bounded fetched-page evidence window
 
 /**
  * Search Wikipedia full text. Returns ranked titles + URLs.
@@ -310,15 +325,20 @@ app.post('/api/fetch-article', async (req, res) => {
   try { parsed = new URL(url); } catch { parsed = null; }
   const isWiki = parsed && /(^|\.)wikipedia\.org$/.test(parsed.hostname) && parsed.pathname.startsWith('/wiki/');
   if (!isWiki) {
-    return res.status(400).json({
-      error: 'Unsupported URL',
-      message: 'fetch-article currently supports Wikipedia article URLs only (e.g. https://en.wikipedia.org/wiki/...). General web fetching is not supported.',
-    });
+    try {
+      const source = await fetchPage(url, signal);
+      signal.throwIfAborted();
+      return res.json({ text: source.text, title: source.title, url: source.url, retrievedAt: source.retrievedAt, truncated: source.text.length >= 8000 });
+    } catch (error) {
+      if (signal.aborted) return;
+      return res.status(400).json({ error: 'Article fetch failed', message: error.message });
+    }
   }
   // /wiki/<Title> → decode + replace _ with space. Strip any sub-fragment.
   const title = decodeURIComponent(parsed.pathname.replace(/^\/wiki\//, '').split('#')[0].split('?')[0]).replace(/_/g, ' ');
   const lang = (parsed.hostname.split('.')[0] === 'en' || parsed.hostname.startsWith('en.')) ? 'en' : parsed.hostname.split('.')[0];
-  const apiBase = `https://${lang || 'en'}.wikipedia.org/w/api.php`;
+  if (!/^[a-z]{2,12}(?:-[a-z]{2,12})?$/.test(lang)) return res.status(400).json({ error: 'Unsupported Wikipedia language' });
+  const apiBase = `https://${lang}.wikipedia.org/w/api.php`;
 
   try {
     // redirects=1 resolves redirect pages (e.g. "Julio-Claudians" →

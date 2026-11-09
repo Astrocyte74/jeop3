@@ -15,7 +15,7 @@ for (const name of ['board', 'verification', 'service', 'prompts']) {
 }
 after(() => rm(dir, { recursive: true, force: true }));
 const { verifyCategories, currentVerification } = modules.verification;
-const good = (items, overrides = {}) => ({ model: 'reviewer', verdicts: items.map(i => ({ id: i.id, verdict: 'true', onTopic: true, reason: 'Known fact', ...overrides[i.id] })) });
+const good = (items, overrides = {}) => ({ model: 'reviewer', verdicts: items.map(i => ({ id: i.id, verdict: 'true', onTopic: true, reason: 'Known fact', ...(i.requireEvidence ? { evidence: [{ sourceId: i.sources[0]?.id, quote: i.sources[0]?.text }] } : {}), ...overrides[i.id] })) });
 const clue = (n) => ({ value: n * 200, clue: `Statement number ${n}`, response: `Person ${n}` });
 const cats = [{ title: 'Lighthouse keepers', clues: [clue(1), clue(2), clue(3)] }];
 
@@ -62,7 +62,7 @@ test('fallback clues pass the gate; insufficient survivors never return a partia
   const generate = async type => type === 'categories-generate-from-content'
     ? { categories: [{ title: 'Keepers', clues: Array.from({ length: 5 }, (_, i) => clue(i + 1)) }] }
     : null;
-  const opts = { referenceMaterial: 'source', titles: ['Keepers'], count: 1, difficulty: 'normal', theme: 'Lighthouses' };
+  const opts = { retryLimit: 0, referenceMaterial: 'A supplied source passage with enough detail for the verification contract.', titles: ['Keepers'], count: 1, difficulty: 'normal', theme: 'Lighthouses' };
   await assert.rejects(modules.board.generateContentSpan(generate, { ...opts, verify: async (_, items) => good(items, { '0:0': { verdict: 'false' } }) }), /Keepers \(4\/5\)/);
   const result = await modules.board.generateContentSpan(generate, { ...opts, verify: async (_, items) => good(items) });
   assert.equal(result.categories[0].clues.length, 5);
@@ -91,7 +91,7 @@ test('retrieval tries later hits and searches the actual topic', async () => {
 });
 test('empty grounding cannot turn a single retrieved article into six categories', async () => {
   const original = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ results: [] });
+  globalThis.fetch = async () => Response.json({ sources: [], policy: 'general', warnings: [] });
   try {
     await assert.rejects(modules.board.generateTopicSpan(async () => ({ sections: [] }), { topic: 'Lighthouses', titles: ['Keepers', 'Towers'], count: 2, difficulty: 'normal' }), /No usable source/);
   } finally { globalThis.fetch = original; }
@@ -105,7 +105,7 @@ test('checked runner-ups fill rejected slots and preserve dollar values', async 
     if (type === 'judge-clues') return { categories: [{ title: 'Keepers', scored: answers.map((answer, i) => ({ answer, specificity: 5, sourceSupport: 5, clarity: 5, jeopardyStyle: 5, duplicateRisk: 1, difficulty: i + 1 })) }] };
     throw new Error(`Unexpected fallback: ${type}`);
   };
-  const result = await modules.board.generateContentSpan(generate, { referenceMaterial: 'source', titles: ['Keepers'], theme: 'Lighthouses', count: 1, difficulty: 'normal', verify: async (_, items) => good(items, { '0:0': { verdict: 'false' } }) });
+  const result = await modules.board.generateContentSpan(generate, { referenceMaterial: 'A supplied source passage with enough detail for the verification contract.', titles: ['Keepers'], theme: 'Lighthouses', count: 1, difficulty: 'normal', verify: async (_, items) => good(items, { '0:0': { verdict: 'false' } }) });
   assert.deepEqual(result.categories[0].clues.map(c => c.value), [200, 400, 600, 800, 1000]);
   assert.ok(!result.categories[0].clues.some(c => c.response === 'Grace Darling'));
   assert.ok(result.categories[0].clues.every(c => c.verification));
@@ -176,8 +176,8 @@ test('incomplete board error and progress preserve each rejected clue and its re
     '0:2': { verdict: 'unsure', reason: 'Cannot substantiate this date.' },
   };
   await assert.rejects(modules.board.generateContentSpan(generate, {
-    referenceMaterial: 'source', titles: ['Keepers'], count: 1, difficulty: 'normal', theme: 'Space exploration',
-    onProgress: e => events.push(e), verify: async (_, items) => { const r = good(items, reasons); r.verdicts.reverse(); return r; },
+    referenceMaterial: 'A supplied source passage with enough detail for the verification contract.', titles: ['Keepers'], count: 1, difficulty: 'normal', theme: 'Space exploration',
+    retryLimit: 0, onProgress: e => events.push(e), verify: async (_, items) => { const r = good(items, reasons); r.verdicts.reverse(); return r; },
   }), error => {
     assert.equal(error.details.code, 'VERIFICATION_INCOMPLETE');
     assert.deepEqual(error.details.categories, [{ title: 'Keepers', accepted: 2, required: 5 }]);
@@ -196,7 +196,7 @@ test('incomplete board error and progress preserve each rejected clue and its re
 
 test('no generated candidates is an incomplete board, without calling the verifier', async () => {
   await assert.rejects(modules.board.generateContentSpan(async () => null, {
-    referenceMaterial: 'source', titles: ['Keepers'], count: 1, difficulty: 'normal',
+    referenceMaterial: 'A supplied source passage with enough detail for the verification contract.', titles: ['Keepers'], count: 1, difficulty: 'normal',
     verify: async () => { assert.fail('No batch to verify'); },
   }), error => error.details.code === 'VERIFICATION_INCOMPLETE' && error.details.clues.length === 0);
 });
@@ -221,4 +221,47 @@ test('opt-in audit retains raw malformed output and the actual failure', async (
     if (old === undefined) delete process.env.AI_VERIFICATION_LOG;
     else process.env.AI_VERIFICATION_LOG = old;
   }
+});
+
+const evidenceSource = { id: 'primary', title: 'Mission archive', url: 'https://example.org/archive', text: 'The Eagle lunar module landed on the Moon during the Apollo 11 mission.', kind: 'web', retrievedAt: '2026-11-08T00:00:00Z' };
+const evidenceCats = [{ title: 'Moon Missions', sources: [evidenceSource], clues: [{ value: 200, clue: 'This lunar module landed during Apollo 11.', response: 'Eagle' }] }];
+test('accepted clues retain only exact evidence and trusted source metadata through serialization', async () => {
+  const result = await verifyCategories(evidenceCats, 'Apollo 11', async (_, items) => good(items));
+  const saved = JSON.parse(JSON.stringify(result.categories));
+  assert.deepEqual(saved[0].clues[0].verification.evidence, [{ sourceId: 'primary', title: evidenceSource.title, url: evidenceSource.url, quote: evidenceSource.text, kind: 'web', retrievedAt: evidenceSource.retrievedAt }]);
+  assert.equal(currentVerification({ ...saved[0].clues[0], clue: 'Changed factual assertion' }, 'Moon Missions'), undefined);
+});
+test('missing, fabricated and wrong-document citations cannot earn verification badges', async () => {
+  for (const evidence of [undefined, [], [{ sourceId: 'made-up', quote: evidenceSource.text }], [{ sourceId: 'primary', quote: 'The fictional spacecraft landed on Mars and returned.' }]]) {
+    await assert.rejects(verifyCategories(evidenceCats, 'Apollo 11', async (_, items) => good(items, { '0:0': { evidence } })), e => e.details.code === 'VERIFICATION_UNAVAILABLE');
+  }
+  const r = await verifyCategories(evidenceCats, 'Apollo 11', async (_, items) => good(items, { '0:0': { verdict: 'unsure', reason: 'The source does not support the year in this clue.', evidence: [] } }));
+  assert.equal(r.categories[0].clues.length, 0);
+  assert.match(r.rejected[0].reason, /does not support/);
+});
+test('source documents are transmitted once and the server hydrates exact IDs', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (_, options) => {
+    const body = JSON.parse(options.body);
+    assert.equal(body.sources.length, 1);
+    assert.equal(body.items.length, 2);
+    assert.ok(body.items.every(i => !i.sources && i.sourceIds[0] === 'primary'));
+    const hydrated = contract.hydrateItems(body.items, body.sources);
+    const response = good(hydrated);
+    assert.equal(contract.parseVerdicts(JSON.stringify(response), hydrated).length, 2);
+    return Response.json(response);
+  };
+  try {
+    const cats = [{ ...evidenceCats[0], clues: [...evidenceCats[0].clues, { value: 400, clue: 'The mission that landed Eagle.', response: 'Apollo 11' }] }];
+    assert.equal((await verifyCategories(cats, 'Moon missions', undefined, { model: 'generator' })).categories[0].clues.length, 2);
+  } finally { globalThis.fetch = original; }
+});
+test('server rejects unofficial gospel citations and made-up source references', () => {
+  const item = { id: '0:0', category: 'Gospel', clue: 'A statement', response: 'Answer', requireEvidence: true, sourcePolicy: 'lds-official', sourceIds: ['primary'] };
+  assert.throws(() => contract.hydrateItems([item], [evidenceSource]), /Non-official/);
+  assert.throws(() => contract.hydrateItems([{ ...item, sourceIds: ['missing'] }], [evidenceSource]), /Missing evidence/);
+  const official = { ...evidenceSource, url: 'https://www.churchofjesuschrist.org/study/scriptures/dc-testament/dc/89?lang=eng' };
+  const hydrated = contract.hydrateItems([item], [official]);
+  assert.equal(hydrated[0].sources[0].url, official.url);
+  assert.throws(() => contract.parseVerdicts(JSON.stringify(good(hydrated, { '0:0': { evidence: [] } })), hydrated), /Missing verifier evidence/);
 });
