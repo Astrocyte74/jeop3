@@ -665,7 +665,7 @@ export function ClueDialog({
             <div className="cs-face cs-face--back" aria-hidden={showResponse}>
               {timerSecs > 0 && !hasSnakeResult && (
                 <ThinkTimer key={`${timerSecs}:${clue}`} seconds={timerSecs} running={timerRunning} stageRef={stageRef}
-                  onReveal={advanceClue} actionLabel={advanceLabel} />
+                  onTimerChange={chooseTimer} />
               )}
               <button type="button" className="cs-reveal cs-hint-only" onClick={advanceClue} tabIndex={showResponse ? -1 : 0}>
                 <Eye className="w-7 h-7" />

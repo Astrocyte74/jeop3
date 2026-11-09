@@ -434,6 +434,25 @@
 }
 
 /* Countdown ring */
+.cs-timer-control { position: relative; flex: none; }
+.cs-options-panel.cs-timer-options {
+  top: auto;
+  bottom: calc(100% + 14px);
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(320px, 80vw);
+}
+.cs-ring[data-paused='true'] .cs-ring-num { opacity: 0.55; }
+.cs-timer-paused {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,.7);
+}
 .cs-ring {
   position: relative;
   flex: none;
@@ -1002,7 +1021,7 @@
 .cs-result p { margin: 0; font-size: clamp(16px, 2.4vh, 22px); }
 .cs-stage[data-reveal='false'] .cs-bigact { height: clamp(52px, 8vh, 76px); }
 
-/* Teams stay quiet while the clue is being read, including when its timer is off or expired.
+/* Keep the answering team bright while the other teams step back during the clue.
    Hover/focus restores them for interaction; revealing the answer restores every team. */
 .cs-cat,
 .cs-teams .team-card {
@@ -1011,7 +1030,7 @@
 .cs-stage:is([data-timer='calm'], [data-timer='warn'], [data-timer='urgent']):not([data-hints='true']) .cs-cat {
   opacity: 0.6;
 }
-.cs-stage[data-reveal='false'] .cs-teams .team-card {
+.cs-stage[data-reveal='false'] .cs-teams .team-card:not(.is-active) {
   opacity: 0.65;
 }
 .cs-stage .cs-top:hover .cs-cat,
