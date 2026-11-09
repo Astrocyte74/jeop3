@@ -18,14 +18,16 @@ export function AnswerActions({ value, penalty, locked, won, onCorrect, onWrong 
       <button type="button" className="cs-bigact cs-bigact--yes" data-won={won} onClick={onCorrect} disabled={locked}>
         <Check strokeWidth={3.5} aria-hidden="true" />
         <span>Correct</span>
-        <small>+{formatMoney(value)}</small>
-        <kbd aria-hidden="true">Enter</kbd>
+        {/* The header already shows the value; the delta is a tip. */}
+        <small className="cs-hint-only">+{formatMoney(value)}</small>
+        <kbd className="cs-hint-only" aria-hidden="true">Enter</kbd>
       </button>
       <button type="button" className="cs-bigact cs-bigact--no" onClick={onWrong} disabled={locked}>
         <X strokeWidth={3.5} aria-hidden="true" />
         <span>Wrong</span>
-        <small>{penalty ? `−${formatMoney(value)}` : 'no penalty'}</small>
-        <kbd aria-hidden="true">W</kbd>
+        {/* Only call out a consequence; "no penalty" is the quiet default. */}
+        <small className={penalty ? undefined : 'cs-hint-only'}>{penalty ? `−${formatMoney(value)}` : 'no penalty'}</small>
+        <kbd className="cs-hint-only" aria-hidden="true">W</kbd>
       </button>
     </div>
   );

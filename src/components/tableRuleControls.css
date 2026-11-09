@@ -1,0 +1,15 @@
+.table-rule-controls { display: flex; flex-direction: column; gap: 10px; }
+.table-settings-label { margin-bottom: 8px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.65); }
+.table-choices { display: flex; gap: 8px; }
+.table-choice { flex: 1 1 0; display: flex; justify-content: center; align-items: center; min-height: 42px; padding: 8px 10px; border: 2px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(255,255,255,.05); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+.table-rule-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 2px 0; border: 0; border-radius: 8px; background: transparent; color: #fff; font-size: 14px; text-align: left; cursor: pointer; }
+.table-toggle-state { display: flex; align-items: center; justify-content: center; flex: 0 0 62px; min-height: 42px; border: 2px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(255,255,255,.05); font-weight: 600; }
+.table-choice[aria-pressed='true'], .table-choice[data-state='checked'],
+.table-rule-toggle[aria-checked='true'] .table-toggle-state { border-color: #ffcc00; background: rgba(255,204,0,.15); }
+.table-choice > [data-slot='dropdown-menu-radio-item-indicator'],
+.table-rule-toggle > [data-slot='dropdown-menu-checkbox-item-indicator'] { display: none; }
+.table-choice:hover, .table-rule-toggle:hover { background: rgba(255,255,255,.1); }
+.table-choice:focus-visible, .table-rule-toggle:focus-visible,
+.table-choice[data-highlighted], .table-rule-toggle[data-highlighted] { outline: 3px solid #ffcc00; outline-offset: 2px; }
+.table-rule-toggle:disabled { opacity: .6; cursor: default; }
+.table-settings-note { margin: 0; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.7); }

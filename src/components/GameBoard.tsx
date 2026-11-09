@@ -12,7 +12,7 @@ import {
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
 import { type GameMode } from '@/components/GameModeMenu';
-import { GameRulesMenu } from '@/components/GameRulesMenu';
+import { GameRulesMenu, ThinkTimerMenu } from '@/components/GameRulesMenu';
 import { setIconsEnabled, useIconsEnabled } from '@/lib/iconSettings';
 import type { Game, GameState } from '@/lib/storage';
 import { Home, Edit, Sparkles, Palette, Image, Settings as SettingsIcon, RotateCcw, Check, X, MoreVertical, Wand2, Plus, Minus, Gamepad2, Volume2, VolumeX, Trophy, Eye, Undo2 } from 'lucide-react';
@@ -31,6 +31,7 @@ import { EndGame } from '@/components/EndGame';
 // Games whose opening reveal already played this session (so returning from the editor doesn't replay it)
 const revealedGames = new Set<string>();
 const REVEAL_MS = 2800;
+type AvailableModel = { id: string; name: string; provider: string };
 
 const BOARD_HINT_KEY = 'jeop3:boardHintDismissed';
 function isBoardHintDismissed(): boolean {
@@ -102,7 +103,7 @@ export function GameBoard({
   const [removeTeamDialogOpen, setRemoveTeamDialogOpen] = useState(false);
   const [teamToRemove, setTeamToRemove] = useState<string | null>(null);
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
-  const [availableModels, setAvailableModels] = useState<Array<{id: string; name: string; provider: string}>>([]);
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [gameMode, setGameMode] = useState<GameMode>(() => (localStorage.getItem('gameMode') as GameMode) || 'regular');
   const [sfxMuted, setSfxMutedState] = useState<boolean>(() => isSfxMuted());
 
@@ -314,12 +315,12 @@ export function GameBoard({
     const apiBase = getAIApiBase();
     fetch(`${apiBase}/health`)
       .then(res => res.json())
-      .then(data => {
+      .then((data: { models?: AvailableModel[] }) => {
         if (data.models) {
           setAvailableModels(data.models);
           // Set default to first model if none selected
           const stored = localStorage.getItem('jeop3:aiModel');
-          if (stored && data.models.find((m: any) => m.id === stored)) {
+          if (stored && data.models.some((m) => m.id === stored)) {
             setAIModel(stored);
           } else if (data.models.length > 0) {
             setAIModel(data.models[0].id);
@@ -349,9 +350,7 @@ export function GameBoard({
     setIconSize(size);
     // Re-initialize icon matcher with new size
     const { iconMatcher } = await import('@/lib/iconMatcher');
-    // Force a reload of the icon matcher data
-    (iconMatcher as any).loaded = false;
-    await iconMatcher.load();
+    await iconMatcher.reload();
   };
 
   const handleStartEditingTeam = (teamId: string, currentName: string) => {
@@ -428,7 +427,7 @@ export function GameBoard({
       );
 
       if (result && typeof result === 'object' && 'name' in result) {
-        const enhancedName = (result as any).name;
+        const enhancedName = result.name;
         if (enhancedName && typeof enhancedName === 'string') {
           onUpdateTeamName?.(teamId, enhancedName);
         }
@@ -461,8 +460,8 @@ export function GameBoard({
       );
 
       if (result && typeof result === 'object' && 'names' in result) {
-        const names = (result as any).names;
-        if (Array.isArray(names) && names.length > 0) {
+        const names = result.names;
+        if (Array.isArray(names) && typeof names[0] === 'string') {
           // Use the first generated name
           onUpdateTeamName?.(teamId, names[0]);
         }
@@ -605,15 +604,16 @@ export function GameBoard({
               <SettingsIcon className="w-5 h-5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
             {/* Game Mode - Top Level */}
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <Gamepad2 className="w-4 h-4 mr-2" />
-                <span>Game Mode</span>
+                <span>Default game mode</span>
                 <span className="ml-auto text-lg">{gameMode === 'snake' ? '🐍' : gameMode === 'regular' ? '📝' : '❓'}</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent sideOffset={5}>
+                <p className="px-2 py-2 text-xs text-slate-400">Applies to future clues. Daily Doubles use Regular.</p>
                 <DropdownMenuItem
                   onClick={() => {
                     setGameMode('regular');
@@ -622,7 +622,7 @@ export function GameBoard({
                   className={gameMode === 'regular' ? 'bg-yellow-500/10' : ''}
                 >
                   <span className="mr-2">📝</span>
-                  <span>Regular Mode</span>
+                  <span>Regular</span>
                   <span className="ml-auto text-xs text-slate-500">Classic Jeopardy</span>
                   {gameMode === 'regular' && (
                     <span className="ml-auto text-xs text-yellow-500">✓</span>
@@ -636,16 +636,11 @@ export function GameBoard({
                   className={gameMode === 'snake' ? 'bg-yellow-500/10' : ''}
                 >
                   <span className="mr-2">🐍</span>
-                  <span>Snake Mode</span>
+                  <span>Trivia Snake</span>
                   <span className="ml-auto text-xs text-slate-500">Navigate to answer</span>
                   {gameMode === 'snake' && (
                     <span className="ml-auto text-xs text-yellow-500">✓</span>
                   )}
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled className="opacity-50">
-                  <span className="mr-2">❓</span>
-                  <span>Trivia Mode</span>
-                  <span className="ml-auto text-xs text-slate-500">Coming soon</span>
                 </DropdownMenuItem>
               </DropdownMenuSubContent>
             </DropdownMenuSub>
@@ -662,6 +657,7 @@ export function GameBoard({
             <DropdownMenuSeparator />
 
             <GameRulesMenu />
+            <ThinkTimerMenu />
 
             {/* Settings Submenu */}
             <DropdownMenuSub>

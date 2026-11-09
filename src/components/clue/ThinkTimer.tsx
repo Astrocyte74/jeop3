@@ -4,6 +4,8 @@ import { playSfx } from '@/lib/sfx';
 interface ThinkTimerProps {
   seconds: number;
   running: boolean;
+  onReveal: () => void;
+  actionLabel: string;
   /** The stage element: gets data-timer (calm|warn|urgent|expired|off) and --timer-frac so the whole
    *  screen frame can show the time left. Written straight to the DOM, so it costs no re-renders. */
   stageRef?: RefObject<HTMLElement | null>;
@@ -12,13 +14,12 @@ interface ThinkTimerProps {
 const R = 46;
 const C = 2 * Math.PI * R;
 
-/** Countdown ring. Click to pause/resume. Ticks over the last 5 seconds. */
-export function ThinkTimer({ seconds, running, stageRef }: ThinkTimerProps) {
+/** Countdown ring. Click to reveal the answer. Ticks over the last 5 seconds. */
+export function ThinkTimer({ seconds, running, stageRef, onReveal, actionLabel }: ThinkTimerProps) {
   const [remainingMs, setRemainingMs] = useState(seconds * 1000);
-  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
-    if (!running || paused || seconds === 0) return;
+    if (!running || seconds === 0) return;
     let last = performance.now();
     const id = window.setInterval(() => {
       const now = performance.now();
@@ -27,7 +28,7 @@ export function ThinkTimer({ seconds, running, stageRef }: ThinkTimerProps) {
       setRemainingMs((r) => Math.max(0, r - dt));
     }, 100);
     return () => window.clearInterval(id);
-  }, [running, paused, seconds]);
+  }, [running, seconds]);
 
   const secs = Math.ceil(remainingMs / 1000);
   useEffect(() => {
@@ -60,10 +61,10 @@ export function ThinkTimer({ seconds, running, stageRef }: ThinkTimerProps) {
       className="cs-ring"
       data-urgent={urgent}
       data-expired={expired}
-      data-paused={paused}
-      onClick={() => running && !expired && setPaused((p) => !p)}
+      onClick={onReveal}
+      tabIndex={running ? 0 : -1}
       aria-label={
-        expired ? "Time's up" : `${secs} seconds left. ${paused ? 'Resume' : 'Pause'} timer`
+        expired ? `Time's up. ${actionLabel}` : `${secs} seconds left. ${actionLabel}`
       }
     >
       <svg viewBox="0 0 108 108" aria-hidden="true">

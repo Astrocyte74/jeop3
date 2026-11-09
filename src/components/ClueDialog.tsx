@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef, useMemo, useCallback, useId, type CSSProperties } from 'react';
+import { useState, useReducer, useEffect, useRef, useMemo, useCallback, useId, type CSSProperties } from 'react';
 import type { Team } from '@/lib/storage';
-import { X, Eye, Info, Trophy, XCircle, Timer } from 'lucide-react';
+import { X, Eye, Info, Trophy, XCircle, HelpCircle } from 'lucide-react';
 import { iconMatcher, type IconMatch } from '@/lib/iconMatcher';
 import { useIconsEnabled } from '@/lib/iconSettings';
-import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
+import type { GameMode } from '@/components/GameModeMenu';
+import { ClueOptions } from '@/components/clue/ClueOptions';
+import { setClueTimerSecs, useClueTimerSecs } from '@/lib/clueTimerSettings';
+import { toggleClueHints, useClueHints } from '@/lib/clueHintsSettings';
 import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
 import { ThinkTimer } from '@/components/clue/ThinkTimer';
 import { TeamDock } from '@/components/clue/TeamDock';
 import { AnswerActions } from '@/components/clue/AnswerActions';
+import { clueAttemptsReducer, emptyClueAttempts, type ClueAttempts } from '@/lib/clueAttempts';
 import { nextTeamId, useGameRules } from '@/lib/gameRules';
 import { teamColor } from '@/lib/teamColors';
 import { DailyDoubleSplash } from '@/components/clue/DailyDoubleSplash';
@@ -43,20 +47,8 @@ interface ClueDialogProps {
   snakeGameResult?: { wasCorrect: boolean | null; teamId: string | null } | null;
 }
 
-const TIMER_KEY = 'jeop3:clueTimerSecs';
-const TIMER_OPTIONS = [0, 15, 30, 60];
 /** Beat between a score tap and the dialog closing, so the win/miss lands. */
 const SETTLE_MS = 650;
-
-function loadTimerSecs(): number {
-  try {
-    const n = Number(localStorage.getItem(TIMER_KEY));
-    if (localStorage.getItem(TIMER_KEY) !== null && TIMER_OPTIONS.includes(n)) return n;
-  } catch {
-    /* storage unavailable */
-  }
-  return 30;
-}
 
 function isTextField(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
@@ -78,7 +70,6 @@ export function ClueDialog({
   response,
   teams,
   activeTeamId,
-  globalGameMode,
   onClose,
   onMarkCorrect,
   onMarkIncorrect,
@@ -90,6 +81,11 @@ export function ClueDialog({
   boardMaxValue,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
+  // Shortcut chips and explanatory notes stay hidden until asked for ('?' or the help button). The choice
+  // is a remembered device preference, so it holds from clue to clue until the host changes it.
+  const showHints = useClueHints();
+  // Settings (game mode, think-timer length) live behind their own Options button, apart from the tips.
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const iconsEnabled = useIconsEnabled();
   const titleId = useId();
   const stageRef = useRef<HTMLDivElement>(null);
@@ -101,11 +97,12 @@ export function ClueDialog({
   // --- Scoring state -------------------------------------------------------
   // Wrong answers are held locally (so the next team can steal) and applied
   // through onMarkIncorrect when the clue is finally settled.
-  const [missedIds, setMissedIds] = useState<string[]>([]);
-  const [wonId, setWonId] = useState<string | null>(null);
+  const [attempts, dispatchAttempt] = useReducer(clueAttemptsReducer, emptyClueAttempts);
+  const missedIds = useMemo(() => attempts.misses.map((m) => m.teamId), [attempts.misses]);
+  const wonId = attempts.winnerId;
   const [settling, setSettling] = useState(false);
   const settleTimer = useRef<number | undefined>(undefined);
-  const [timerSecs, setTimerSecs] = useState(loadTimerSecs);
+  const timerSecs = useClueTimerSecs();
   const rules = useGameRules();
   // Whose pick opened this clue; in 'rotate' mode the pick passes to the team after them.
   const [openerId, setOpenerId] = useState(activeTeamId);
@@ -152,6 +149,7 @@ export function ClueDialog({
   useEffect(() => {
     if (isOpen && !dailyDouble && snakeGameResult && snakeGameResult.wasCorrect !== null && snakeGameResult.teamId) {
       setShowResponse(true);
+      dispatchAttempt({ type: 'reveal' });
       onSetActiveTeam(snakeGameResult.teamId);
     }
   }, [isOpen, dailyDouble, snakeGameResult, onSetActiveTeam]);
@@ -167,9 +165,9 @@ export function ClueDialog({
         setShowResponse(false);
       }
       setShowMatchedKeywords(false);
+      setOptionsOpen(false);
       setCurrentAnswerIconIndex(0);
-      setMissedIds([]);
-      setWonId(null);
+      dispatchAttempt({ type: 'reset' });
       setSettling(false);
       window.clearTimeout(settleTimer.current);
 
@@ -229,6 +227,9 @@ export function ClueDialog({
     } as CSSProperties;
   }, [originRect]);
 
+  const canJudge = showResponse || (!dd && rules.allowSteal && attempts.judging);
+  const advanceLabel = !dd && rules.allowSteal && !attempts.judging && !showResponse ? 'Judge answer' : 'Show answer';
+
   // --- Actions -------------------------------------------------------------
   const showResponseRef = useRef(false);
   useEffect(() => {
@@ -242,24 +243,43 @@ export function ClueDialog({
     if (showResponseRef.current) return;
     if (Date.now() < revealOkAt.current) return;
     showResponseRef.current = true;
+    dispatchAttempt({ type: 'reveal' });
     setShowResponse(true);
     playSfx('reveal');
   }, []);
 
+  const advanceClue = useCallback(() => {
+    if (dd) reveal();
+    else dispatchAttempt({ type: 'advance', allowSteal: rules.allowSteal });
+  }, [dd, reveal, rules.allowSteal]);
+
+  useEffect(() => {
+    if (attempts.judging && !attempts.revealed) stageRef.current?.focus({ preventScroll: true });
+  }, [attempts.judging, attempts.revealed]);
+
+  useEffect(() => {
+    if (attempts.revealed && !showResponseRef.current) reveal();
+  }, [attempts.revealed, reveal]);
+
+  useEffect(() => {
+    if (attempts.finished) stageRef.current?.focus({ preventScroll: true });
+  }, [attempts.finished]);
+
   /** Apply pending wrong answers (and optionally a winner) through the score callbacks. */
   const settle = useCallback(
-    (missed: string[], winnerId: string | null) => {
+    (missed: ClueAttempts['misses'], winnerId: string | null) => {
       setSettling(true);
       window.clearTimeout(settleTimer.current);
       settleTimer.current = window.setTimeout(() => {
         const cb = latest.current;
         // The parent closes the dialog on the first score callback but applies
         // each update functionally, so misses first then the winner all land.
-        missed.forEach((id) => cb.onMarkIncorrect(id, cb.rules.wrongAnswerPenalty ? undefined : 0));
+        missed.forEach(({ teamId, penalty }) => cb.onMarkIncorrect(teamId, penalty ? undefined : 0));
         // Rotate: the pick always passes to the next team. Winner: the correct team picks again.
         const next = cb.rules.turnMode === 'rotate' ? nextTeamId(cb.teams, cb.openerId) : winnerId;
         if (next) cb.onSetActiveTeam(next);
         if (winnerId) cb.onMarkCorrect(winnerId);
+        else if (missed.length === 0) cb.onSkipClue?.();
       }, SETTLE_MS);
     },
     [],
@@ -267,31 +287,28 @@ export function ClueDialog({
 
   const awardTeam = useCallback(
     (teamId: string) => {
-      if (settling || !showResponseRef.current || missedIds.includes(teamId)) return;
-      setWonId(teamId);
+      if (settling || !canJudge || attempts.finished || missedIds.includes(teamId)) return;
+      dispatchAttempt({ type: 'correct', teamId });
       playSfx(missedIds.length > 0 ? 'fanfare' : 'correct');
-      settle(missedIds, teamId);
     },
-    [settling, missedIds, settle],
+    [settling, canJudge, attempts.finished, missedIds],
   );
 
   const deductTeam = useCallback(
     (teamId: string) => {
-      if (settling || !showResponseRef.current) return;
+      if (settling || !canJudge || attempts.finished) return;
       if (missedIds.includes(teamId)) {
-        // Tapping a missed team again undoes it, and puts them back in play
-        setMissedIds((ids) => ids.filter((id) => id !== teamId));
+        dispatchAttempt({ type: 'undoMiss', teamId });
         setPickedId(teamId);
         playSfx('select');
         return;
       }
-      const next = [...missedIds, teamId];
-      setMissedIds(next);
-      setPickedId(null); // the steal order takes over
+      dispatchAttempt({ type: 'wrong', teamId, penalty: rules.wrongAnswerPenalty,
+        allowSteal: rules.allowSteal, teamCount: teams.length });
+      setPickedId(null);
       playSfx('incorrect');
-      if (next.length >= teams.length || !rules.allowSteal) settle(next, null);
     },
-    [settling, missedIds, teams.length, settle, rules.allowSteal],
+    [settling, canJudge, attempts.finished, missedIds, teams.length, rules.allowSteal, rules.wrongAnswerPenalty],
   );
 
   const skipSplash = useCallback(() => setDdPhase((p) => (p === 'splash' ? 'wager' : p)), []);
@@ -331,27 +348,16 @@ export function ClueDialog({
     [settling, lockedWager, lockedTeamId],
   );
 
-  /** Nobody got it: used with no score change, then the pick rotates (or stays) per the rules. */
   const skipClue = useCallback(() => {
-    if (settling || !showResponseRef.current || missedIds.length > 0 || !latest.current.onSkipClue) return;
+    if (settling || !canJudge || attempts.finished || !latest.current.onSkipClue) return;
+    dispatchAttempt({ type: 'nobody' });
     playSfx('select');
-    setSettling(true);
-    window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(() => {
-      const cb = latest.current;
-      if (cb.rules.turnMode === 'rotate') {
-        const next = nextTeamId(cb.teams, cb.openerId);
-        if (next) cb.onSetActiveTeam(next);
-      }
-      cb.onSkipClue?.();
-    }, SETTLE_MS);
-  }, [settling, missedIds.length]);
+  }, [settling, canJudge, attempts.finished]);
 
-  const closeWithMisses = useCallback(() => {
-    if (settling || missedIds.length === 0) return;
-    playSfx('select');
-    settle(missedIds, null);
-  }, [settling, missedIds, settle]);
+  const finishClue = useCallback(() => {
+    if (settling || !attempts.finished) return;
+    settle(attempts.misses, attempts.winnerId);
+  }, [settling, attempts, settle]);
 
   // The next team (in board order) after the most recent miss that hasn't missed yet
   const stealId = useMemo(() => {
@@ -368,6 +374,7 @@ export function ClueDialog({
   // team that opened the clue (or the snake player).
   const inPlayId = useMemo(() => {
     if (teams.length === 0) return null;
+    if (attempts.finished) return attempts.winnerId ?? missedIds.at(-1) ?? openerId;
     const known = (id: string | null | undefined) => (id && teams.some((t) => t.id === id) ? id : null);
     if (missedIds.length > 0) {
       const manual = known(pickedId);
@@ -375,17 +382,17 @@ export function ClueDialog({
     }
     const snakeTeam = hasSnakeResult ? known(snakeGameResult?.teamId) : null;
     return known(pickedId) ?? snakeTeam ?? known(openerId) ?? teams[0].id;
-  }, [teams, missedIds, pickedId, stealId, hasSnakeResult, snakeGameResult, openerId]);
+  }, [teams, missedIds, pickedId, stealId, hasSnakeResult, snakeGameResult, openerId, attempts.finished, attempts.winnerId]);
   const inPlayIndex = teams.findIndex((t) => t.id === inPlayId);
 
   /** Change who is answering (another team buzzed first, say). */
   const selectTeam = useCallback(
     (teamId: string) => {
-      if (settling || missedIds.includes(teamId)) return;
+      if (settling || attempts.finished || missedIds.includes(teamId)) return;
       setPickedId(teamId);
       playSfx('select');
     },
-    [settling, missedIds],
+    [settling, attempts.finished, missedIds],
   );
 
   // --- Keyboard ------------------------------------------------------------
@@ -401,6 +408,16 @@ export function ClueDialog({
         return;
       }
 
+      // '?' toggles the shortcut tips. Holding the key repeats keydown, which must not flicker it.
+      if (e.key === '?') {
+        e.preventDefault();
+        if (!e.repeat) toggleClueHints();
+        return;
+      }
+
+      // Keys pressed inside the Options popover belong to its controls (Escape is handled by the popover).
+      if ((e.target as HTMLElement | null)?.closest?.('.cs-options-panel')) return;
+
       // Daily Double before the clue: only the splash can be skipped
       if (dd && ddPhase !== 'play') {
         if (ddPhase === 'splash' && (e.key === ' ' || e.code === 'Space' || e.key === 'Enter')) {
@@ -410,23 +427,33 @@ export function ClueDialog({
         return;
       }
 
+      const onButton = (e.target as HTMLElement | null)?.closest?.('button, a');
+      if (e.repeat) { e.preventDefault(); return; }
       if (e.key === ' ' || e.code === 'Space') {
+        if (onButton) return;
         if (!showResponseRef.current) {
           e.preventDefault();
-          reveal();
+          advanceClue();
         }
         return;
       }
 
-      if (/^(?:Digit|Numpad)0$/.test(e.code) && showResponseRef.current && !dd) {
+      if (!dd && attempts.finished) {
+        if (e.key === 'Enter' && !onButton) {
+          e.preventDefault();
+          finishClue();
+        }
+        return;
+      }
+
+      if (/^(?:Digit|Numpad)0$/.test(e.code) && !dd) {
         e.preventDefault();
         skipClue();
         return;
       }
 
       const key = e.key.toLowerCase();
-      const onButton = (e.target as HTMLElement | null)?.closest?.('button, a');
-      if (!dd && showResponseRef.current && inPlayId) {
+      if (!dd && inPlayId) {
         if ((key === 'enter' && !onButton) || key === 'c') {
           e.preventDefault();
           awardTeam(inPlayId);
@@ -452,7 +479,7 @@ export function ClueDialog({
         }
         if (team) {
           e.preventDefault();
-          if (e.shiftKey && showResponseRef.current) deductTeam(team.id);
+          if (e.shiftKey) deductTeam(team.id);
           else selectTeam(team.id);
         }
         return;
@@ -482,7 +509,7 @@ export function ClueDialog({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, showResponse, iconsEnabled, answerIcons, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue, inPlayId, selectTeam]);
+  }, [isOpen, showResponse, iconsEnabled, answerIcons, currentAnswerIconIndex, teams, reveal, awardTeam, deductTeam, dd, ddPhase, lockedTeamId, skipSplash, scoreDailyDouble, skipClue, inPlayId, selectTeam, attempts.finished, finishClue, advanceClue]);
 
   // Keep Tab inside the dialog
   const trapTab = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -513,15 +540,11 @@ export function ClueDialog({
   useFitText(clueFitRef, clueTextRef, [isOpen, clue, ddPhase], { min: 22, max: 240 });
   useFitText(answerFitRef, answerTextRef, [isOpen, response, showResponse, ddPhase], { min: 22, max: 200 });
 
-  const cycleTimer = () => {
-    const next = TIMER_OPTIONS[(TIMER_OPTIONS.indexOf(timerSecs) + 1) % TIMER_OPTIONS.length];
-    setTimerSecs(next);
+  const chooseTimer = (next: number) => {
+    if (next === timerSecs) return;
+    setClueTimerSecs(next);
     playSfx('select');
-    try {
-      localStorage.setItem(TIMER_KEY, String(next));
-    } catch {
-      /* storage unavailable */
-    }
+
   };
 
   if (!isOpen) return null;
@@ -530,7 +553,6 @@ export function ClueDialog({
   const activeIconIndex = currentAnswerIconIndex;
   const activeIcon = activeIcons[activeIconIndex] || activeIcons[0];
   const timerRunning = isOpen && !showResponse && !hasSnakeResult;
-  const mustConfirmSteal = missedIds.length > 0;
 
   return (
     <div
@@ -542,6 +564,7 @@ export function ClueDialog({
       tabIndex={-1}
       data-origin={originRect ? 'tile' : 'none'}
       data-reveal={showResponse}
+      data-hints={showHints}
       data-dd={dd}
       data-dd-phase={dd ? ddPhase : undefined}
       style={{ ...originStyle, ...(!dd && inPlayIndex >= 0 ? ({ '--turn': teamColor(inPlayIndex).main } as CSSProperties) : null) }}
@@ -562,18 +585,30 @@ export function ClueDialog({
           {categoryTitle}
         </h2>
         <div className="cs-tools">
-          {onSwitchToSnake && (
-            <GameModeMenu
-              currentMode={globalGameMode}
-              onModeChange={(mode) => {
-                if (mode === 'snake') {
-                  onClose();
-                  onSwitchToSnake();
-                }
-                // If regular is selected, just stay in ClueDialog (already there)
-              }}
-            />
-          )}
+          <ClueOptions
+            open={optionsOpen}
+            onOpenChange={setOptionsOpen}
+            showMode={!dd && !!onSwitchToSnake && missedIds.length === 0 && !showResponse}
+            dailyDouble={dd}
+            onPickSnake={() => {
+              setOptionsOpen(false);
+              onClose();
+              onSwitchToSnake?.();
+            }}
+            showTimer={!ddPre && !showResponse && !hasSnakeResult}
+            timerSecs={timerSecs}
+            onTimerChange={chooseTimer}
+          />
+          <button
+            type="button"
+            onClick={() => toggleClueHints()}
+            className="cs-icon-btn cs-help-btn"
+            title="Shortcut tips (?)"
+            aria-label="Show shortcut tips"
+            aria-pressed={showHints}
+          >
+            <HelpCircle className="w-6 h-6" />
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -613,37 +648,30 @@ export function ClueDialog({
       <main className={dd ? 'cs-main dd-clue-in' : 'cs-main'}>
         {/* Clue */}
         <section className="cs-clue-zone" aria-label="Clue">
+          <button type="button" className="cs-clue-reveal" onClick={advanceClue}
+            disabled={showResponse} title={showResponse ? undefined : advanceLabel}>
           <div className="cs-fit" ref={clueFitRef}>
             <p className="cs-clue-text" ref={clueTextRef}>
               {clue}
             </p>
           </div>
+          </button>
         </section>
 
         {/* Answer: a card that flips from timer-back to answer-front */}
-        <section className="cs-answer" data-revealed={showResponse} aria-label="Answer">
+        <section className="cs-answer" data-revealed={showResponse} aria-label="Answer"
+          hidden={!showResponse && timerSecs === 0 && !showHints}>
           <div className="cs-flip">
             <div className="cs-face cs-face--back" aria-hidden={showResponse}>
               {timerSecs > 0 && !hasSnakeResult && (
-                <ThinkTimer key={`${timerSecs}:${clue}`} seconds={timerSecs} running={timerRunning} stageRef={stageRef} />
+                <ThinkTimer key={`${timerSecs}:${clue}`} seconds={timerSecs} running={timerRunning} stageRef={stageRef}
+                  onReveal={advanceClue} actionLabel={advanceLabel} />
               )}
-              <button type="button" className="cs-reveal" onClick={reveal} tabIndex={showResponse ? -1 : 0}>
+              <button type="button" className="cs-reveal cs-hint-only" onClick={advanceClue} tabIndex={showResponse ? -1 : 0}>
                 <Eye className="w-7 h-7" />
-                <span>Show answer</span>
+                <span>{advanceLabel}</span>
                 <kbd>Space</kbd>
               </button>
-              {!hasSnakeResult && (
-                <button
-                  type="button"
-                  className="cs-timer-chip"
-                  onClick={cycleTimer}
-                  tabIndex={showResponse ? -1 : 0}
-                  aria-label={`Think timer: ${timerSecs === 0 ? 'off' : `${timerSecs} seconds`}. Change`}
-                >
-                  <Timer className="w-4 h-4" />
-                  {timerSecs === 0 ? 'Off' : `${timerSecs}s`}
-                </button>
-              )}
             </div>
             <div className="cs-face cs-face--front" aria-live="polite" aria-hidden={!showResponse}>
             {activeIcon && (
@@ -706,7 +734,7 @@ export function ClueDialog({
         </section>
 
         {/* Scoring dock */}
-        <section className="cs-dock" data-open={showResponse} aria-label="Scoring" inert={!showResponse}>
+        <section className="cs-dock" data-open={canJudge} aria-label="Scoring" inert={!canJudge}>
           <div className="cs-dock-inner">
             {/* Snake Game Result Indicator */}
             {showResponse && snakeGameResult && snakeGameResult.wasCorrect !== null && (
@@ -736,7 +764,7 @@ export function ClueDialog({
               />
             )}
 
-            {!dd && teams.length > 0 && inPlayId && (
+            {!dd && !attempts.finished && teams.length > 0 && inPlayId && (
               <AnswerActions
                 value={value}
                 penalty={rules.wrongAnswerPenalty}
@@ -747,10 +775,11 @@ export function ClueDialog({
               />
             )}
 
-            {!dd && mustConfirmSteal && !settling && (
-              <div className="cs-steal-bar" role="status">
-                <button type="button" onClick={closeWithMisses}>
-                  No steal, close clue
+            {!dd && attempts.finished && (
+              <div className="cs-result">
+                <p role="status">{wonId ? `${teams.find((t) => t.id === wonId)?.name ?? 'Team'} got it right` : 'No correct answer'}</p>
+                <button type="button" className="cs-reveal" onClick={finishClue} disabled={settling}>
+                  Continue <kbd className="cs-hint-only">Enter</kbd>
                 </button>
               </div>
             )}
@@ -759,10 +788,10 @@ export function ClueDialog({
               <p className="cs-no-teams">No teams yet. Close the clue and add a team to keep score.</p>
             )}
 
-            {!dd && onSkipClue && teams.length > 0 && showResponse && missedIds.length === 0 && !settling && (
+            {!dd && onSkipClue && teams.length > 0 && !attempts.finished && !settling && (
               <button type="button" className="cs-skip" onClick={skipClue}>
-                Nobody got it
-                <kbd>0</kbd>
+                {showResponse ? 'Nobody got it' : 'Nobody got it — reveal'}
+                <kbd className="cs-hint-only">0</kbd>
               </button>
             )}
           </div>
@@ -770,7 +799,7 @@ export function ClueDialog({
       </main>
       )}
 
-      <footer className="cs-hints" aria-hidden="true">
+      <footer className="cs-hints" data-always={ddPre} aria-hidden="true">
         {ddPre ? (
           ddPhase === 'splash' ? (
             <>
@@ -789,13 +818,26 @@ export function ClueDialog({
             <span><kbd>Shift</kbd> + <kbd>{wagerTeamIdx + 1}</kbd> incorrect</span>
             <span><kbd>Esc</kbd> close without scoring</span>
           </>
+        ) : !dd && attempts.finished ? (
+          <>
+            <span><kbd>Enter</kbd> continue</span>
+            <span><kbd>Esc</kbd> cancel without scoring</span>
+          </>
         ) : !showResponse ? (
           <>
+            <span><kbd>Space</kbd> {advanceLabel.toLowerCase()}</span>
+            {!dd && canJudge && teams.length > 0 && <span><kbd>Enter</kbd> correct · <kbd>W</kbd> wrong · <kbd>0</kbd> nobody got it</span>}
+            {teams.length > 1 && <span><kbd>1</kbd>–<kbd>{Math.min(teams.length, 9)}</kbd> who&rsquo;s answering</span>}
             <span><kbd>Esc</kbd> close</span>
+            <span><kbd>?</kbd> hide tips</span>
           </>
         ) : (
           <>
+            {teams.length > 0 && <span><kbd>Enter</kbd> correct</span>}
+            {teams.length > 0 && <span><kbd>W</kbd> wrong</span>}
+            {onSkipClue && teams.length > 0 && <span><kbd>0</kbd> nobody got it</span>}
             <span><kbd>Esc</kbd> close without scoring</span>
+            <span><kbd>?</kbd> hide tips</span>
           </>
         )}
       </footer>
@@ -804,10 +846,10 @@ export function ClueDialog({
         <TeamDock
           teams={teams}
           inPlayId={dd ? (lockedTeamId ?? wagerTeam?.id ?? null) : inPlayId}
-          steal={!dd && missedIds.length > 0}
+          steal={!dd && !showResponse && missedIds.length > 0}
           missedIds={missedIds}
           interactive={!dd}
-          locked={settling}
+          locked={settling || attempts.finished}
           onSelect={selectTeam}
           onUndoMiss={deductTeam}
         />

@@ -41,7 +41,7 @@ export function TeamDock({ teams, inPlayId, steal, missedIds, interactive, locke
               {inPlay && <span className={`team-tag ${steal ? 'team-tag--steal' : ''}`}>{steal ? 'Steal' : 'Answering'}</span>}
               {missed && !inPlay && <span className="team-tag">Missed</span>}
               {interactive && i < 9 && (
-                <kbd className="team-key" aria-hidden="true">
+                <kbd className="team-key cs-hint-only" aria-hidden="true">
                   {i + 1}
                 </kbd>
               )}
