@@ -37,6 +37,7 @@ import type { AIContext } from '@/lib/ai/types';
 import { useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { GenerationTheatre, type TheatreColumn } from '@/components/wizard/GenerationTheatre';
+import type { ResearchAcc } from '@/components/wizard/researchProgress';
 import { WizardMotion } from '@/components/wizard/WizardMotion';
 
 // Custom source type for per-category sources
@@ -93,6 +94,8 @@ interface NewGameWizardProps {
   isLoading?: boolean;
   loadingStage?: string;
   generationEvent?: PipelineProgress | null;
+  /** Research facts folded from every progress event (sources, warnings, policy, repairs). */
+  research?: ResearchAcc;
   /** Multi-source progress. Null for single-source games (legacy display). */
   progress?: GenerationProgress | null;
   error?: string | null;
@@ -283,7 +286,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, generationEvent, progress, error, onRetry, onCancelGeneration }: NewGameWizardProps) {
+export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, generationEvent, research, progress, error, onRetry, onCancelGeneration }: NewGameWizardProps) {
   // Clerk auth - needed for fetch-article endpoint
   const { getToken } = useAuth();
 
@@ -1219,6 +1222,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             sourceLabels={progress?.sourceLabels ?? customSources.map(sourceLabel)}
             stage={loadingStage}
             event={generationEvent}
+            research={research}
             progress={progress}
             error={isLoading ? null : error}
             summary={buildSummary}

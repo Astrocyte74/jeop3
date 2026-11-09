@@ -1,4 +1,4 @@
-import type { GenerationProgress } from '@/lib/ai/types';
+import type { GenerationProgress, VerificationFailure } from '@/lib/ai/types';
 /**
  * Live "board building" view shown while the wizard generates a game.
  *
@@ -12,8 +12,10 @@ import type { GenerationProgress } from '@/lib/ai/types';
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Loader2, RefreshCw, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, Loader2, RefreshCw, TriangleAlert, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { safeHref, sourceLabelOf } from '@/components/ai/sourceInfo';
+import { EMPTY_RESEARCH, friendlyWarning, repairPhaseText, type ResearchAcc } from './researchProgress';
 import {
   PHASES,
   creep,
@@ -39,6 +41,8 @@ interface TheatreProps {
   sourceLabels: string[];
   stage?: string;
   event?: GenerationProgress | null;
+  /** Sources, warnings, policy and repairs accumulated from every event (the parent folds them). */
+  research?: ResearchAcc;
   progress?: { sourceIndex: number; sourceTotal: number } | null;
   error?: string | null;
   summary: string;
@@ -50,6 +54,138 @@ interface TheatreProps {
 }
 
 const VALUES = [200, 400, 600, 800, 1000];
+
+/**
+ * What the research step found and how targeted repairs are going. Names the actual sources
+ * (Wikipedia, web, official Church pages, or the user's own pasted material), never "Wikipedia" by default.
+ */
+function ResearchNotes({ acc, failed }: { acc: ResearchAcc; failed: boolean }) {
+  const repairs = Object.values(acc.repairs);
+  if (!acc.sources.length && !acc.warnings.length && !repairs.length && !acc.policy) return null;
+  return (
+    <div className="mt-2 space-y-2" data-testid="research-notes">
+      {repairs.length > 0 && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-3" data-testid="repair-status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-300/90">
+            {failed ? 'Replacement attempt' : 'Replacing weak clues'}
+          </p>
+          <ul className="mt-1.5 space-y-1.5">
+            {repairs.map(r => {
+              const kept = r.missing > 0 && r.missing <= 5 ? 5 - r.missing : null;
+              return (
+                <li key={r.title} className="text-xs leading-snug text-slate-300">
+                  <span className="font-semibold text-slate-100">{r.title}</span>
+                  {r.missing > 0 && <> · replacing {r.missing} {r.missing === 1 ? 'clue' : 'clues'}</>}
+                  {kept !== null && kept > 0 && <span className="text-slate-400"> · {kept} already checked stay as they are</span>}
+                  <span className={`block ${r.phase === 'failed' ? 'text-red-300' : r.phase === 'checked' ? 'text-emerald-300' : 'text-slate-400'}`}>
+                    {repairPhaseText(r.phase)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+      {acc.policy === 'lds-official' && (
+        <p className="rounded-lg border border-sky-500/30 bg-sky-500/5 px-3 py-2 text-xs leading-snug text-sky-200">
+          Official-source mode: only churchofjesuschrist.org is used. No Wikipedia or other websites.
+        </p>
+      )}
+      {acc.sources.length > 0 && (
+        <details className="rounded-lg border border-slate-700/60 bg-slate-900/50" data-testid="research-sources">
+          <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-slate-300">
+            Sources found ({acc.sources.length})
+          </summary>
+          <ul className="max-h-32 space-y-1.5 overflow-y-auto px-3 pb-2">
+            {acc.sources.map(src => {
+              const href = safeHref(src.url);
+              return (
+                <li key={src.id} className="flex items-baseline gap-2 text-xs leading-snug">
+                  <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-slate-300">{sourceLabelOf(src)}</span>
+                  {href
+                    ? <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1 text-sky-300 hover:underline"><span className="truncate">{src.title}</span><ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" /></a>
+                    : <span className="min-w-0 truncate text-slate-300">{src.title}</span>}
+                </li>
+              );
+            })}
+          </ul>
+        </details>
+      )}
+      {acc.warnings.length > 0 && (
+        <ul className="space-y-1" data-testid="research-warnings">
+          {acc.warnings.map(w => (
+            <li key={w} className="flex items-start gap-1.5 text-xs leading-snug text-amber-300/90">
+              <TriangleAlert className="mt-px h-3 w-3 shrink-0" aria-hidden="true" />
+              <span title={friendlyWarning(w) !== w ? w : undefined}>{friendlyWarning(w)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Why the independent fact check stopped a build. An outage is a service problem (retry as is);
+ * an incomplete board lists which clues were rejected and why, so the user can change the topic
+ * or source rather than guess.
+ */
+function VerificationDetails({ failure, repaired }: { failure: VerificationFailure; repaired: boolean }) {
+  if (failure.code === 'VERIFICATION_UNAVAILABLE') {
+    return (
+      <p className="text-xs text-slate-400 mt-2.5 leading-snug">
+        The fact-checker couldn’t be reached. This is a service problem, not your topic — trying again usually works.
+      </p>
+    );
+  }
+  const rejected = failure.clues.filter(c => c.verdict !== 'true' || !c.onTopic);
+  const hadRetry = repaired || failure.clues.some(c => (c.attempt ?? 0) > 0);
+  return (
+    <div className="mt-3 space-y-2">
+      {hadRetry && (
+        <p className="text-xs text-slate-400 leading-snug">
+          Clues that passed the first check were kept. Only the weak ones got a replacement attempt, and those were checked independently too.
+        </p>
+      )}
+      {failure.categories && failure.categories.length > 0 && (
+        <ul className="space-y-0.5">
+          {failure.categories.map(c => (
+            <li key={c.title} className="flex items-baseline justify-between gap-3 text-xs text-slate-300">
+              <span className="truncate">{c.title}</span>
+              <span className="tabular-nums text-slate-400 shrink-0">{c.accepted} of {c.required} clues passed</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {rejected.length > 0 && (
+        <details className="group rounded-lg border border-slate-700/60 bg-slate-900/50">
+          <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-slate-300">
+            Why clues were rejected ({rejected.length})
+          </summary>
+          <ul className="max-h-40 overflow-y-auto divide-y divide-slate-800 px-3 pb-1">
+            {rejected.map(c => (
+              <li key={c.id} className="py-2 text-xs leading-snug">
+                <p className="text-slate-200">
+                  <span className="mr-2 rounded bg-slate-700/60 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-slate-300">
+                    {(c.attempt ?? 0) > 0 ? 'Replacement' : 'First draft'}
+                  </span>
+                  {c.clue}
+                </p>
+                <p className="mt-0.5 text-slate-400">
+                  Answer: <span className="text-slate-300">{c.response}</span>
+                  {!c.onTopic && <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-amber-300">off topic</span>}
+                  {c.verdict === 'false' && <span className="ml-2 rounded bg-red-500/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-red-300">incorrect</span>}
+                  {c.verdict === 'unsure' && <span className="ml-2 rounded bg-slate-500/20 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-slate-300">unsure</span>}
+                </p>
+                {c.reason && <p className="mt-0.5 text-slate-500">{c.reason}</p>}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
 
 type ColMode = 'queued' | 'research' | 'write' | 'check' | 'done' | 'failed' | 'muted';
 
@@ -71,6 +207,7 @@ export function GenerationTheatre({
   sourceLabels,
   stage,
   event,
+  research = EMPTY_RESEARCH,
   progress,
   error,
   summary,
@@ -81,6 +218,8 @@ export function GenerationTheatre({
   onBackToEdit,
 }: TheatreProps) {
   const failed = !!error;
+  // The pipeline's last event carries the per-clue fact-check verdicts when verification failed.
+  const failure = failed ? event?.verificationFailure : undefined;
   const sourceCount = Math.max(1, progress?.sourceTotal ?? sourceLabels.length ?? 1);
   const sourceIndex = Math.min(progress?.sourceIndex ?? 0, sourceCount - 1);
 
@@ -274,6 +413,7 @@ export function GenerationTheatre({
             )}
           </div>
         )}
+        {!failed && <ResearchNotes acc={research} failed={false} />}
 
         {/* Failure details */}
         {failed && (
@@ -282,6 +422,8 @@ export function GenerationTheatre({
               <TriangleAlert className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
               <p className="text-sm text-red-200/90 leading-snug break-words max-h-40 overflow-y-auto">{error}</p>
             </div>
+            {failure && <VerificationDetails failure={failure} repaired={Object.keys(research.repairs).length > 0} />}
+            <ResearchNotes acc={research} failed />
             <p className="text-xs text-slate-500 mt-2.5 leading-snug">
               Nothing was saved. Your topics, theme and difficulty are still set, so you can retry as is or edit them first.
             </p>
@@ -291,7 +433,7 @@ export function GenerationTheatre({
         <div className="flex-1 min-h-4" />
 
         {/* Actions */}
-        <div className="mt-6 flex items-center gap-2 flex-wrap">
+        <div className="mt-6 flex items-center gap-2 flex-wrap sticky bottom-0 pt-3 pb-1 bg-gradient-to-t from-slate-950 via-slate-950/95 to-transparent">
           {failed ? (
             <>
               <Button

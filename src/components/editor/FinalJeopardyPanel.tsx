@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import type { FinalJeopardyClue } from '@/lib/storage';
 import { classifyFinal, type FinalField } from './finalDraft';
+import { ClueSources } from '@/components/ai/SourceChips';
 
 const FIELD_NOUN: Record<FinalField, string> = { category: 'a category', clue: 'a clue', response: 'an answer' };
 
@@ -127,6 +128,8 @@ export const FinalJeopardyPanel = forwardRef<HTMLElement, FinalJeopardyPanelProp
           />
           {err('response') && <p className="mt-1 text-xs text-red-300">Add the correct answer.</p>}
         </div>
+        {/* Quoted evidence for the saved wording; hidden (with a note) once the text is edited. */}
+        <ClueSources clue={current} category={current.category} />
       </div>
     </section>
   );

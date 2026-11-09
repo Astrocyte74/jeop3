@@ -2,6 +2,8 @@ import { boardSnapshot } from '@/lib/ai/wholeBoard';
 import type { BoardReview } from '@/lib/ai/types';
 import type { FinalJeopardyClue } from '@/lib/storage';
 import { VerificationBadge } from './VerificationBadge';
+import { CategorySourceChip, ClueSources } from './SourceChips';
+import { summarizeBoardSources, type LooseCategory } from './sourceInfo';
 /**
  * AI Preview Dialog Component
  *
@@ -439,30 +441,38 @@ function CategoriesPreview({
         </div>
       )}
 
-      {/* Topic-mode grounding summary: how many categories were grounded in
-          real Wikipedia retrieval vs AI fact-sheet synthesis. Only shows for
-          topic-mode games (content-mode categories have no sourceType). */}
+      {/* Where the facts came from, named truthfully (Wikipedia, web, Church sources, supplied
+          material) plus how many clues carry quoted evidence. Replaces the Wikipedia-only summary. */}
       {(() => {
-        const typed = categories.filter(c => (c as any).sourceType);
-        if (typed.length === 0) return null;
-        const retrieved = typed.filter(c => (c as any).sourceType === 'retrieved').length;
-        const synthesized = typed.length - retrieved;
+        const sum = summarizeBoardSources(categories as unknown as LooseCategory[]);
+        if (sum.groups.length === 0 && sum.checkedClues === 0) return null;
+        const researched = sum.groups.filter(g => g.tone !== 'warning');
         return (
-          <div className="flex items-start gap-2.5 rounded-lg border border-slate-600/50 bg-slate-800/40 p-3 text-sm text-slate-300">
+          <div className="flex items-start gap-2.5 rounded-lg border border-slate-600/50 bg-slate-800/40 p-3 text-sm text-slate-300" data-testid="source-summary">
             <BookOpen className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-400" />
-            <div>
-              {retrieved > 0 && synthesized > 0 ? (
-                <>
-                  <span className="font-medium text-emerald-300">{retrieved} categor{retrieved === 1 ? 'y' : 'ies'} from Wikipedia</span>
-                  <span className="text-slate-400"> · {synthesized} from AI fact-sheet (no clean Wikipedia match).</span>
-                </>
-              ) : retrieved > 0 ? (
-                <span className="font-medium text-emerald-300">All {retrieved} categor{retrieved === 1 ? 'y' : 'ies'} grounded in Wikipedia.</span>
-              ) : (
-                <span className="text-slate-400">
-                  <span className="font-medium text-amber-300/90">{synthesized} categor{synthesized === 1 ? 'y' : 'ies'} from AI fact-sheet.</span>
-                  {' '}No clean Wikipedia matches — these clues are AI-synthesized, so double-check facts before play.
-                </span>
+            <div className="space-y-1">
+              {researched.length > 0 && (
+                <p>
+                  {researched.map((g, i) => (
+                    <span key={g.label}>
+                      {i > 0 && <span className="text-slate-500"> · </span>}
+                      <span className="font-medium text-emerald-300">{g.count} categor{g.count === 1 ? 'y' : 'ies'} from {g.label}</span>
+                    </span>
+                  ))}
+                </p>
+              )}
+              {sum.synthesized > 0 && (
+                <p className="text-slate-400">
+                  <span className="font-medium text-amber-300/90">{sum.synthesized} categor{sum.synthesized === 1 ? 'y' : 'ies'} from an AI fact-sheet.</span>
+                  {' '}No retrieved source, so double-check these facts before play.
+                </p>
+              )}
+              {sum.checkedClues > 0 && (
+                <p className="text-xs text-slate-400">
+                  {sum.checkedClues} of {sum.clueTotal} clues passed the independent check
+                  {sum.withQuotes > 0 ? `; ${sum.withQuotes} show the exact source passage they rely on.` : '.'}
+                  {sum.checkedClues > sum.withQuotes && sum.withQuotes > 0 ? ' The rest were checked before quotes were recorded.' : ''}
+                </p>
               )}
             </div>
           </div>
@@ -546,27 +556,7 @@ function CategoriesPreview({
               {isCatRegenerated && (
                 <Badge className="bg-purple-500 text-xs">Regenerated</Badge>
               )}
-              {/* Topic-mode source-type provenance: Wikipedia retrieval vs
-                  AI fact-sheet synthesis. Only renders for topic-mode
-                  categories (content-mode has no sourceType). */}
-              {(cat as any).sourceType === 'retrieved' && (
-                <a
-                  href={(cat as any).sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={((cat as any).sourceUrl as string) || 'Wikipedia source'}
-                  className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20"
-                >
-                  <BookOpen className="w-3 h-3" />
-                  Wikipedia
-                </a>
-              )}
-              {(cat as any).sourceType === 'ai_synthesized' && (
-                <Badge variant="outline" className="text-[11px] text-amber-300/80 border-amber-500/40 bg-amber-500/10" title="No Wikipedia match — this category's source was synthesized by the AI">
-                  <Sparkles className="w-3 h-3 mr-0.5" />
-                  AI fact-sheet
-                </Badge>
-              )}
+              <CategorySourceChip category={cat as unknown as LooseCategory} />
               <div className="flex-1" />
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
@@ -693,6 +683,12 @@ function CategoriesPreview({
                             <AlertCircle className="w-3 h-3" /> Duplicate
                           </Badge>
                         )}
+                      </div>
+                    )}
+                    {/* Quotes usually contain the answer, so they follow the answers toggle. */}
+                    {showAnswers && (
+                      <div className="mt-2 pl-16">
+                        <ClueSources clue={clue} category={cat.title} />
                       </div>
                     )}
                   </li>
@@ -1066,6 +1062,7 @@ export function AIPreviewDialog({
             <summary className="cursor-pointer text-slate-200">Final Jeopardy · {data.finalJeopardy.category} <VerificationBadge clue={{ ...data.finalJeopardy, value: 0 }} category={data.finalJeopardy.category} /></summary>
             <p className="mt-2">{data.finalJeopardy.clue}</p>
             <p className="mt-1 font-semibold">{data.finalJeopardy.response}</p>
+            <div className="mt-2"><ClueSources clue={data.finalJeopardy} category={data.finalJeopardy.category} /></div>
           </details>
         )}
         {data.finalWarning && <p className="text-sm text-amber-300">{data.finalWarning}</p>}

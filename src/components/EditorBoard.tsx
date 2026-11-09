@@ -1,4 +1,5 @@
 import { VerificationBadge } from './ai/VerificationBadge';
+import { CategorySourceChip, ClueSources } from './ai/SourceChips';
 import { useState, useEffect, useCallback, useMemo, useRef, type DragEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import type { Game, Category, Clue } from '@/lib/storage';
 import {
-  Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check, BookOpen,
+  Save, Home, Plus, MoreVertical, X, Wand2, Sparkles, RefreshCw, Dice1, AlertCircle, Check,
   Eye, EyeOff, PencilLine, ChevronLeft, ChevronRight, Users, ChevronDown, Zap, GripVertical, History,
 } from 'lucide-react';
 import { useAIGeneration } from '@/lib/ai';
@@ -1089,7 +1090,6 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
             style={{ gridTemplateColumns: `repeat(${Math.max(categories.length, 1)}, minmax(168px, 1fr))` }}
           >
             {categories.map((category, index) => {
-              const catSource = (category as any)?.sourceType as string | undefined;
               const indicator = dropIndicator(index);
               return (
                 <div
@@ -1151,16 +1151,7 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
                       </button>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      {catSource === 'retrieved' && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-white/70" title="Grounded in Wikipedia">
-                          <BookOpen className="h-3 w-3" /> Wikipedia
-                        </span>
-                      )}
-                      {catSource === 'ai_synthesized' && (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-200/90" title="No Wikipedia match, AI fact-sheet source">
-                          <Sparkles className="h-3 w-3" /> AI fact-sheet
-                        </span>
-                      )}
+                      <CategorySourceChip category={category} onDark />
                       {aiAvailable && (
                         <button
                           type="button"
@@ -1292,7 +1283,6 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
                   Empty for older saved games without provenance data. */}
               {(() => {
                 const prov = (currentClue.clue as any)?.provenance;
-                const srcType = (currentClue.category as any)?.sourceType;
                 return (
                   <div className="flex flex-wrap gap-2">
                     <VerificationBadge clue={currentClue.clue} category={currentClue.category.title} />
@@ -1306,19 +1296,14 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
                         <Check className="w-3 h-3 mr-0.5" /> Curated
                       </Badge>
                     )}
-                    {srcType === 'retrieved' && (
-                      <Badge variant="outline" className="text-emerald-400/80 border-emerald-500/40 bg-emerald-500/10 text-[11px]">
-                        <BookOpen className="w-3 h-3 mr-0.5" /> Wikipedia
-                      </Badge>
-                    )}
-                    {srcType === 'ai_synthesized' && (
-                      <Badge variant="outline" className="text-amber-300/80 border-amber-500/40 bg-amber-500/10 text-[11px]" title="No Wikipedia match — AI fact-sheet source">
-                        <Sparkles className="w-3 h-3 mr-0.5" /> AI fact-sheet
-                      </Badge>
-                    )}
+                    <CategorySourceChip category={currentClue.category} />
                   </div>
                 );
               })()}
+
+              {currentClue.clue && (
+                <ClueSources clue={currentClue.clue} category={currentClue.category.title} />
+              )}
 
               <div>
                 <label className="text-sm font-medium text-slate-300 mb-1 block">Value</label>

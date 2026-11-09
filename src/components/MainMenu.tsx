@@ -1,3 +1,4 @@
+import { EMPTY_RESEARCH, foldProgress, type ResearchAcc } from '@/components/wizard/researchProgress';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth, useUser, SignInButton, SignedOut, enableDevAuthBypass } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -152,6 +153,9 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
   const wizardRunRef = useRef(0);
   const wizardAbortRef = useRef<AbortController | null>(null);
   const [generationEvent, setGenerationEvent] = useState<GenerationProgress | null>(null);
+  // Sources, warnings and repairs folded from EVERY event (React batches same-tick events, so the latest
+  // event alone would drop e.g. "found N sources" when the next stage starts immediately).
+  const [generationResearch, setGenerationResearch] = useState<ResearchAcc>(EMPTY_RESEARCH);
   useEffect(() => () => wizardAbortRef.current?.abort(), []);
   const [wizardStage, setWizardStage] = useState<string>('');
   // Per-source progress for multi-source generation. Null for single-source
@@ -747,6 +751,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
     const controller = new AbortController();
     wizardAbortRef.current = controller;
     setGenerationEvent(null);
+    setGenerationResearch(EMPTY_RESEARCH);
     const runStarted = Date.now();
     const runId = ++wizardRunRef.current;
     const isStale = () => runId !== wizardRunRef.current || controller.signal.aborted;
@@ -759,6 +764,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
       onProgress: event => {
         if (isStale()) return;
         setGenerationEvent(event);
+        setGenerationResearch(prev => foldProgress(prev, event));
         if (event.message) setWizardStage(event.message);
       },
     };
@@ -1207,6 +1213,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
     wizardAbortRef.current?.abort();
     wizardAbortRef.current = null;
     setGenerationEvent(null);
+    setGenerationResearch(EMPTY_RESEARCH);
     // Invalidate late callbacks as a backstop to transport cancellation.
     wizardRunRef.current += 1;
     setIsWizardGenerating(false);
@@ -2598,6 +2605,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
         isLoading={isWizardGenerating}
         loadingStage={wizardStage}
         generationEvent={generationEvent}
+        research={generationResearch}
         progress={wizardProgress}
         error={wizardError}
         onRetry={handleWizardRetry}
