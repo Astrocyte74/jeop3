@@ -161,6 +161,18 @@ export function GameBoard({
   const showFinalPrompt = finalPending && !finalPromptDismissed;
   const reducedMotion = prefersReducedMotion();
 
+  // When the pick passes to another team (after a wrong answer or a rotation), pulse that team's card
+  // so the room can see who is up.
+  const [pulseTeamId, setPulseTeamId] = useState<string | null>(null);
+  const prevActiveTeam = useRef(state.activeTeamId);
+  useEffect(() => {
+    if (prevActiveTeam.current === state.activeTeamId) return;
+    prevActiveTeam.current = state.activeTeamId;
+    setPulseTeamId(state.activeTeamId);
+    const t = window.setTimeout(() => setPulseTeamId(null), 1800);
+    return () => window.clearTimeout(t);
+  }, [state.activeTeamId]);
+
   // ---- Keyboard control of the board ----
   // Arrows move a highlight between playable tiles (played tiles are skipped, empty columns too),
   // Home/End jump to the first/last column (same row, or the nearest playable row), Enter/Space opens
@@ -569,42 +581,72 @@ export function GameBoard({
           </div>
         </div>
       )}
-      {/* Menu dropdown - top right, absolute positioned */}
-      <div className="absolute top-4 right-4 z-10 flex gap-2">
-        {allPlayed && !finalPending && finaleDismissed && (
-          <Button variant="outline" size="sm" className="border-yellow-500/50 bg-slate-900/50 text-yellow-400" onClick={() => setFinaleDismissed(false)} aria-label="Show final results">
-            <Trophy className="w-5 h-5" />
-          </Button>
-        )}
-        {finalPending && finalPromptDismissed && (
-          <Button variant="outline" size="sm" className="border-yellow-500/50 bg-slate-900/50 text-yellow-400" onClick={() => setFinalPromptDismissed(false)} aria-label="Show Final Jeopardy">
-            <Trophy className="w-5 h-5" />
-            Final Jeopardy
-          </Button>
-        )}
+      {/* Header: Undo / Home on the left, the title in the middle, Host view / Settings on the right */}
+      <header className="board-header max-w-[1800px] mx-auto">
+        <div className="board-header-side">
         {onUndo && (
           <Button
             variant="outline"
-            size="sm"
-            className="border-slate-700 bg-slate-900/50"
+            className="board-ctl"
             onClick={onUndo}
             disabled={!canUndo}
             aria-label="Undo last clue"
             title="Undo last clue (Ctrl/Cmd+Z)"
           >
             <Undo2 className="w-5 h-5" />
+            <span>Undo</span>
           </Button>
         )}
-        <OpenHostButton variant="outline" className="border-slate-700 bg-slate-900/50" />
-        {/* Home button */}
-        <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit} aria-label="Back to main menu">
+        <Button variant="outline" className="board-ctl" onClick={onExit} aria-label="Back to main menu" title="Back to the game library">
           <Home className="w-5 h-5" />
+          <span>Home</span>
         </Button>
-
+        </div>
+        <div className="board-header-title">
+          <div className="flex items-center justify-center gap-4 flex-wrap">
+            <h1
+              className="text-3xl md:text-5xl text-yellow-500 tracking-wide"
+              style={{ fontFamily: 'var(--font-board)', fontWeight: 400, textShadow: '0 4px 0 rgba(0,0,0,0.45), 0 0 30px rgba(255,200,0,0.18)' }}
+            >
+              {game.title}
+            </h1>
+            {gameMode === 'snake' && (
+              <span className="text-4xl animate-pulse" title="Snake Mode Active">🐍</span>
+            )}
+          </div>
+          {game.subtitle && (
+            <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
+          )}
+          {gameMode === 'snake' && (
+            <p className="text-xs text-green-400 font-medium mt-1">🐍 Snake Mode: Navigate to the correct answer!</p>
+          )}
+          {!allPlayed && totalClues > 0 && (
+            <p className="board-progress" role="status">
+              <span>{totalClues - usedCount} {totalClues - usedCount === 1 ? 'clue' : 'clues'} left</span>
+              {finalAvailable && !!game.finalJeopardy && totalClues - usedCount <= 5 && (
+                <span className="board-progress-final">Final Jeopardy next</span>
+              )}
+            </p>
+          )}
+        </div>
+        <div className="board-header-side board-header-side--end">
+        {allPlayed && !finalPending && finaleDismissed && (
+          <Button variant="outline" className="board-ctl border-yellow-500/50 text-yellow-400" onClick={() => setFinaleDismissed(false)} aria-label="Show final results">
+            <Trophy className="w-5 h-5" />
+          </Button>
+        )}
+        {finalPending && finalPromptDismissed && (
+          <Button variant="outline" className="board-ctl border-yellow-500/50 text-yellow-400" onClick={() => setFinalPromptDismissed(false)} aria-label="Show Final Jeopardy">
+            <Trophy className="w-5 h-5" />
+            Final Jeopardy
+          </Button>
+        )}
+        <OpenHostButton variant="outline" size="default" label="Host view" className="board-ctl" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" aria-label="Game settings">
+            <Button variant="outline" className="board-ctl" aria-label="Game settings" title="Game settings">
               <SettingsIcon className="w-5 h-5" />
+              <span>Settings</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-64">
@@ -869,34 +911,12 @@ export function GameBoard({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
-
-      {/* Header with title + whose pick it is */}
-      <div className="max-w-[1800px] mx-auto mb-3 md:mb-5 pt-12 md:pt-0">
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            <h1
-              className="text-3xl md:text-5xl text-yellow-500 tracking-wide"
-              style={{ fontFamily: 'var(--font-board)', fontWeight: 400, textShadow: '0 4px 0 rgba(0,0,0,0.45), 0 0 30px rgba(255,200,0,0.18)' }}
-            >
-              {game.title}
-            </h1>
-            {gameMode === 'snake' && (
-              <span className="text-4xl animate-pulse" title="Snake Mode Active">🐍</span>
-            )}
-          </div>
-          {game.subtitle && (
-            <p className="text-sm md:text-base text-slate-300 font-medium">{game.subtitle}</p>
-          )}
-          {gameMode === 'snake' && (
-            <p className="text-xs text-green-400 font-medium mt-1">🐍 Snake Mode: Navigate to the correct answer!</p>
-          )}
         </div>
-      </div>
+      </header>
 
       {/* Game board */}
-      <div className="max-w-[1800px] mx-auto mb-6">
-        <div className="board-wrap">
+      <div className="max-w-[1800px] mx-auto mb-3">
+        <div className="board-wrap" style={{ ['--board-rows' as string]: rowCount + 1 }}>
           <div
             ref={boardRef}
             onPointerDown={() => setNavActive(false)}
@@ -955,7 +975,7 @@ export function GameBoard({
                       style={{ ['--order' as string]: rowIndex * categories.length + categoryIndex }}
                       aria-label={`${category.title} for ${formatMoney(clue.value)}${used ? ' (played)' : ''}`}
                     >
-                      {formatMoney(clue.value)}
+                      {used ? null : formatMoney(clue.value)}
                     </button>
                   </div>
                 );
@@ -966,7 +986,7 @@ export function GameBoard({
       </div>
 
       {/* Scoreboard Bottom Bar (TV Style) */}
-      <div className="w-full bg-slate-900/80 backdrop-blur-sm border-t border-slate-700 sticky bottom-0 z-50 mt-8">
+      <div className="w-full bg-slate-900/80 backdrop-blur-sm border-t border-slate-700 sticky bottom-0 z-50 mt-2">
         {!allPlayed && (
           <div
             className={`board-hint ${hintVisible && !revealing ? '' : 'is-hidden'}`}
@@ -988,8 +1008,8 @@ export function GameBoard({
             </button>
           </div>
         )}
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="group flex items-center justify-center gap-3 flex-wrap">
+        <div className="max-w-[1800px] mx-auto px-4 py-3">
+          <div className="board-teams group">
             {state.teams.map((team, teamIndex) => {
               const tc = teamColor(teamIndex);
               // Crown whoever holds the top positive score (ties share it)
@@ -1001,7 +1021,7 @@ export function GameBoard({
                   key={team.id}
                   className={`team-card relative group rounded-xl border-2 ${
                     state.activeTeamId === team.id ? 'is-active' : ''
-                  } ${editingTeamId === team.id || editingScoreTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
+                  } ${pulseTeamId === team.id ? 'is-pulse' : ''} ${editingTeamId === team.id || editingScoreTeamId === team.id ? 'ring-2 ring-yellow-500' : ''}`}
                   style={{ ['--tc' as string]: tc.main, ['--tc-on' as string]: tc.onMain, ['--tc-soft' as string]: tc.soft }}
                 >
                   {state.activeTeamId === team.id && !allPlayed && <span className="team-tag">Picks</span>}
@@ -1167,7 +1187,7 @@ export function GameBoard({
                     /* Normal Display Mode */
                     <button
                       onClick={() => onSetActiveTeam(team.id)}
-                      className="px-4 py-2.5 min-w-[160px] lg:min-w-[240px] w-full text-left flex items-center gap-3"
+                      className="team-main w-full text-left flex items-center gap-3"
                     >
                       <span className="team-avatar" aria-hidden="true">{teamInitials(team.name)}</span>
                       <span className="min-w-0 block">

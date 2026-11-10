@@ -20,7 +20,8 @@
 }
 
 .cell {
-  min-height: clamp(64px, 11vh, 132px);
+  /* Rows share the height left under the header and above the team strip, so the whole board fits. */
+  min-height: clamp(60px, calc((100vh - 385px) / var(--board-rows, 6)), 132px);
   display: flex;
   align-items: stretch;
   justify-content: stretch;
@@ -28,7 +29,7 @@
 
 /* Category header: board display face, readable across a room */
 .cell-header {
-  min-height: clamp(64px, 10.5vh, 128px);
+  min-height: clamp(56px, calc((100vh - 385px) / var(--board-rows, 6)), 128px);
   align-items: center;
   justify-content: center;
   padding: 10px clamp(8px, 1vw, 20px);
@@ -215,6 +216,85 @@
   }
 }
 
+/* ---- Board header: controls either side of the title ---- */
+.board-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px clamp(12px, 2vw, 32px);
+  margin-bottom: clamp(8px, 1.4vh, 18px);
+}
+.board-header-side {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.board-header-side--end {
+  justify-content: flex-end;
+}
+.board-header-title {
+  min-width: 0;
+  max-width: min(62vw, 980px);
+  text-align: center;
+}
+.board-ctl {
+  height: 46px;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 16px;
+  font-weight: 600;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(15, 23, 42, 0.6);
+  color: rgba(255, 255, 255, 0.9);
+}
+.board-ctl:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.board-ctl:disabled {
+  opacity: 0.4;
+}
+.board-progress {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 0 0;
+  font-size: clamp(13px, 1.1vw, 18px);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.62);
+}
+.board-progress-final {
+  padding: 2px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--theme-gold, #ffd700) 60%, transparent);
+  background: color-mix(in oklab, var(--theme-gold, #ffd700) 14%, transparent);
+  color: var(--theme-gold, #ffd700);
+  font-size: 0.92em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+@media (max-width: 1100px) {
+  .board-ctl span {
+    display: none;
+  }
+  .board-ctl {
+    padding: 0 12px;
+  }
+}
+@media (max-width: 760px) {
+  .board-header {
+    grid-template-columns: 1fr 1fr;
+  }
+  .board-header-title {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    max-width: none;
+  }
+}
+
 /* ---- Scoreboard ---- */
 .team-card {
   --tc: #90a4ae;
@@ -324,6 +404,56 @@
   line-height: 1.05;
   font-variant-numeric: tabular-nums;
   transform-origin: left center;
+}
+
+/* The strip along the bottom of the board is read from the couch: big cards that share the width. */
+.board-teams {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: clamp(10px, 1.4vw, 28px);
+}
+.board-teams .team-card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 560px;
+}
+.team-main {
+  padding: clamp(10px, 1.5vh, 20px) clamp(14px, 1.8vw, 34px);
+  gap: clamp(12px, 1.2vw, 22px);
+}
+.board-teams .team-main {
+  min-height: clamp(72px, 10vh, 120px);
+}
+.board-teams .team-avatar {
+  width: clamp(44px, 4.3vw, 84px);
+  height: clamp(44px, 4.3vw, 84px);
+  font-size: clamp(18px, 1.9vw, 34px);
+}
+.board-teams .team-name {
+  font-size: clamp(18px, 1.95vw, 40px);
+}
+.board-teams .team-score {
+  font-size: clamp(32px, 3.6vw, 72px);
+}
+.board-teams .team-tag {
+  font-size: clamp(11px, 0.85vw, 15px);
+  top: -13px;
+}
+
+/* The pick just passed to this team: a ring that spreads out from the card */
+.team-card.is-pulse {
+  animation: team-pulse 1.6s ease-out 1;
+}
+@keyframes team-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--tc) 85%, transparent); transform: translateY(-3px) scale(1); }
+  25% { transform: translateY(-3px) scale(1.06); }
+  100% { box-shadow: 0 0 0 28px color-mix(in oklab, var(--tc) 0%, transparent); transform: translateY(-3px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-card.is-pulse {
+    animation: none;
+  }
 }
 
 .score-flash-gain {

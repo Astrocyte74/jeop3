@@ -41,7 +41,7 @@ export function TeamDock({ teams, inPlayId, steal, missedIds, interactive, locke
           return (
             <div
               key={team.id}
-              className={`team-card relative rounded-xl border-2 ${inPlay ? 'is-active' : ''} ${missed ? 'is-missed' : ''}`}
+              className={`team-card relative rounded-xl border-2 ${inPlay ? 'is-active' : ''} ${missed ? 'is-missed' : ''} ${inPlay && steal ? 'is-pulse' : ''}`}
               style={style}
             >
               {inPlay && <span className={`team-tag ${steal ? 'team-tag--steal' : ''}`}>{steal ? 'Steal' : 'Answering'}</span>}
