@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export type GameSort = 'newest' | 'oldest' | 'recentlyPlayed' | 'mostPlayed' | 'inProgress' | 'notStarted' | 'completed';
-export type StatusFilter = 'all' | 'inProgress' | 'new' | 'done';
+export type StatusFilter = 'all' | 'inProgress' | 'new' | 'done' | 'hidden';
 
 const SORTS: Array<{ key: GameSort; label: string }> = [
   { key: 'newest', label: 'Newest First' },
@@ -25,6 +25,7 @@ const FILTERS: Array<{ key: StatusFilter; label: string }> = [
   { key: 'inProgress', label: 'In progress' },
   { key: 'new', label: 'Not started' },
   { key: 'done', label: 'Finished' },
+  { key: 'hidden', label: 'Hidden' },
 ];
 
 interface LibraryToolbarProps {
@@ -65,7 +66,7 @@ export function LibraryToolbar({ searchQuery, onSearchChange, sort, onSortChange
       </div>
 
       <div role="group" aria-label="Filter by progress" className="flex items-center gap-1 rounded-lg bg-black/25 p-1">
-        {FILTERS.map((f) => (
+        {FILTERS.filter((f) => f.key !== 'hidden' || counts.hidden > 0 || filter === 'hidden').map((f) => (
           <button
             key={f.key}
             type="button"

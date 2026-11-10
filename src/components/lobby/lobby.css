@@ -186,7 +186,7 @@
    fifteen boards reads as a calm shelf. Hue survives as a hint, not a flood. */
 .lobby-miniboard-cover { --tile-a: hsl(var(--hue) 28% 36%); --tile-b: hsl(var(--hue) 32% 24%); gap: 3px; width: 100%; }
 .lobby-miniboard-cover .lobby-mini-head { height: 0.7rem; background: linear-gradient(160deg, hsl(var(--hue) 34% 44%), hsl(var(--hue) 36% 30%)); }
-.lobby-miniboard-cover .lobby-mini-tile { height: 0.85rem; border-radius: 3px; }
+.lobby-miniboard-cover .lobby-mini-tile { height: 0.7rem; border-radius: 3px; }
 .lobby-miniboard-cover .lobby-mini-tile:not(.is-used) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14); }
 
 /* ---------- game cards ---------- */
@@ -223,9 +223,11 @@
 .lobby-card-cover {
   position: relative;
   display: flex;
-  align-items: center;
-  height: 6.25rem;
-  padding: 0.85rem 0.9rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.55rem;
+  height: 7.4rem;
+  padding: 0.8rem 0.9rem 0.95rem;
   background:
     radial-gradient(120% 140% at 20% 0%, hsl(var(--hue) 34% 26% / 0.5), transparent 70%),
     hsl(var(--hue) 22% 10%);
@@ -324,4 +326,97 @@
   .lobby-theme-thumb {
     transition: none;
   }
+}
+
+/* Category names on a cover, so two boards never look alike */
+.lobby-cover-cats {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0 2.2rem 0 0;
+  list-style: none;
+  overflow: hidden;
+}
+.lobby-cover-cats li {
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: hsl(var(--hue) 30% 30% / 0.55);
+  border: 1px solid hsl(var(--hue) 40% 60% / 0.28);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lobby-cover-cats li.lobby-cover-more {
+  flex: none;
+  background: transparent;
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* ---------- first-run help ---------- */
+.lobby-howto {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1rem 1.2rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--lb-accent) 35%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lb-accent) 12%, transparent), rgba(255, 255, 255, 0.02));
+}
+.lobby-howto-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lb-accent);
+}
+.lobby-howto-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.6rem, 1fr));
+  gap: 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lobby-howto-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+.lobby-howto-steps li > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.62);
+}
+.lobby-howto-steps strong {
+  font-size: 0.95rem;
+  color: #fff;
+}
+.lobby-howto-num {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--lb-accent);
+  color: var(--lb-on-accent);
+  font-weight: 800;
+  font-size: 0.9rem;
 }

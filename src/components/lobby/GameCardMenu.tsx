@@ -1,4 +1,4 @@
-import { MoreVertical, Play, Edit, Info, Download, RotateCcw, Trash2 } from 'lucide-react';
+import { MoreVertical, Play, Edit, Info, Download, RotateCcw, Trash2, EyeOff, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -16,12 +16,15 @@ interface GameCardMenuProps {
   onInfo?: () => void;
   onExport: () => void;
   onReset: () => void;
+  /** Hidden games leave the library shelf (nothing is deleted) and live under the Hidden filter. */
+  hidden?: boolean;
+  onToggleHidden?: () => void;
   /** Only provided for custom games */
   onDelete?: () => void;
 }
 
 /** The per-game "..." menu. Handlers are owned by MainMenu. */
-export function GameCardMenu({ onOpen, onPlay, onEditBoard, onInfo, onExport, onReset, onDelete }: GameCardMenuProps) {
+export function GameCardMenu({ onOpen, onPlay, onEditBoard, onInfo, onExport, onReset, hidden = false, onToggleHidden, onDelete }: GameCardMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -68,6 +71,13 @@ export function GameCardMenu({ onOpen, onPlay, onEditBoard, onInfo, onExport, on
           <RotateCcw className="mr-2 size-4 text-orange-400" />
           <span>Reset Progress</span>
         </DropdownMenuItem>
+
+        {onToggleHidden && (
+          <DropdownMenuItem onClick={onToggleHidden}>
+            {hidden ? <Eye className="mr-2 size-4 text-sky-400" /> : <EyeOff className="mr-2 size-4 text-slate-400" />}
+            <span>{hidden ? 'Unhide' : 'Hide from library'}</span>
+          </DropdownMenuItem>
+        )}
 
         {onDelete && (
           <>

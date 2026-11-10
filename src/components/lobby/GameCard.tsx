@@ -30,6 +30,14 @@ export function GameCard({ game, selected, onSelect, onPlay, menu }: GameCardPro
         className="lobby-card-btn flex w-full flex-col text-left"
       >
         <div className="lobby-card-cover" style={{ ['--hue' as string]: game.hue }}>
+          {game.categoryTitles.length > 0 && (
+            <ul className="lobby-cover-cats" aria-label="Categories">
+              {game.categoryTitles.slice(0, 3).map((title, i) => (
+                <li key={`${i}-${title}`} title={title}>{title}</li>
+              ))}
+              {game.categoryTitles.length > 3 && <li className="lobby-cover-more">+{game.categoryTitles.length - 3}</li>}
+            </ul>
+          )}
           <MiniBoard game={game} variant="cover" />
           {game.status !== 'new' && (
             <div

@@ -43,6 +43,8 @@ import { GameHero } from './lobby/GameHero';
 import { GameCard } from './lobby/GameCard';
 import { GameCardMenu } from './lobby/GameCardMenu';
 import { NewGameCard } from './lobby/NewGameCard';
+import { HowItWorks } from './lobby/HowItWorks';
+import { setGameHidden, useHiddenGames } from '@/lib/hiddenGames';
 import { TeamRoster } from './lobby/TeamRoster';
 import { TableSettings } from './lobby/TableSettings';
 import { AccountMenu } from './lobby/AccountMenu';
@@ -128,6 +130,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [gameSort, setGameSort] = useState<GameSort>('newest');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const hiddenIds = useHiddenGames();
   const [teams, setTeams] = useState<Team[]>([
     { id: '1', name: 'Team 1', score: 0 },
     { id: '2', name: 'Team 2', score: 0 },
@@ -2301,14 +2304,30 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
 
   // Presentation-only derived data for the lobby (progress rings, hero preview, filter chips)
   const summaryById = new Map(games.map((g) => [g.id, summarizeGame(g)]));
-  const statusCounts: Record<StatusFilter, number> = { all: sortedGames.length, inProgress: 0, new: 0, done: 0 };
-  for (const g of sortedGames) {
+  // Hidden games leave the shelf (nothing is deleted); they show only under the Hidden filter.
+  const visibleGames = sortedGames.filter((g) => !hiddenIds.has(g.id));
+  const statusCounts: Record<StatusFilter, number> = {
+    all: visibleGames.length, inProgress: 0, new: 0, done: 0, hidden: sortedGames.length - visibleGames.length,
+  };
+  for (const g of visibleGames) {
     const st = summaryById.get(g.id)?.status;
     if (st) statusCounts[st]++;
   }
-  const shelfGames = sortedGames.filter(
-    (g) => statusFilter === 'all' || summaryById.get(g.id)?.status === statusFilter,
-  );
+  const shelfGames =
+    statusFilter === 'hidden'
+      ? sortedGames.filter((g) => hiddenIds.has(g.id))
+      : visibleGames.filter((g) => statusFilter === 'all' || summaryById.get(g.id)?.status === statusFilter);
+  // First run: the library holds only the built-in boards, so show how it works beside "New game".
+  const firstRun = !gamesLoading && games.length > 0 && games.every((g) => g.source === 'index');
+  const toggleHidden = (id: string) => {
+    const hide = !hiddenIds.has(id);
+    setGameHidden(id, hide);
+    // Don't leave a game that just left the shelf selected in the hero.
+    if (hide && selectedGameId === id) {
+      const next = visibleGames.find((g) => g.id !== id);
+      if (next) setSelectedGameId(next.id);
+    }
+  };
   const selectedSummary = selectedGameId ? summaryById.get(selectedGameId) ?? null : null;
 
   const handleCreateClick = () => {
@@ -2537,7 +2556,8 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
               </>
             ) : (
               <>
-                <NewGameCard onClick={handleCreateClick} disabled={aiLoading} />
+                {statusFilter !== 'hidden' && <NewGameCard onClick={handleCreateClick} disabled={aiLoading} />}
+                {firstRun && statusFilter !== 'hidden' && <HowItWorks />}
                 {shelfGames.map((game) => {
                   const gameData = customGamesNow.find((g) => g.id === game.id);
                   const summary = summaryById.get(game.id);
@@ -2563,6 +2583,8 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
                           onInfo={gameData?.game?.metadata ? () => setGameInfoMetadata(gameData?.game?.metadata) : undefined}
                           onExport={() => handleExportGame(game)}
                           onReset={() => handleResetGame(game.id)}
+                          hidden={hiddenIds.has(game.id)}
+                          onToggleHidden={() => toggleHidden(game.id)}
                           onDelete={game.source === 'custom' ? () => handleDeleteGame(game.id) : undefined}
                         />
                       }
@@ -2571,7 +2593,22 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
                 })}
                 {shelfGames.length === 0 && games.length > 0 && (
                   <div className="col-span-full flex flex-col items-start gap-2 rounded-2xl border border-dashed border-white/15 p-6 text-sm text-white/65">
-                    <span>No games match{searchQuery ? ` "${searchQuery}"` : ' this filter'}.</span>
+                    <span>
+                      {statusFilter === 'hidden' && !searchQuery
+                        ? 'No hidden games.'
+                        : statusFilter === 'all' && !searchQuery && visibleGames.length === 0 && statusCounts.hidden > 0
+                          ? 'Every game is hidden. Nothing was deleted.'
+                          : `No games match${searchQuery ? ` "${searchQuery}"` : ' this filter'}.`}
+                    </span>
+                    {statusFilter === 'all' && !searchQuery && visibleGames.length === 0 && statusCounts.hidden > 0 && (
+                      <button
+                        type="button"
+                        className="text-[var(--lb-accent)] underline underline-offset-4"
+                        onClick={() => setStatusFilter('hidden')}
+                      >
+                        Show hidden games
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="text-[var(--lb-accent)] underline underline-offset-4"
