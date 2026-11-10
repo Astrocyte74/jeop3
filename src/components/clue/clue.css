@@ -1129,3 +1129,18 @@
   18% { opacity: 1; transform: translate(-50%, -75%) scale(1.15); }
   100% { opacity: 1; transform: translate(-50%, -135%) scale(1); }
 }
+
+/* A host window is judging from its own screen; the TV waits quietly. */
+.cs-host-judging {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: clamp(18px, 2.6vh, 28px);
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.6);
+  animation: cs-hint-breathe 2.6s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cs-host-judging {
+    animation: none;
+  }
+}

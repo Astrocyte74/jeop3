@@ -9,7 +9,7 @@ import { setClueTimerSecs, useClueTimerSecs } from '@/lib/clueTimerSettings';
 import { toggleClueHints, useClueHints } from '@/lib/clueHintsSettings';
 import { playSfx } from '@/lib/sfx';
 import { useFitText } from '@/components/clue/useFitText';
-import { ThinkTimer } from '@/components/clue/ThinkTimer';
+import { ThinkTimer, type ThinkTimerControl, type ThinkTimerState } from '@/components/clue/ThinkTimer';
 import { TeamDock } from '@/components/clue/TeamDock';
 import { AnswerActions } from '@/components/clue/AnswerActions';
 import { clueAttemptsReducer, emptyClueAttempts, type ClueAttempts } from '@/lib/clueAttempts';
@@ -18,10 +18,13 @@ import { teamColor } from '@/lib/teamColors';
 import { DailyDoubleSplash } from '@/components/clue/DailyDoubleSplash';
 import { WagerPanel } from '@/components/clue/WagerPanel';
 import { DailyDoubleScoring } from '@/components/clue/DailyDoubleScoring';
-import { wagerCap } from '@/components/clue/wager';
+import { isLegalWager, wagerCap } from '@/components/clue/wager';
 import { recentTileRect } from '@/components/clue/tileOrigin';
 import { formatMoney } from '@/lib/money';
 import { setScorePreviews } from '@/lib/scorePreview';
+import { useHostConnected } from '@/lib/hostLink/hostPresence';
+import { publishClueRuntime, registerClueHandler, type ClueHostCommand } from '@/lib/hostLink/clueBridge';
+import type { HostClueRuntime } from '@/lib/hostLink/protocol';
 import '@/components/clue/clue.css';
 import '@/components/clue/dailyDouble.css';
 
@@ -93,6 +96,10 @@ export function ClueDialog({
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
   const [hintUsed, setHintUsed] = useState(judgeHintUsed);
+  // A host window is judging from its own screen: the TV hides Correct / Wrong and waits.
+  const hostConnected = useHostConnected();
+  const timerControl = useRef<ThinkTimerControl | null>(null);
+  const [timerState, setTimerState] = useState<ThinkTimerState | null>(null);
   // Shortcut chips and explanatory notes stay hidden until asked for ('?' or the help button). The choice
   // is a remembered device preference, so it holds from clue to clue until the host changes it.
   const showHints = useClueHints();
@@ -301,18 +308,27 @@ export function ClueDialog({
     [],
   );
 
+  // `implicit` is for the host window, which can give a verdict without a separate "judge" step first.
   const awardTeam = useCallback(
-    (teamId: string) => {
-      if (settling || !canJudge || attempts.finished || missedIds.includes(teamId)) return;
+    (teamId: string, implicit = false) => {
+      if (settling || attempts.finished || missedIds.includes(teamId)) return;
+      if (!canJudge) {
+        if (!implicit) return;
+        dispatchAttempt({ type: 'advance', allowSteal: rules.allowSteal });
+      }
       dispatchAttempt({ type: 'correct', teamId });
       playSfx(missedIds.length > 0 ? 'fanfare' : 'correct');
     },
-    [settling, canJudge, attempts.finished, missedIds],
+    [settling, canJudge, attempts.finished, missedIds, rules.allowSteal],
   );
 
   const deductTeam = useCallback(
-    (teamId: string) => {
-      if (settling || !canJudge || attempts.finished) return;
+    (teamId: string, implicit = false) => {
+      if (settling || attempts.finished) return;
+      if (!canJudge) {
+        if (!implicit) return;
+        dispatchAttempt({ type: 'advance', allowSteal: rules.allowSteal });
+      }
       if (missedIds.includes(teamId)) {
         dispatchAttempt({ type: 'undoMiss', teamId });
         setPickedId(teamId);
@@ -364,8 +380,9 @@ export function ClueDialog({
     [settling, lockedWager, lockedTeamId],
   );
 
-  const skipClue = useCallback(() => {
-    if (settling || !canJudge || attempts.finished || !latest.current.onSkipClue) return;
+  const skipClue = useCallback((implicit = false) => {
+    if (settling || attempts.finished || !latest.current.onSkipClue) return;
+    if (!canJudge && !implicit) return;
     dispatchAttempt({ type: 'nobody' });
     playSfx('select');
   }, [settling, canJudge, attempts.finished]);
@@ -400,6 +417,8 @@ export function ClueDialog({
     return known(pickedId) ?? snakeTeam ?? known(openerId) ?? teams[0].id;
   }, [teams, missedIds, pickedId, stealId, hasSnakeResult, snakeGameResult, openerId, attempts.finished, attempts.winnerId]);
   const inPlayIndex = teams.findIndex((t) => t.id === inPlayId);
+  // The countdown stops while the host judges an answer, and starts afresh for each stealing team.
+  const timerHeld = !dd && attempts.judging && missedIds.length === 0;
 
   // Score change given by the verdicts so far. Shown at once on the team cards; the real score is
   // still applied by settle()/scoreDailyDouble() on Continue, so undo and steal logic are unchanged.
@@ -432,6 +451,94 @@ export function ClueDialog({
     },
     [settling, attempts.finished, missedIds],
   );
+
+  // --- Host window -----------------------------------------------------------
+  // What the host window needs to know that only this screen has.
+  const runtime = useMemo<HostClueRuntime>(
+    () => ({
+      ddPhase: dd ? ddPhase : null,
+      wager: lockedWager,
+      wagerTeamId: lockedTeamId ?? (dd ? wagerTeam?.id ?? null : null),
+      wagerCap: cap,
+      revealed: showResponse,
+      judging: attempts.judging,
+      finished: attempts.finished,
+      settling,
+      misses: attempts.misses,
+      winnerId: attempts.winnerId,
+      inPlayId: dd ? (lockedTeamId ?? wagerTeam?.id ?? null) : inPlayId,
+      timer:
+        timerSecs > 0 && !hasSnakeResult && !ddPre
+          ? {
+              secondsLeft: timerState?.secondsLeft ?? timerSecs,
+              total: timerSecs,
+              paused: timerState?.paused ?? false,
+              held: timerHeld,
+              expired: timerState?.expired ?? false,
+            }
+          : null,
+    }),
+    [dd, ddPhase, ddPre, lockedWager, lockedTeamId, wagerTeam?.id, cap, showResponse, attempts, settling, inPlayId, timerSecs, hasSnakeResult, timerState, timerHeld],
+  );
+  useEffect(() => {
+    publishClueRuntime(isOpen ? runtime : null);
+  }, [isOpen, runtime]);
+  useEffect(() => () => publishClueRuntime(null), []);
+
+  // Commands from the host window run through the very same actions as the buttons and keys here, so
+  // the rules, steal order, sounds and undo behave identically. Latest actions are kept in a ref.
+  const hostHandler = useRef<(command: ClueHostCommand) => void>(() => {});
+  useEffect(() => {
+    hostHandler.current = (command) => {
+      switch (command.type) {
+        case 'ddContinue':
+          skipSplash();
+          return;
+        case 'ddWager':
+          if (dd && ddPhase === 'wager' && isLegalWager(command.amount, cap)) lockWager(command.amount);
+          return;
+        case 'closeClue':
+          latest.current.onClose();
+          return;
+        case 'timer':
+          if (command.action === 'pause') timerControl.current?.pause();
+          else if (command.action === 'resume') timerControl.current?.resume();
+          else timerControl.current?.addSeconds(command.seconds ?? 10);
+          return;
+      }
+      if (ddPre) return;
+      switch (command.type) {
+        case 'judge':
+          if (!showResponseRef.current) advanceClue();
+          return;
+        case 'setAnswering':
+          if (!dd) selectTeam(command.teamId);
+          return;
+        case 'continue':
+          if (!dd) finishClue();
+          return;
+        case 'nobody':
+          if (!dd) skipClue(true);
+          return;
+        case 'correct':
+        case 'wrong': {
+          const correct = command.type === 'correct';
+          if (dd) {
+            // Only the wagering team can win or lose; the verdict may come before the reveal.
+            if (command.teamId !== lockedTeamId) return;
+            if (!showResponseRef.current) reveal();
+            scoreDailyDouble(correct);
+          } else if (correct) {
+            awardTeam(command.teamId, true);
+          } else if (!missedIds.includes(command.teamId)) {
+            deductTeam(command.teamId, true);
+          }
+          return;
+        }
+      }
+    };
+  });
+  useEffect(() => registerClueHandler((command) => hostHandler.current(command)), []);
 
   // --- Keyboard ------------------------------------------------------------
   useEffect(() => {
@@ -591,8 +698,6 @@ export function ClueDialog({
   const activeIconIndex = currentAnswerIconIndex;
   const activeIcon = activeIcons[activeIconIndex] || activeIcons[0];
   const timerRunning = isOpen && !showResponse && !hasSnakeResult;
-  // The countdown stops while the host judges an answer, and starts afresh for each stealing team.
-  const timerHeld = !dd && attempts.judging && missedIds.length === 0;
 
   return (
     <div
@@ -709,7 +814,7 @@ export function ClueDialog({
           <div className="cs-flip">
             <div className="cs-face cs-face--back" aria-hidden={showResponse}>
               {timerSecs > 0 && !hasSnakeResult && (
-                <ThinkTimer key={`${timerSecs}:${clue}:${missedIds.length}`} seconds={timerSecs} running={timerRunning} hold={timerHeld} stageRef={stageRef}
+                <ThinkTimer key={`${timerSecs}:${clue}:${missedIds.length}`} seconds={timerSecs} running={timerRunning} hold={timerHeld} stageRef={stageRef} controlRef={timerControl} onState={setTimerState}
                   onTimerChange={chooseTimer} />
               )}
               <button type="button" className="cs-reveal cs-hint-only" onClick={advanceClue} tabIndex={showResponse ? -1 : 0}>
@@ -806,10 +911,15 @@ export function ClueDialog({
                 outcome={ddOutcome}
                 onCorrect={() => scoreDailyDouble(true)}
                 onIncorrect={() => scoreDailyDouble(false)}
+                hostJudging={hostConnected}
               />
             )}
 
-            {!dd && !attempts.finished && teams.length > 0 && inPlayId && (
+            {!dd && !attempts.finished && teams.length > 0 && inPlayId && hostConnected && !settling && (
+              <p className="cs-host-judging" role="status">Host is judging…</p>
+            )}
+
+            {!dd && !attempts.finished && teams.length > 0 && inPlayId && !hostConnected && (
               <AnswerActions
                 value={value}
                 penalty={rules.wrongAnswerPenalty}
@@ -833,8 +943,8 @@ export function ClueDialog({
               <p className="cs-no-teams">No teams yet. Close the clue and add a team to keep score.</p>
             )}
 
-            {!dd && onSkipClue && teams.length > 0 && !attempts.finished && !settling && (
-              <button type="button" className="cs-skip" onClick={skipClue}>
+            {!dd && onSkipClue && teams.length > 0 && !attempts.finished && !settling && !hostConnected && (
+              <button type="button" className="cs-skip" onClick={() => skipClue()}>
                 {showResponse ? 'Nobody got it' : 'Nobody got it — reveal'}
                 <kbd className="cs-hint-only">0</kbd>
               </button>

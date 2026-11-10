@@ -13,6 +13,12 @@ import { applyTheme, getStoredTheme } from '@/lib/themes';
 import { iconMatcher } from '@/lib/iconMatcher';
 import { applyClueResult, applyFinalResults, boardMaxValue, createInitialState, markClueUsed, remapStateForEditedGame, type FinalOutcome } from '@/lib/gameState';
 import { type GameMode } from '@/components/GameModeMenu';
+import { getGameRules } from '@/lib/gameRules';
+import { playSfx } from '@/lib/sfx';
+import { getClueRuntime, runClueCommand } from '@/lib/hostLink/clueBridge';
+import { useTvHostLink } from '@/lib/hostLink/useHostLinks';
+import { HostConnectedBadge } from '@/components/host/HostConnectedBadge';
+import type { HostClue, HostClueRuntime, HostCommand, HostSnapshot } from '@/lib/hostLink/protocol';
 
 type AppMode = 'menu' | 'playing' | 'editing';
 
@@ -467,6 +473,81 @@ export function App() {
     setFinalOpen(false);
   }, []);
 
+  // ---- Host window ------------------------------------------------------------------------------
+  // The host window (?view=host) is a remote control: it gets snapshots of this game (including the
+  // answer and where the Daily Doubles are, which the TV never shows) and sends commands back. Commands
+  // run through the same handlers as this window's own buttons, and only while a host is connected.
+  const buildHostSnapshot = (): HostSnapshot => {
+    if (mode !== 'playing' || !currentGame || !gameState) return { game: null };
+    const rows = currentGame.rows || currentGame.categories[0]?.clues?.length || 5;
+    let cluesLeft = 0;
+    const categories = currentGame.categories.map((cat, ci) => ({
+      title: cat.title,
+      clues: Array.from({ length: rows }, (_, ri) => {
+        const cl = cat.clues?.[ri];
+        if (!cl) return null;
+        const id = `${ci}:${ri}`;
+        const used = !!gameState.used[id];
+        if (!used) cluesLeft += 1;
+        return { value: cl.value, used, dailyDouble: !!gameState.dailyDoubles?.includes(id) };
+      }),
+    }));
+    let clue: HostClue | null = null;
+    if (clueDialog.isOpen) {
+      const [c, r] = clueDialog.clueId.split(':').map(Number);
+      const cat = currentGame.categories[c];
+      const cl = cat?.clues?.[r];
+      if (cat && cl) {
+        const idle: HostClueRuntime = {
+          ddPhase: null, wager: null, wagerTeamId: null, wagerCap: 0, revealed: false, judging: false,
+          finished: false, settling: false, misses: [], winnerId: null, inPlayId: null, timer: null,
+        };
+        clue = {
+          ...(getClueRuntime() ?? idle),
+          c, r,
+          category: cat.title,
+          value: cl.value,
+          clue: cl.clue,
+          response: cl.response,
+          verification: cl.verification,
+          dailyDouble: !!gameState.dailyDoubles?.includes(clueDialog.clueId),
+        };
+      }
+    }
+    const fj = currentGame.finalJeopardy;
+    return {
+      game: {
+        title: currentGame.title,
+        board: { rows, categories },
+        teams: gameState.teams.map((t) => ({ id: t.id, name: t.name, score: t.score })),
+        activeTeamId: gameState.activeTeamId,
+        rules: getGameRules(),
+        canUndo: undoStack.length > 0,
+        cluesLeft,
+        final: fj ? { category: fj.category, clue: fj.clue, response: fj.response, open: finalOpen, done: !!gameState.final?.done } : null,
+        snakeOpen: triviaSnake.isOpen,
+        clue,
+      },
+    };
+  };
+
+  const handleHostCommand = (command: HostCommand) => {
+    const boardIdle = mode === 'playing' && !clueDialog.isOpen && !triviaSnake.isOpen && !finalOpen;
+    if (command.type === 'openClue') {
+      if (!boardIdle) return;
+      playSfx('select');
+      handleOpenClue(command.c, command.r);
+    } else if (command.type === 'undo') {
+      if (boardIdle) handleUndo();
+    } else {
+      runClueCommand(command);
+    }
+  };
+
+  useTvHostLink(buildHostSnapshot, handleHostCommand, [
+    mode, currentGame, gameState, clueDialog, triviaSnake.isOpen, finalOpen, undoStack.length,
+  ]);
+
   // Get current trivia snake data
   const getCurrentSnakeData = useCallback(() => {
     if (!triviaSnake.isOpen || !currentGame) return null;
@@ -492,6 +573,7 @@ export function App() {
     <>
       {/* AI Toast Container */}
       <AIToastContainer toasts={toasts} onDismiss={dismiss} />
+      <HostConnectedBadge />
       {mode === 'menu' && (
         <MainMenu
           onSelectGame={handleSelectGame}

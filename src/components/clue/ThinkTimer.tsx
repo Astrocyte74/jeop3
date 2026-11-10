@@ -2,12 +2,29 @@ import { useEffect, useId, useRef, useState, type RefObject } from 'react';
 import { playSfx } from '@/lib/sfx';
 import { TimerControls } from '@/components/TableRuleControls';
 
+/** Remote control of the timer (the host window pauses, resumes and adds time through this). */
+export interface ThinkTimerControl {
+  pause: () => void;
+  resume: () => void;
+  addSeconds: (seconds: number) => void;
+}
+
+export interface ThinkTimerState {
+  secondsLeft: number;
+  paused: boolean;
+  expired: boolean;
+}
+
 interface ThinkTimerProps {
   seconds: number;
   running: boolean;
   /** Hold the countdown without leaving the timer: the host is judging an answer. */
   hold?: boolean;
   onTimerChange: (seconds: number) => void;
+  /** Filled with this timer's remote control while it is mounted. */
+  controlRef?: RefObject<ThinkTimerControl | null>;
+  /** Told whenever the whole second, or paused, changes. */
+  onState?: (state: ThinkTimerState) => void;
   /** The stage element: gets data-timer (calm|warn|urgent|expired|off) and --timer-frac so the whole
    *  screen frame can show the time left. Written straight to the DOM, so it costs no re-renders. */
   stageRef?: RefObject<HTMLElement | null>;
@@ -17,7 +34,7 @@ const R = 46;
 const C = 2 * Math.PI * R;
 
 /** Click to pause/resume; right-click (or Shift+F10) for duration options. */
-export function ThinkTimer({ seconds, running, hold = false, stageRef, onTimerChange }: ThinkTimerProps) {
+export function ThinkTimer({ seconds, running, hold = false, stageRef, onTimerChange, controlRef, onState }: ThinkTimerProps) {
   const [remainingMs, setRemainingMs] = useState(seconds * 1000);
   const [paused, setPaused] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -59,13 +76,29 @@ export function ThinkTimer({ seconds, running, hold = false, stageRef, onTimerCh
   }, [running, paused, hold, seconds]);
 
   const secs = Math.ceil(remainingMs / 1000);
+
+  useEffect(() => {
+    if (!controlRef) return;
+    controlRef.current = {
+      pause: () => setPaused(true),
+      resume: () => setPaused(false),
+      addSeconds: (extra) => setRemainingMs((r) => Math.max(0, r) + extra * 1000),
+    };
+    return () => {
+      controlRef.current = null;
+    };
+  }, [controlRef, seconds]);
+
+  useEffect(() => {
+    onState?.({ secondsLeft: secs, paused, expired: secs === 0 });
+  }, [onState, secs, paused]);
   useEffect(() => {
     if (!running || hold || seconds === 0) return;
     if (secs > 0 && secs <= 5) playSfx('tick');
     else if (secs === 0) playSfx('incorrect');
   }, [secs, running, hold, seconds]);
 
-  const frac = seconds > 0 ? remainingMs / (seconds * 1000) : 0;
+  const frac = seconds > 0 ? Math.min(1, remainingMs / (seconds * 1000)) : 0;
   const urgent = secs <= 5;
   const expired = secs === 0;
 

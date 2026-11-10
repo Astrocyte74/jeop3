@@ -4,6 +4,8 @@ import { ClerkProvider } from "@clerk/clerk-react"
 
 import "./index.css"
 import App from "./App.tsx"
+import HostView from "./components/host/HostView.tsx"
+import { isHostView } from "./lib/hostLink/openHost.ts"
 
 // Get Clerk publishable key from environment
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
@@ -14,6 +16,9 @@ const isClerkConfigured = PUBLISHABLE_KEY &&
   !PUBLISHABLE_KEY.includes("YOUR_KEY")
 
 function Root() {
+  // The host window (?view=host) is a remote control for the game window: no sign-in, no game loading.
+  if (isHostView()) return <HostView />
+
   // If Clerk is configured, wrap app in ClerkProvider
   // Otherwise, run app without Clerk (for local development)
   if (isClerkConfigured) {

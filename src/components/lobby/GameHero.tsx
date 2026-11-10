@@ -1,5 +1,6 @@
 import { Play, Plus, Layers, Gauge, Clock, Trophy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { OpenHostButton } from '@/components/host/OpenHostButton';
 import { MiniBoard } from './MiniBoard';
 import { ProgressRing } from './ProgressRing';
 import { timeAgo, type GameSummary } from './gameInfo';
@@ -90,6 +91,9 @@ export function GameHero({ game, loading, onPlay, onCreate, createDisabled }: Ga
         <Play className="size-6 fill-current" />
         {resume ? 'Resume game' : 'Play'}
       </Button>
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
+        <OpenHostButton className="h-10 gap-2 px-3 text-white/80 hover:bg-white/10 hover:text-white" />
+      </div>
     </section>
   );
 }

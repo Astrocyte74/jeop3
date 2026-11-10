@@ -28,6 +28,7 @@ import { AnimatedScore } from '@/components/board/AnimatedScore';
 import { prefersReducedMotion } from '@/components/board/useReducedMotion';
 import { EndGame } from '@/components/EndGame';
 import { formatMoney } from '@/lib/money';
+import { OpenHostButton } from '@/components/host/OpenHostButton';
 
 // Games whose opening reveal already played this session (so returning from the editor doesn't replay it)
 const revealedGames = new Set<string>();
@@ -594,6 +595,7 @@ export function GameBoard({
             <Undo2 className="w-5 h-5" />
           </Button>
         )}
+        <OpenHostButton variant="outline" className="border-slate-700 bg-slate-900/50" />
         {/* Home button */}
         <Button variant="outline" size="sm" className="border-slate-700 bg-slate-900/50" onClick={onExit} aria-label="Back to main menu">
           <Home className="w-5 h-5" />

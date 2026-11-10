@@ -11,10 +11,12 @@ interface DailyDoubleScoringProps {
   outcome: 'correct' | 'incorrect' | null;
   onCorrect: () => void;
   onIncorrect: () => void;
+  /** A host window is connected: it does the judging, so the buttons give way to a quiet line. */
+  hostJudging?: boolean;
 }
 
 /** Only the wagering team can win or lose a Daily Double, so scoring is two buttons. */
-export function DailyDoubleScoring({ team, teamIndex, wager, outcome, onCorrect, onIncorrect }: DailyDoubleScoringProps) {
+export function DailyDoubleScoring({ team, teamIndex, wager, outcome, onCorrect, onIncorrect, hostJudging = false }: DailyDoubleScoringProps) {
   const c = teamColor(teamIndex);
   const key = teamIndex < 9 ? teamIndex + 1 : null;
   return (
@@ -27,6 +29,9 @@ export function DailyDoubleScoring({ team, teamIndex, wager, outcome, onCorrect,
           <strong>{team.name}</strong> wagered <strong>{formatMoney(wager)}</strong>
         </span>
       </p>
+      {hostJudging && outcome === null ? (
+        <p className="cs-host-judging" role="status">Host is judging…</p>
+      ) : (
       <div className="dd-score-btns">
         <button
           type="button"
@@ -51,6 +56,7 @@ export function DailyDoubleScoring({ team, teamIndex, wager, outcome, onCorrect,
           {key && <kbd>Shift {key}</kbd>}
         </button>
       </div>
+      )}
     </div>
   );
 }

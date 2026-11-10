@@ -11,7 +11,8 @@
     "test:ai": "node --test scripts/test-ai-verification.mjs scripts/test-ai-pipeline.mjs",
     "eval:ai": "node scripts/eval-ai.mjs",
     "test:state": "node --test scripts/test-game-state.mjs",
-    "test:icons": "node --test scripts/test-icon-matcher.mjs"
+    "test:icons": "node --test scripts/test-icon-matcher.mjs",
+    "test:host": "node --test scripts/test-host-link.mjs scripts/test-money.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
