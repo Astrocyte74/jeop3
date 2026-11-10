@@ -5,6 +5,7 @@ import { GameModeMenu, type GameMode } from '@/components/GameModeMenu';
 import { buildSnakeOptions, type SnakeOption } from '@/lib/snakeOptions';
 import { playSfx, isSfxMuted, setSfxMuted } from '@/lib/sfx';
 import { teamColor } from '@/lib/teamColors';
+import { formatMoney } from '@/lib/money';
 
 interface TriviaSnakeProps {
   isOpen: boolean;
@@ -699,7 +700,7 @@ export function TriviaSnake({
             style={{ fontFamily: DISPLAY, color: '#ffd23f', textShadow: '0 0 16px rgba(255,210,63,0.55)' }}
             aria-label={`${currentValue} dollars`}
           >
-            ${currentValue}
+            {formatMoney(currentValue)}
           </span>
           {onModeChange && (
             <GameModeMenu
@@ -785,7 +786,7 @@ export function TriviaSnake({
                       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: col.main }} />
                       <span className="truncate font-semibold" style={{ fontSize: 'clamp(14px, 1.1vw, 20px)' }}>{team.name}</span>
                     </span>
-                    <span className="font-bold tabular-nums text-white/70" style={{ fontSize: 'clamp(13px, 1vw, 18px)' }}>${team.score}</span>
+                    <span className="font-bold tabular-nums text-white/70" style={{ fontSize: 'clamp(13px, 1vw, 18px)' }}>{formatMoney(team.score)}</span>
                   </button>
                 );
               })}

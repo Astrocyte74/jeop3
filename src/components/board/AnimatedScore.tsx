@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useReducedMotion } from './useReducedMotion';
+import { formatMoney } from '@/lib/money';
+import { consumeScorePreview } from '@/lib/scorePreview';
 
-export function formatScore(value: number): string {
-  return `${value < 0 ? '-' : ''}$${Math.abs(Math.round(value)).toLocaleString()}`;
-}
+/** Kept as an alias: every score and value in the app goes through `formatMoney`. */
+export const formatScore = formatMoney;
 
 interface AnimatedScoreProps {
   value: number;
@@ -14,10 +15,12 @@ interface AnimatedScoreProps {
   duration?: number;
   /** Flash green/red when the value changes. */
   flash?: boolean;
+  /** A team id: when the clue screen already counted up to the new value, snap to it (no second count-up). */
+  previewKey?: string;
 }
 
 /** Counts toward its value and pulses green on a gain / red on a loss. */
-export function AnimatedScore({ value, className = '', initial, duration = 700, flash = true }: AnimatedScoreProps) {
+export function AnimatedScore({ value, className = '', initial, duration = 700, flash = true, previewKey }: AnimatedScoreProps) {
   const reduced = useReducedMotion();
   const [shown, setShown] = useState(initial ?? value);
   const [flashKind, setFlashKind] = useState<'gain' | 'loss' | null>(null);
@@ -29,6 +32,13 @@ export function AnimatedScore({ value, className = '', initial, duration = 700, 
   useEffect(() => {
     const from = shownRef.current;
     if (value === from && previous.current === value) return;
+    if (previewKey && value !== from && consumeScorePreview(previewKey, value)) {
+      cancelAnimationFrame(rafRef.current);
+      previous.current = value;
+      shownRef.current = value;
+      setShown(value);
+      return;
+    }
     const direction = value > previous.current ? 'gain' : value < previous.current ? 'loss' : null;
     previous.current = value;
 
@@ -55,7 +65,7 @@ export function AnimatedScore({ value, className = '', initial, duration = 700, 
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [value, reduced, duration, flash, initial]);
+  }, [value, reduced, duration, flash, initial, previewKey]);
 
   useEffect(() => () => window.clearTimeout(flashTimer.current), []);
 

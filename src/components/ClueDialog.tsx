@@ -20,6 +20,8 @@ import { WagerPanel } from '@/components/clue/WagerPanel';
 import { DailyDoubleScoring } from '@/components/clue/DailyDoubleScoring';
 import { wagerCap } from '@/components/clue/wager';
 import { recentTileRect } from '@/components/clue/tileOrigin';
+import { formatMoney } from '@/lib/money';
+import { setScorePreviews } from '@/lib/scorePreview';
 import '@/components/clue/clue.css';
 import '@/components/clue/dailyDouble.css';
 
@@ -60,6 +62,15 @@ function isTextField(t: EventTarget | null): boolean {
 const DD_SPLASH_MS = 2800;
 type DdPhase = 'splash' | 'wager' | 'play';
 
+/** The "click to judge" hint is shown until the host has judged once this session. */
+const JUDGE_HINT_KEY = 'jeop3:judgeHintUsed';
+function judgeHintUsed(): boolean {
+  try { return sessionStorage.getItem(JUDGE_HINT_KEY) === '1'; } catch { return false; }
+}
+function markJudgeHintUsed(): void {
+  try { sessionStorage.setItem(JUDGE_HINT_KEY, '1'); } catch { /* best effort */ }
+}
+
 const FOCUSABLE = 'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
 
 export function ClueDialog({
@@ -81,6 +92,7 @@ export function ClueDialog({
   boardMaxValue,
 }: ClueDialogProps) {
   const [showResponse, setShowResponse] = useState(false);
+  const [hintUsed, setHintUsed] = useState(judgeHintUsed);
   // Shortcut chips and explanatory notes stay hidden until asked for ('?' or the help button). The choice
   // is a remembered device preference, so it holds from clue to clue until the host changes it.
   const showHints = useClueHints();
@@ -249,6 +261,10 @@ export function ClueDialog({
   }, []);
 
   const advanceClue = useCallback(() => {
+    if (!judgeHintUsed()) {
+      markJudgeHintUsed();
+      setHintUsed(true);
+    }
     if (dd) reveal();
     else dispatchAttempt({ type: 'advance', allowSteal: rules.allowSteal });
   }, [dd, reveal, rules.allowSteal]);
@@ -384,6 +400,28 @@ export function ClueDialog({
     return known(pickedId) ?? snakeTeam ?? known(openerId) ?? teams[0].id;
   }, [teams, missedIds, pickedId, stealId, hasSnakeResult, snakeGameResult, openerId, attempts.finished, attempts.winnerId]);
   const inPlayIndex = teams.findIndex((t) => t.id === inPlayId);
+
+  // Score change given by the verdicts so far. Shown at once on the team cards; the real score is
+  // still applied by settle()/scoreDailyDouble() on Continue, so undo and steal logic are unchanged.
+  const deltas = useMemo(() => {
+    const out: Record<string, number> = {};
+    if (dd) {
+      if (ddOutcome && lockedTeamId && lockedWager !== null) out[lockedTeamId] = ddOutcome === 'correct' ? lockedWager : -lockedWager;
+      return out;
+    }
+    for (const m of attempts.misses) if (m.penalty) out[m.teamId] = (out[m.teamId] ?? 0) - value;
+    if (attempts.winnerId) out[attempts.winnerId] = (out[attempts.winnerId] ?? 0) + value;
+    return out;
+  }, [dd, ddOutcome, lockedTeamId, lockedWager, attempts.misses, attempts.winnerId, value]);
+
+  // Tell the board which scores this screen already counted up to, so it doesn't count them again.
+  useEffect(() => {
+    if (!isOpen) return;
+    // Only when the verdicts change: once the real scores land, `teams` already includes them.
+    const finalScores: Record<string, number> = {};
+    for (const t of latest.current.teams) if (deltas[t.id]) finalScores[t.id] = t.score + deltas[t.id];
+    setScorePreviews(finalScores);
+  }, [isOpen, deltas]);
 
   /** Change who is answering (another team buzzed first, say). */
   const selectTeam = useCallback(
@@ -553,6 +591,8 @@ export function ClueDialog({
   const activeIconIndex = currentAnswerIconIndex;
   const activeIcon = activeIcons[activeIconIndex] || activeIcons[0];
   const timerRunning = isOpen && !showResponse && !hasSnakeResult;
+  // The countdown stops while the host judges an answer, and starts afresh for each stealing team.
+  const timerHeld = !dd && attempts.judging && missedIds.length === 0;
 
   return (
     <div
@@ -577,8 +617,8 @@ export function ClueDialog({
       <header className="cs-top">
         {dd && <div className="dd-badge">Daily Double</div>}
         {!ddPre && (
-          <div className="cs-value" aria-label={dd ? `Wager ${lockedWager ?? 0} dollars` : `${value} dollars`}>
-            ${dd ? (lockedWager ?? 0) : value}
+          <div className="cs-value" aria-label={dd ? `Wager ${formatMoney(lockedWager ?? 0)}` : formatMoney(value)}>
+            {formatMoney(dd ? (lockedWager ?? 0) : value)}
           </div>
         )}
         <h2 id={titleId} className="cs-cat">
@@ -655,6 +695,11 @@ export function ClueDialog({
               {clue}
             </p>
           </div>
+          {!showResponse && !hintUsed && (
+            <span className="cs-judge-hint" aria-hidden="true">
+              Click or press <kbd>Space</kbd> to {!dd && rules.allowSteal ? 'judge' : 'show the answer'}
+            </span>
+          )}
           </button>
         </section>
 
@@ -664,7 +709,7 @@ export function ClueDialog({
           <div className="cs-flip">
             <div className="cs-face cs-face--back" aria-hidden={showResponse}>
               {timerSecs > 0 && !hasSnakeResult && (
-                <ThinkTimer key={`${timerSecs}:${clue}`} seconds={timerSecs} running={timerRunning} stageRef={stageRef}
+                <ThinkTimer key={`${timerSecs}:${clue}:${missedIds.length}`} seconds={timerSecs} running={timerRunning} hold={timerHeld} stageRef={stageRef}
                   onTimerChange={chooseTimer} />
               )}
               <button type="button" className="cs-reveal cs-hint-only" onClick={advanceClue} tabIndex={showResponse ? -1 : 0}>
@@ -852,6 +897,7 @@ export function ClueDialog({
           locked={settling || attempts.finished}
           onSelect={selectTeam}
           onUndoMiss={deductTeam}
+          deltas={deltas}
         />
       )}
     </div>

@@ -27,6 +27,7 @@ import { playSfx, isSfxMuted, setSfxMuted } from '@/lib/sfx';
 import { AnimatedScore } from '@/components/board/AnimatedScore';
 import { prefersReducedMotion } from '@/components/board/useReducedMotion';
 import { EndGame } from '@/components/EndGame';
+import { formatMoney } from '@/lib/money';
 
 // Games whose opening reveal already played this session (so returning from the editor doesn't replay it)
 const revealedGames = new Set<string>();
@@ -950,9 +951,9 @@ export function GameBoard({
                         setNavActive(true);
                       }}
                       style={{ ['--order' as string]: rowIndex * categories.length + categoryIndex }}
-                      aria-label={`${category.title} for $${clue.value}${used ? ' (played)' : ''}`}
+                      aria-label={`${category.title} for ${formatMoney(clue.value)}${used ? ' (played)' : ''}`}
                     >
-                      ${clue.value}
+                      {formatMoney(clue.value)}
                     </button>
                   </div>
                 );
@@ -1177,6 +1178,7 @@ export function GameBoard({
                         </span>
                         <AnimatedScore
                           value={team.score}
+                          previewKey={team.id}
                           className={`team-score ${team.score >= 0 ? 'text-green-400' : 'text-red-400'}`}
                         />
                       </span>
