@@ -319,7 +319,8 @@
 }
 
 /* ---------- Clue ---------- */
-.host-clue {
+.host-clue,
+.host-clue-reading {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -596,8 +597,63 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* During a clue the controls and scores occupy their own rows. Long clues and
+   expanded sources scroll within the reading area on laptop-sized displays. */
+.host-shell:has(.host-clue) .host-scores {
+  position: static;
+}
+
+@media (min-width: 700px) and (min-height: 540px) {
+  .host-shell:has(.host-clue-reading) {
+    height: 100dvh;
+    min-height: 0;
+  }
+  .host-main:has(.host-clue-reading) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+    padding-block: clamp(10px, 2vh, 20px);
+  }
+  .host-clue:has(.host-clue-reading) {
+    flex: 1;
+    min-height: 0;
+    gap: clamp(8px, 1.5vh, 16px);
+  }
+  .host-clue > :not(.host-clue-reading) { flex: none; }
+  .host-clue-reading {
+    flex: 1 1 auto;
+    min-height: 5rem;
+    overflow-y: auto;
+    gap: 10px;
+    padding: 4px;
+  }
+  .host-clue-reading > * { flex-shrink: 0; }
+  .host-answer { padding: 10px 18px; }
+  .host-answer p { font-size: clamp(30px, 5vh, 48px); }
+  .host-verdict { min-height: 72px; padding-block: 6px; }
+}
+
+@media (min-width: 700px) and (max-height: 680px) {
+  .host-shell:has(.host-clue-reading) .host-top { padding-block: 6px; }
+  .host-shell:has(.host-clue-reading) .host-scores { padding-block: 8px; }
+  .host-shell:has(.host-clue-reading) .host-team {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 6px 10px;
+    min-width: 0;
+    flex-basis: 0;
+  }
+  .host-shell:has(.host-clue-reading) .host-team-score { font-size: 26px; }
+  .host-clue .host-row, .host-clue .host-timer { gap: 6px; }
+  .host-clue .host-row .host-btn { padding-inline: 10px; }
+  .host-clue .host-row kbd { display: none; }
+}
+
 /* ---------- Small windows ---------- */
-@media (max-width: 720px) {
+@media (max-width: 699px) {
   .host-verdicts {
     grid-template-columns: 1fr;
   }

@@ -816,7 +816,16 @@
   }
 }
 
-/* "Nobody got it" — a quiet escape hatch under Correct / Wrong: text until you reach for it */
+.cs-secondary-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.cs-bigact { min-width: 0; padding-inline: 0.5em; }
+.cs-bigact span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cs-bigact small, .cs-bigact svg { flex-shrink: 0; }
+
 .cs-skip {
   align-self: center;
   display: inline-flex;

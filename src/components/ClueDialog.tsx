@@ -189,6 +189,7 @@ export function ClueDialog({
       dispatchAttempt({ type: 'reset' });
       setSettling(false);
       window.clearTimeout(settleTimer.current);
+      settleTimer.current = undefined;
 
       // Find matching icons for clue + answer (shown after reveal)
       const answerMatches = iconMatcher.findMatches(clue, response, categoryTitle, 5);
@@ -247,6 +248,7 @@ export function ClueDialog({
   }, [originRect]);
 
   const canJudge = showResponse || (!dd && rules.allowSteal && attempts.judging);
+  const judgingOnScreen = !hostConnected && !dd && attempts.judging && !showResponse && !attempts.finished;
   const advanceLabel = !dd && rules.allowSteal && !attempts.judging && !showResponse ? 'Judge answer' : 'Show answer';
 
   // --- Actions -------------------------------------------------------------
@@ -260,7 +262,6 @@ export function ClueDialog({
 
   const reveal = useCallback(() => {
     if (showResponseRef.current) return;
-    if (Date.now() < revealOkAt.current) return;
     showResponseRef.current = true;
     dispatchAttempt({ type: 'reveal' });
     setShowResponse(true);
@@ -272,8 +273,11 @@ export function ClueDialog({
       markJudgeHintUsed();
       setHintUsed(true);
     }
-    if (dd) reveal();
-    else dispatchAttempt({ type: 'advance', allowSteal: rules.allowSteal });
+    if (dd) {
+      if (Date.now() >= revealOkAt.current) reveal();
+    } else {
+      dispatchAttempt({ type: 'advance', allowSteal: rules.allowSteal });
+    }
   }, [dd, reveal, rules.allowSteal]);
 
   useEffect(() => {
@@ -360,13 +364,12 @@ export function ClueDialog({
   /** Daily Double: only the wagering team is scored, for exactly the wager. */
   const scoreDailyDouble = useCallback(
     (correct: boolean) => {
-      if (settling || !showResponseRef.current || lockedWager === null || !lockedTeamId) return;
+      if (settleTimer.current !== undefined || !showResponseRef.current || lockedWager === null || !lockedTeamId) return;
       const teamId = lockedTeamId;
       const amount = lockedWager;
       setDdOutcome(correct ? 'correct' : 'incorrect');
       setSettling(true);
       playSfx(correct ? 'fanfare' : 'incorrect');
-      window.clearTimeout(settleTimer.current);
       settleTimer.current = window.setTimeout(() => {
         const cb = latest.current;
         if (cb.rules.turnMode === 'rotate') {
@@ -377,7 +380,7 @@ export function ClueDialog({
         else cb.onMarkIncorrect(teamId, amount);
       }, SETTLE_MS);
     },
-    [settling, lockedWager, lockedTeamId],
+    [lockedWager, lockedTeamId],
   );
 
   const skipClue = useCallback((implicit = false) => {
@@ -509,7 +512,8 @@ export function ClueDialog({
       if (ddPre) return;
       switch (command.type) {
         case 'judge':
-          if (!showResponseRef.current) advanceClue();
+          if (dd) reveal();
+          else if (!showResponseRef.current) advanceClue();
           return;
         case 'setAnswering':
           if (!dd) selectTeam(command.teamId);
@@ -817,11 +821,13 @@ export function ClueDialog({
                 <ThinkTimer key={`${timerSecs}:${clue}:${missedIds.length}`} seconds={timerSecs} running={timerRunning} hold={timerHeld} stageRef={stageRef} controlRef={timerControl} onState={setTimerState}
                   onTimerChange={chooseTimer} />
               )}
-              <button type="button" className="cs-reveal cs-hint-only" onClick={advanceClue} tabIndex={showResponse ? -1 : 0}>
-                <Eye className="w-7 h-7" />
-                <span>{advanceLabel}</span>
-                <kbd>Space</kbd>
-              </button>
+              {!judgingOnScreen && (
+                <button type="button" className="cs-reveal cs-hint-only" onClick={advanceClue} tabIndex={showResponse ? -1 : 0}>
+                  <Eye className="w-7 h-7" />
+                  <span>{advanceLabel}</span>
+                  <kbd>Space</kbd>
+                </button>
+              )}
             </div>
             <div className="cs-face cs-face--front" aria-live="polite" aria-hidden={!showResponse}>
             {activeIcon && (
@@ -919,8 +925,9 @@ export function ClueDialog({
               <p className="cs-host-judging" role="status">Host is judging…</p>
             )}
 
-            {!dd && !attempts.finished && teams.length > 0 && inPlayId && !hostConnected && (
+            {!dd && !attempts.finished && inPlayIndex >= 0 && inPlayId && !hostConnected && (
               <AnswerActions
+                teamName={teams[inPlayIndex].name}
                 value={value}
                 penalty={rules.wrongAnswerPenalty}
                 locked={settling}
@@ -943,11 +950,21 @@ export function ClueDialog({
               <p className="cs-no-teams">No teams yet. Close the clue and add a team to keep score.</p>
             )}
 
-            {!dd && onSkipClue && teams.length > 0 && !attempts.finished && !settling && !hostConnected && (
-              <button type="button" className="cs-skip" onClick={() => skipClue()}>
-                {showResponse ? 'Nobody got it' : 'Nobody got it — reveal'}
-                <kbd className="cs-hint-only">0</kbd>
-              </button>
+            {!dd && teams.length > 0 && !attempts.finished && !settling && !hostConnected && (
+              <div className="cs-secondary-actions">
+                {judgingOnScreen && (
+                  <button type="button" className="cs-skip" onClick={advanceClue}>
+                    <Eye size={18} aria-hidden="true" /> Show answer to everyone
+                    <kbd className="cs-hint-only">Space</kbd>
+                  </button>
+                )}
+                {onSkipClue && (
+                  <button type="button" className="cs-skip" onClick={() => skipClue()}>
+                    {showResponse ? 'Nobody got it' : 'Nobody got it — reveal'}
+                    <kbd className="cs-hint-only">0</kbd>
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </section>

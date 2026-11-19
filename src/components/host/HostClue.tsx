@@ -101,14 +101,10 @@ export function HostClue({ clue, game, send }: Props) {
   const stake = dd ? (clue.wager ?? 0) : clue.value;
   const canVerdict = !ddPre && !!who && !clue.settling && !clue.finished;
 
-  let status: string;
+  let status = '';
   if (clue.settling) status = 'Scoring…';
-  else if (dd && clue.ddPhase === 'splash') status = 'The TV is showing the Daily Double splash.';
-  else if (dd && clue.ddPhase === 'wager') status = 'Waiting for the wager.';
   else if (clue.finished) status = winner ? `${winner.name} got it right.` : 'No correct answer.';
-  else if (clue.revealed) status = 'The answer is showing on the TV.';
-  else if (clue.judging) status = who ? `Judging ${who.name}'s answer. The answer is still hidden on the TV.` : 'Judging.';
-  else status = 'The TV shows the clue. The answer is hidden from the room.';
+  else if (clue.judging && who && !clue.revealed) status = `Judging ${who.name}’s answer.`;
 
   const advanceLabel = !dd && game.rules.allowSteal && !clue.judging && !clue.revealed ? 'Judge answer' : 'Show answer on TV';
 
@@ -141,17 +137,19 @@ export function HostClue({ clue, game, send }: Props) {
 
       {!ddPre && (
         <>
-          <p className="host-clue-text">{clue.clue}</p>
+          <div className="host-clue-reading">
+            <p className="host-clue-text">{clue.clue}</p>
 
-          <div className="host-answer" data-shown={clue.revealed}>
-            <span className="host-answer-label">Answer · {clue.revealed ? 'showing on TV' : 'hidden from the room'}</span>
-            <p>{clue.response}</p>
-          </div>
-          <div className="host-sources">
-            <ClueSources clue={{ clue: clue.clue, response: clue.response, verification: clue.verification }} category={clue.category} />
+            <div className="host-answer" data-shown={clue.revealed}>
+              <span className="host-answer-label">Answer · {clue.revealed ? 'showing on TV' : 'hidden from the room'}</span>
+              <p>{clue.response}</p>
+            </div>
+            <div className="host-sources">
+              <ClueSources clue={{ clue: clue.clue, response: clue.response, verification: clue.verification }} category={clue.category} />
+            </div>
           </div>
 
-          <p className="host-status" role="status">{status}</p>
+          {status && <p className="host-status" role="status">{status}</p>}
 
           {!dd && !clue.finished && teams.length > 1 && (
             <div className="host-who" role="group" aria-label="Who is answering">
