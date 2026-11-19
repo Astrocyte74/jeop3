@@ -64,7 +64,7 @@ export function App() {
   }, []);
 
   // AI toast system
-  const { toasts, dismiss } = useAIToast();
+  const { toasts, dismiss, show } = useAIToast();
 
   // Initialize theme on mount
   useEffect(() => {
@@ -394,56 +394,33 @@ export function App() {
    *  a brand-new game (no id yet) is added to the library. */
   const persistEditedGame = useCallback((updatedGame: Game) => {
     const games = loadCustomGames();
-    const targetId = gameId ?? editorGameId;
-    if (targetId && !gameId) {
-      // Edited from the library: keep this game's saved play state (played tiles, Daily Double)
-      // attached to the right categories if they were reordered. In-play edits remap in memory.
-      const before = games.find(g => g.id === targetId)?.game;
-      const savedState = before ? loadGameState(targetId) : null;
-      if (before && savedState) saveGameState(targetId, remapStateForEditedGame(before, updatedGame, savedState));
-    }
-    if (targetId) {
-      saveCustomGames(games.map(g =>
-        g.id === targetId
-          ? { ...g, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame }
-          : g
-      ));
+    const id = gameId ?? editorGameId ?? `custom-${Date.now()}`;
+    const saved = { id, title: updatedGame.title, subtitle: updatedGame.subtitle || '', game: updatedGame };
+    if (games.some(g => g.id === id)) {
+      saveCustomGames(games.map(g => g.id === id ? { ...g, ...saved } : g));
     } else {
-      const newId = `custom-${Date.now()}`;
-      saveCustomGames([
-        ...games,
-        {
-          id: newId,
-          title: updatedGame.title,
-          subtitle: updatedGame.subtitle || '',
-          source: 'custom',
-          game: updatedGame,
-          createdAt: new Date().toISOString(),
-          visibility: 'private',
-        },
-      ]);
-      setEditorGameId(newId);
+      saveCustomGames([...games, {
+        ...saved, source: 'custom', createdAt: new Date().toISOString(), visibility: 'private',
+      }]);
     }
+    setEditorGameId(id);
+    return id;
   }, [gameId, editorGameId]);
 
   const handleSaveGame = useCallback((updatedGame: Game) => {
-    // Update the in-memory current game and persist to storage so Board
-    // Editor edits survive a reload (previously only updated in-memory —
-    // edits vanished on page refresh).
-    if (currentGame && gameState) {
-      // Reordered/added categories: keep played tiles and the Daily Double with their category.
-      // Write storage first: the load-state effect re-reads it when currentGame changes, and would
-      // otherwise restore the pre-edit state over this one.
-      const remapped = remapStateForEditedGame(currentGame, updatedGame, gameState);
-      if (gameId) saveGameState(gameId, remapped);
-      setGameState(remapped);
+    const savedId = persistEditedGame(updatedGame);
+    setSelectedGameId(savedId);
+    // Keep played tiles and the Daily Double with their categories after a reorder.
+    const progress = gameState ?? loadGameState(savedId);
+    if (currentGame && progress) {
+      const remapped = remapStateForEditedGame(currentGame, updatedGame, progress);
+      saveGameState(savedId, remapped);
+      if (gameState) setGameState(remapped);
     }
     setCurrentGame(updatedGame);
-    persistEditedGame(updatedGame);
-    // Saving from an editor opened off the main menu has no game in progress
-    // to return to — 'playing' would render nothing, so go back to the menu.
+    show(`Saved “${updatedGame.title}” to your library.`, 'success');
     setMode(gameState ? 'playing' : 'menu');
-  }, [persistEditedGame, gameState, currentGame, gameId]);
+  }, [persistEditedGame, gameState, currentGame, show]);
 
   // Get current clue data for dialog
   const getCurrentClue = useCallback((): ClueData | null => {

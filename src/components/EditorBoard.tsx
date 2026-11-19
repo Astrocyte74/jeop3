@@ -1,6 +1,7 @@
 import { VerificationBadge } from './ai/VerificationBadge';
 import { CategorySourceChip, ClueSources } from './ai/SourceChips';
 import { useState, useEffect, useCallback, useMemo, useRef, type DragEvent } from 'react';
+import { Dialog } from 'radix-ui';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -71,6 +72,8 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(naviga
 export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBoardProps) {
   const [editingGame, setEditingGame] = useState<Game>({ ...game });
   const [editingCell, setEditingCell] = useState<{ categoryId: number; clueIndex: number } | null>(null);
+  const clueField = useRef<HTMLTextAreaElement>(null);
+  const [saveError, setSaveError] = useState('');
   // Which action a pending "unsaved changes" confirmation will run.
   const [pendingLeave, setPendingLeave] = useState<'discard' | 'menu' | null>(null);
   const [showAnswers, setShowAnswers] = useState<boolean>(readShowAnswers);
@@ -359,8 +362,12 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
       window.setTimeout(() => document.getElementById(`final-${finalState.missing[0]}`)?.focus({ preventScroll: true }), 250);
       return;
     }
-    closeDraft();
-    onSave(toSave);
+    try {
+      onSave(toSave);
+      closeDraft();
+    } catch {
+      setSaveError('Could not save to the library on this device. Check available browser storage and try again.');
+    }
   };
 
   // Cmd/Ctrl+S saves. Kept in a ref so the listener is registered once.
@@ -376,14 +383,6 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-
-  // Esc closes the clue drawer.
-  useEffect(() => {
-    if (!editingCell) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingCell(null); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [editingCell]);
 
   // Browser-level guard against losing edits on reload/close.
   useEffect(() => {
@@ -772,6 +771,12 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
   };
 
   const currentClue = getCurrentEditingClue();
+  // Follow the board's reading order, including empty tiles that can be filled in.
+  const cellIndex = editingCell ? editingCell.clueIndex * categories.length + editingCell.categoryId : 0;
+  const moveToClue = (index: number) => {
+    setEditingCell({ categoryId: index % categories.length, clueIndex: Math.floor(index / categories.length) });
+    clueField.current?.focus();
+  };
   const counts = countStatuses(categories);
   const pinnedCount = categories.reduce((n, c) => n + c.clues.filter((cl) => cl.dailyDouble).length, 0);
   const finalState = classifyFinal(editingGame.finalJeopardy);
@@ -868,12 +873,14 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
               className={`mr-1 hidden items-center gap-2 text-sm lg:inline-flex ${hasChanges ? 'text-amber-300' : 'text-slate-500'}`}
             >
               <span className={`size-2 rounded-full ${hasChanges ? 'bg-amber-400' : 'bg-slate-600'}`} aria-hidden />
-              {hasChanges ? 'Unsaved changes' : 'No changes'}
-              {hasChanges && draftSavedAt !== null && (
-                <span className="text-xs font-normal text-slate-400">
-                  · Draft saved {relativeTime(draftSavedAt, nowTick)}
-                </span>
-              )}
+              <span>
+                {hasChanges ? 'Unsaved library changes' : 'No changes'}
+                {hasChanges && draftSavedAt !== null && (
+                  <span className="block text-xs font-normal text-slate-400">
+                    Recovery draft saved on this device {relativeTime(draftSavedAt, nowTick)}
+                  </span>
+                )}
+              </span>
             </span>
 
             <Button
@@ -912,10 +919,10 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
             <Button
               size="sm"
               onClick={handleSave}
-              aria-label="Save game"
+              aria-label="Save to library"
               className="bg-yellow-500 font-semibold text-black hover:bg-yellow-400"
             >
-              <Save className="mr-1.5 h-4 w-4" /> Save
+              <Save className="mr-1.5 h-4 w-4" /> Save to library
               <kbd className="ml-2 hidden rounded bg-black/15 px-1.5 py-0.5 text-[11px] font-medium md:inline">
                 {IS_MAC ? '⌘S' : 'Ctrl+S'}
               </kbd>
@@ -937,6 +944,8 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
           </div>
         </div>
       </header>
+
+      {saveError && !editingCell && <p role="alert" className="px-5 py-2 text-red-300">{saveError}</p>}
 
       {/* Reorder confirmations for screen readers (drag, or the move buttons). */}
       <div role="status" aria-live="polite" className="sr-only">{reorderNote}</div>
@@ -1190,6 +1199,7 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
                   <button
                     type="button"
                     key={`${categoryIndex}-${rowIndex}`}
+                    id={`editor-tile-${categoryIndex}-${rowIndex}`}
                     aria-label={`Edit ${filled ? '' : 'empty '}clue, ${category.title} for ${value}${clue?.dailyDouble ? ', Daily Double' : ''}`}
                     onClick={() => setEditingCell({ categoryId: categoryIndex, clueIndex: rowIndex })}
                     {...columnDropProps(categoryIndex)}
@@ -1250,24 +1260,26 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
           Holds the full smart-AI workflow (provenance, regen-from-pool,
           per-category regen through the pipeline). */}
       {editingCell && currentClue && (
-        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Edit clue">
-          {/* Scrim — click to close */}
-          <div
-            className="absolute inset-0 bg-black/50 transition-opacity"
-            onClick={() => setEditingCell(null)}
-          />
-          {/* Drawer */}
-          <div className="absolute right-0 top-0 h-full w-full max-w-md bg-slate-900 border-l-2 border-purple-500/50 shadow-2xl shadow-purple-500/20 overflow-y-auto">
-            <div className="p-6 space-y-5">
+        <Dialog.Root open onOpenChange={open => { if (!open) setEditingCell(null); }}>
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
+            <Dialog.Content
+              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col border-l-2 border-purple-500/50 bg-slate-900 text-slate-100 shadow-2xl shadow-purple-500/20"
+              onOpenAutoFocus={event => { event.preventDefault(); clueField.current?.focus(); }}
+              onCloseAutoFocus={event => {
+                event.preventDefault();
+                document.getElementById(`editor-tile-${editingCell.categoryId}-${editingCell.clueIndex}`)?.focus();
+              }}
+            >
               {/* Header */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between px-6 pt-5 pb-3">
                 <div>
-                  <h3 className="text-lg font-semibold text-purple-400">Edit clue</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <Dialog.Title className="text-lg font-semibold text-purple-400">Edit clue</Dialog.Title>
+                  <Dialog.Description aria-live="polite" className="text-xs text-slate-400 mt-0.5">
                     in <span className="text-slate-300 font-medium">{currentClue.category.title}</span>
                     {' · '}
                     <span className="text-yellow-500 text-base" style={{ fontFamily: 'var(--font-board)' }}>${currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}</span>
-                  </p>
+                  </Dialog.Description>
                 </div>
                 <button
                   onClick={() => setEditingCell(null)}
@@ -1279,162 +1291,168 @@ export function EditorBoard({ game, gameId, onSave, onExit, onCancel }: EditorBo
                 </button>
               </div>
 
-              {/* Provenance badge area — shows the clue's origin/quality.
-                  Empty for older saved games without provenance data. */}
-              {(() => {
-                const prov = (currentClue.clue as any)?.provenance;
-                return (
-                  <div className="flex flex-wrap gap-2">
-                    <VerificationBadge clue={currentClue.clue} category={currentClue.category.title} />
-                    {prov === 'fallback' && (
-                      <Badge variant="outline" className="text-amber-400/80 border-amber-500/40 bg-amber-500/10 text-[11px]" title="Filled from fallback — click regenerate for a better clue">
-                        <AlertCircle className="w-3 h-3 mr-0.5" /> Patched
-                      </Badge>
-                    )}
-                    {prov === 'answer_first' && (
-                      <Badge variant="outline" className="text-emerald-400/80 border-emerald-500/40 bg-emerald-500/10 text-[11px]" title="Curated through the answer-first pipeline (judged)">
-                        <Check className="w-3 h-3 mr-0.5" /> Curated
-                      </Badge>
-                    )}
-                    <CategorySourceChip category={currentClue.category} />
-                  </div>
-                );
-              })()}
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-4">
+                {/* Provenance badge area — shows the clue's origin/quality.
+                    Empty for older saved games without provenance data. */}
+                {(() => {
+                  const prov = (currentClue.clue as any)?.provenance;
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      <VerificationBadge clue={currentClue.clue} category={currentClue.category.title} />
+                      {prov === 'fallback' && (
+                        <Badge variant="outline" className="text-amber-400/80 border-amber-500/40 bg-amber-500/10 text-[11px]" title="Filled from fallback — click regenerate for a better clue">
+                          <AlertCircle className="w-3 h-3 mr-0.5" /> Patched
+                        </Badge>
+                      )}
+                      {prov === 'answer_first' && (
+                        <Badge variant="outline" className="text-emerald-400/80 border-emerald-500/40 bg-emerald-500/10 text-[11px]" title="Curated through the answer-first pipeline (judged)">
+                          <Check className="w-3 h-3 mr-0.5" /> Curated
+                        </Badge>
+                      )}
+                      <CategorySourceChip category={currentClue.category} />
+                    </div>
+                  );
+                })()}
 
-              {currentClue.clue && (
-                <ClueSources clue={currentClue.clue} category={currentClue.category.title} />
-              )}
+                {currentClue.clue && (
+                  <ClueSources clue={currentClue.clue} category={currentClue.category.title} />
+                )}
 
-              <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Value</label>
-                <Input
-                  type="number"
-                  value={currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}
-                  onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { value: parseInt(e.target.value) || 0 })}
-                  className="bg-slate-800 border-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Clue</label>
-                <Textarea
-                  value={currentClue.clue?.clue || ''}
-                  onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { clue: e.target.value })}
-                  className="bg-slate-800 border-slate-700 min-h-[100px]"
-                  placeholder="Enter the clue..."
-                />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-slate-300 mb-1 block">Answer</label>
-                <Textarea
-                  value={currentClue.clue?.response || ''}
-                  onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { response: e.target.value })}
-                  className="bg-slate-800 border-slate-700 min-h-[80px]"
-                  placeholder="Enter the answer..."
-                />
-              </div>
-
-              {/* Daily Double pin — author-chosen; unpinned games get a random one. */}
-              <div className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-slate-800/40 p-3">
                 <div>
-                  <label htmlFor="clue-daily-double" className="flex items-center gap-1.5 text-sm font-medium text-slate-300">
-                    <Zap className="h-4 w-4 text-amber-300" aria-hidden /> Daily Double
-                  </label>
-                  <p className="mt-1 text-xs leading-snug text-slate-500">
-                    If no clue is pinned, the game places one at random.
-                  </p>
+                  <label htmlFor="editor-clue-value" className="text-sm font-medium text-slate-300 mb-1 block">Value</label>
+                  <Input
+                    type="number"
+                    id="editor-clue-value"
+                    value={currentClue.clue?.value || (editingCell.clueIndex + 1) * 200}
+                    onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { value: parseInt(e.target.value) || 0 })}
+                    className="bg-slate-800 border-slate-700"
+                  />
                 </div>
-                <button
-                  type="button"
-                  id="clue-daily-double"
-                  role="switch"
-                  aria-checked={!!currentClue.clue?.dailyDouble}
-                  aria-label="Daily Double"
-                  onClick={() => updateClue(currentClue.categoryId, editingCell.clueIndex, { dailyDouble: !currentClue.clue?.dailyDouble })}
-                  className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${currentClue.clue?.dailyDouble ? 'bg-amber-400' : 'bg-slate-600'}`}
-                >
-                  <span className={`absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${currentClue.clue?.dailyDouble ? 'translate-x-5' : ''}`} />
-                </button>
-              </div>
 
-              {/* Smart AI actions. Regenerate pulls from the pool first
-                  (filled by per-category regen), falling back to a fresh
-                  editor-generate-clue call when the pool is empty. The other
-                  actions are the existing single-clue helpers. */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300 block">AI actions</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant="outline"
-                    className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
-                    disabled={!aiAvailable || aiLoading || regeneratingClue || regeneratingCategory !== null}
-                    onClick={handleRegenerateClueEditor}
-                    title="Swap in a judged alternative (instant) or generate a fresh clue"
+                <div>
+                  <label htmlFor="editor-clue-text" className="text-sm font-medium text-slate-300 mb-1 block">Clue</label>
+                  <Textarea
+                    id="editor-clue-text"
+                    ref={clueField}
+                    value={currentClue.clue?.clue || ''}
+                    onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { clue: e.target.value })}
+                    className="bg-slate-800 border-slate-700 min-h-[100px]"
+                    placeholder="Enter the clue..."
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="editor-clue-answer" className="text-sm font-medium text-slate-300 mb-1 block">Answer</label>
+                  <Textarea
+                    id="editor-clue-answer"
+                    value={currentClue.clue?.response || ''}
+                    onChange={(e) => updateClue(currentClue.categoryId, editingCell.clueIndex, { response: e.target.value })}
+                    className="bg-slate-800 border-slate-700 min-h-[80px]"
+                    placeholder="Enter the answer..."
+                  />
+                </div>
+
+                {/* Daily Double pin — author-chosen; unpinned games get a random one. */}
+                <div className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-slate-800/40 p-3">
+                  <div>
+                    <label htmlFor="clue-daily-double" className="flex items-center gap-1.5 text-sm font-medium text-slate-300">
+                      <Zap className="h-4 w-4 text-amber-300" aria-hidden /> Daily Double
+                    </label>
+                    <p className="mt-1 text-xs leading-snug text-slate-500">
+                      If no clue is pinned, the game places one at random.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    id="clue-daily-double"
+                    role="switch"
+                    aria-checked={!!currentClue.clue?.dailyDouble}
+                    aria-label="Daily Double"
+                    onClick={() => updateClue(currentClue.categoryId, editingCell.clueIndex, { dailyDouble: !currentClue.clue?.dailyDouble })}
+                    className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-400/70 ${currentClue.clue?.dailyDouble ? 'bg-amber-400' : 'bg-slate-600'}`}
                   >
-                    {(regeneratingClue) ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Working…</>
-                      : <><Sparkles className="w-4 h-4 mr-2" /> Regenerate</>}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
-                    disabled={!aiAvailable || aiLoading || !currentClue.clue?.clue}
-                    onClick={handleAIRewriteClue}
-                    title="Rephrase the existing clue, same answer"
-                  >
-                    <RefreshCw className="w-4 h-4 mr-2" /> Rephrase
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
-                    disabled={!aiAvailable || aiLoading || regeneratingCategory !== null}
-                    onClick={() => handleRegenerateCategoryEditor(currentClue.categoryId)}
-                    title="Re-run the answer-first pipeline for this whole category"
-                  >
-                    {(regeneratingCategory) ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Working…</>
-                      : <><RefreshCw className="w-4 h-4 mr-2" /> Regen category</>}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
-                        disabled={!aiAvailable || aiLoading}
-                      >
-                        <Wand2 className="w-4 h-4 mr-2" /> More
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                      <DropdownMenuItem onClick={handleAIGenerateClue}>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate Q & A from scratch
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleAIGenerateAnswer} disabled={!currentClue.clue?.clue}>
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Generate Answer only
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleAIValidateClue} disabled={!currentClue.clue?.clue || !currentClue.clue?.response}>
-                        <Wand2 className="w-4 h-4 mr-2" />
-                        Validate Clue
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    <span className={`absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow transition-transform ${currentClue.clue?.dailyDouble ? 'translate-x-5' : ''}`} />
+                  </button>
+                </div>
+
+                {/* Smart AI actions. Regenerate pulls from the pool first
+                    (filled by per-category regen), falling back to a fresh
+                    editor-generate-clue call when the pool is empty. The other
+                    actions are the existing single-clue helpers. */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300 block">AI actions</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
+                      disabled={!aiAvailable || aiLoading || regeneratingClue || regeneratingCategory !== null}
+                      onClick={handleRegenerateClueEditor}
+                      title="Swap in a judged alternative (instant) or generate a fresh clue"
+                    >
+                      {(regeneratingClue) ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Working…</>
+                        : <><Sparkles className="w-4 h-4 mr-2" /> Regenerate</>}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+                      disabled={!aiAvailable || aiLoading || !currentClue.clue?.clue}
+                      onClick={handleAIRewriteClue}
+                      title="Rephrase the existing clue, same answer"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" /> Rephrase
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="border-purple-500/50 text-purple-500 hover:bg-purple-500/10"
+                      disabled={!aiAvailable || aiLoading || regeneratingCategory !== null}
+                      onClick={() => handleRegenerateCategoryEditor(currentClue.categoryId)}
+                      title="Re-run the answer-first pipeline for this whole category"
+                    >
+                      {(regeneratingCategory) ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" /> Working…</>
+                        : <><RefreshCw className="w-4 h-4 mr-2" /> Regen category</>}
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="border-slate-600 text-slate-300 hover:bg-slate-700/50"
+                          disabled={!aiAvailable || aiLoading}
+                        >
+                          <Wand2 className="w-4 h-4 mr-2" /> More
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-56">
+                        <DropdownMenuItem onClick={handleAIGenerateClue}>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Generate Q & A from scratch
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleAIGenerateAnswer} disabled={!currentClue.clue?.clue}>
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Generate Answer only
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleAIValidateClue} disabled={!currentClue.clue?.clue || !currentClue.clue?.response}>
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Validate Clue
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </div>
-
-              <div className="flex gap-2 pt-2">
-                <Button
-                  onClick={() => setEditingCell(null)}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  Done
+              {saveError && <p role="alert" className="px-6 text-red-300">{saveError}</p>}
+              <div className="flex flex-wrap items-center gap-2 border-t border-white/10 px-4 py-3">
+                <Button variant="outline" size="sm" disabled={cellIndex === 0 || anyBusy || aiLoading} onClick={() => moveToClue(cellIndex - 1)}>
+                  <ChevronLeft aria-hidden /> Previous clue
                 </Button>
+                <Button variant="outline" size="sm" disabled={cellIndex + 1 === rowCount * categories.length || anyBusy || aiLoading} onClick={() => moveToClue(cellIndex + 1)}>
+                  Next clue <ChevronRight aria-hidden />
+                </Button>
+                <Button size="sm" className="ml-auto" onClick={() => setEditingCell(null)}>Done</Button>
               </div>
-            </div>
-          </div>
-        </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
       )}
 
       {/* Unsaved-changes confirmation — only reachable when there are edits. */}

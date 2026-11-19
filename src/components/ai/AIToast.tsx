@@ -63,7 +63,7 @@ export function AIToast({ toast, onDismiss }: AIToastProps) {
       <span className="flex-shrink-0">
         {getIcon()}
       </span>
-      <span className="flex-1 text-sm">
+      <span role={type === 'error' ? 'alert' : 'status'} className="flex-1 text-sm">
         {message}
       </span>
       {onUndo && (
@@ -80,6 +80,7 @@ export function AIToast({ toast, onDismiss }: AIToastProps) {
         </button>
       )}
       <button
+        aria-label="Dismiss notification"
         onClick={() => onDismiss(id)}
         className="flex-shrink-0 p-1 hover:bg-white/10 rounded transition-colors"
       >

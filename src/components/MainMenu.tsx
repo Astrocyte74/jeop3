@@ -296,7 +296,15 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
       );
 
       const customGames = loadCustomGames();
-      const allGames = [...gamesWithData, ...customGames];
+      // A built-in board can have a locally edited version under the same id.
+      const library = new Map(gamesWithData.map(game => [game.id, game]));
+      for (const saved of customGames) {
+        const original = library.get(saved.id);
+        library.set(saved.id, original
+          ? { ...original, game: saved.game, title: saved.title, subtitle: saved.subtitle }
+          : saved);
+      }
+      const allGames = [...library.values()];
       setGames(allGames);
 
       const lastSelectedId = getSelectedGameId();
