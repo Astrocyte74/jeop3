@@ -15,10 +15,11 @@ A modern Jeopardy-style trivia game with AI-powered question generation, built w
 
 ## Prerequisites
 
-- **Node.js** 18+ - [Download here](https://nodejs.org/)
+- **Node.js** 22+ - [Download here](https://nodejs.org/)
 - **npm** (comes with Node.js)
 - **OpenRouter API Key** - Get one at [openrouter.ai/keys](https://openrouter.ai/keys) (for AI features)
 - Optional: **Ollama** - For local AI models (not required)
+- Optional: **Docker Desktop** - For single-container Tailscale access
 
 ## Quick Start (Mac)
 
@@ -35,14 +36,13 @@ cd jeop3
 npm install
 ```
 
-### 3. Set Up AI Server (Optional but Recommended)
+### 3. Set Up Environment (Optional but Recommended)
 
 ```bash
-cd server
 cp .env.example .env
 ```
 
-Edit `server/.env` and add your OpenRouter API key:
+Edit `.env` and add your OpenRouter API key:
 
 ```bash
 OPENROUTER_API_KEY=sk-or-your-actual-key-here
@@ -55,7 +55,7 @@ PORT=7476
 **Option A: Start everything (recommended)**
 ```bash
 # From the root directory
-npm run dev
+./launch-jeop3.command
 ```
 
 This starts both:
@@ -68,12 +68,55 @@ This starts both:
 npm run dev
 
 # Terminal 2: AI server
-cd server && npm start
+node server/index.js
 ```
 
 ### 5. Play!
 
 Open http://localhost:8345 in your browser.
+
+## Docker / Tailscale Mode
+
+Docker mode builds the React app and serves the static frontend plus AI API from one Express server on port `10005`.
+
+```bash
+cp .env.example .env
+# edit .env with OPENROUTER_API_KEY and optional YTV2_API_SECRET
+
+./scripts/docker-build.sh
+./scripts/docker-start.sh
+```
+
+URLs:
+
+- Local: http://localhost:10005
+- Tailscale HTTP: http://marks-macbook-pro-2.tail9e123c.ts.net:10005
+
+Docker Compose reads root `.env`, then overrides Docker-only runtime values:
+
+- `PORT=10005`
+- `NODE_ENV=production`
+- `AI_PUBLIC_API_BASE_URL=/api`
+- `OLLAMA_MODELS=""` so Ollama is not advertised on the i9 MacBook
+- `SOURCE_PARSER_BASE_URL=http://host.docker.internal:6453` so the container can call the YTV2 parser running on the host
+
+Useful commands:
+
+```bash
+./scripts/docker-logs.sh
+./scripts/docker-stop.sh
+```
+
+Target-machine checks:
+
+```bash
+curl http://localhost:10005/api/health
+curl -X POST http://localhost:10005/api/fetch-article \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://en.wikipedia.org/wiki/California"}'
+```
+
+HTTPS on the Tailscale hostname requires Tailscale Serve or another TLS proxy. Docker port publishing alone provides HTTP.
 
 ## Game Modes
 
@@ -91,7 +134,7 @@ Open http://localhost:8345 in your browser.
 ### Local AI Mode (Optional)
 - Install [Ollama](https://ollama.com)
 - Pull a model: `ollama pull gemma3:12b`
-- Configure in `server/.env`:
+- Configure in `.env`:
   ```bash
   OLLAMA_BASE_URL=http://localhost:11434/api/chat
   OLLAMA_MODELS=gemma3:12b
@@ -103,10 +146,10 @@ Open http://localhost:8345 in your browser.
 
 **Check if AI server is running:**
 - You should see: `🪄 Jeop3 AI Server running on http://localhost:7476`
-- If not, start it: `cd server && npm start`
+- If not, start it: `node server/index.js`
 
 **Check your API key:**
-- Verify `OPENROUTER_API_KEY` is set in `server/.env`
+- Verify `OPENROUTER_API_KEY` is set in `.env`
 - Get a free key at [openrouter.ai/keys](https://openrouter.ai/keys)
 
 **Console errors?**

@@ -166,11 +166,9 @@ if [ "$USE_AUTH_MODE" != "true" ]; then
     fi
     echo ""
 
-    # Start AI server in background
-    cd server
-    node index.js > ../ai-server.log 2>&1 &
+    # Start AI server in background from repo root so dotenv loads .env
+    node server/index.js > ai-server.log 2>&1 &
     AI_PID=$!
-    cd ..
 
     # Wait a moment for AI server to start
     sleep 2

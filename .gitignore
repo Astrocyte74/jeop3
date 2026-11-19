@@ -44,3 +44,4 @@ public/icons
 
 # Local paired AI eval runs (full source excerpts, generated clues and reviewer notes)
 eval-results/
+scripts/__pycache__/

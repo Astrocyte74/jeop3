@@ -2,25 +2,35 @@
  * Jeop3 AI Server - OpenRouter Proxy
  *
  * Proxies AI requests to OpenRouter, keeping API keys server-side.
+ * Serves static frontend files in production (Docker mode).
  * Main game board works standalone - only Editor needs this server.
  */
 
 const { callCodex, subscriptionAvailable, assertLocalSubscription } = require('./codex.cjs');
 const { requestSignal, timedSignal, retryDelay } = require('./cancellation.cjs');
 const express = require('express');
-const { researchSources, fetchPage } = require('./research.cjs');
+const { researchSources, fetchPage, publicUrl } = require('./research.cjs');
 const cors = require('cors');
+const path = require('node:path');
 const { chooseVerifier, verificationPrompt, parseVerdicts, hydrateItems, verificationUnavailable, logVerification } = require('./verification.cjs');
-require('dotenv').config({ path: require('node:path').join(__dirname, '.env') });
+require('dotenv').config({ path: [path.join(__dirname, '.env'), path.join(__dirname, '../.env')] });
 const codexAvailable = subscriptionAvailable();
 
 const app = express();
 const PORT = process.env.PORT || 7476;
 
-// CORS configuration
-const corsOrigin = process.env.AI_CORS_ORIGIN || '*';
+// CORS configuration - parse comma-separated origins or use wildcard
+const corsOriginConfig = process.env.AI_CORS_ORIGIN || '*';
+const corsOrigin = corsOriginConfig === '*'
+  ? '*'
+  : corsOriginConfig.split(',').map(origin => origin.trim()).filter(Boolean);
+
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '1mb' }));
+
+// Source parser configuration (YTV2 integration)
+const SOURCE_PARSER_BASE_URL = process.env.SOURCE_PARSER_BASE_URL;
+const SOURCE_PARSER_TOKEN = process.env.SOURCE_PARSER_TOKEN;
 
 // Rate limiting (in-memory)
 const rateLimiter = new Map();
@@ -121,30 +131,42 @@ const ALLOWED_PROMPT_TYPES = new Set([
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const models = getAvailableModels();
   res.json({
     status: 'ok',
+    mode: process.env.NODE_ENV || 'development',
     models: getAllModels(),
     defaultModel: process.env.AI_DEFAULT_MODEL || getAllModels()[0]?.id,
-    providers: {
-      openrouter: getAvailableModels().openrouter,
-      ollama: getAvailableModels().ollama,
-      openai: getAvailableModels().openai,
-      codex: getAvailableModels().codex
-    },
+    providers: models,
     research: { webSearch: !!process.env.OPENROUTER_API_KEY, provider: 'openrouter-exa', searchModel: process.env.AI_SEARCH_MODEL || 'google/gemini-2.5-flash' },
     rpm_limit: RPM_LIMIT,
     port: PORT,
+    sourceParser: {
+      configured: !!SOURCE_PARSER_BASE_URL,
+      baseUrl: SOURCE_PARSER_BASE_URL || null,
+    },
   });
 });
 
 // Config endpoint for frontend (loaded as JavaScript)
 app.get('/ai-config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
+  // In production (Docker), use /api for same-origin calls
+  // In development, use localhost:PORT
+  const baseUrl = process.env.AI_PUBLIC_API_BASE_URL
+    || (process.env.NODE_ENV === 'production' ? '/api' : `http://localhost:${PORT}/api`);
   res.send(`window.AI_CONFIG = ${JSON.stringify({
     port: PORT,
-    baseUrl: `http://localhost:${PORT}/api`
+    baseUrl
   })};`);
 });
+
+// Static file serving (production/Docker mode)
+// Serve built React app from dist/ and games from public/games/
+if (process.env.NODE_ENV === 'production') {
+  app.use('/games', express.static(path.join(__dirname, '../public/games')));
+  app.use(express.static(path.join(__dirname, '../dist')));
+}
 
 // Main AI generation endpoint
 app.post('/api/ai/generate', async (req, res) => {
@@ -298,17 +320,8 @@ app.post('/api/search-wikipedia', async (req, res) => {
   }
 });
 
-/**
- * Fetch article content for a URL. Currently only supports Wikipedia article
- * URLs (the common case for topic-mode grounding). Returns clean plain text
- * via the MediaWiki extracts API (explaintext=1), capped at MAX_ARTICLE_CHARS.
- *
- * Honors the client contract at src/lib/ai/service.ts (fetchArticleContent):
- *   POST { url } → 200 { text, truncated } | 500/4xx { error, message }
- *
- * This also retroactively fixes the previously-unimplemented endpoint that
- * URL-mode in the wizard calls (was returning 404).
- */
+// Wikipedia extracts support topic grounding in either deployment mode.
+// Other URL imports use YTV2 when configured, or the built-in article reader.
 app.post('/api/fetch-article', async (req, res) => {
   const signal = requestSignal(req, res);
   const clientIp = req.ip || req.connection.remoteAddress;
@@ -322,20 +335,53 @@ app.post('/api/fetch-article', async (req, res) => {
 
   // Parse the Wikipedia article title out of a /wiki/<Title> URL.
   let parsed;
-  try { parsed = new URL(url); } catch { parsed = null; }
-  const isWiki = parsed && /(^|\.)wikipedia\.org$/.test(parsed.hostname) && parsed.pathname.startsWith('/wiki/');
+  try {
+    parsed = publicUrl(url);
+  } catch (error) {
+    return res.status(400).json({ error: 'Invalid URL', message: error.message });
+  }
+  const isWiki = /(^|\.)wikipedia\.org$/.test(parsed.hostname) && parsed.pathname.startsWith('/wiki/');
+  if (!isWiki && SOURCE_PARSER_BASE_URL) {
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (SOURCE_PARSER_TOKEN) headers.Authorization = `Bearer ${SOURCE_PARSER_TOKEN}`;
+      const response = await fetch(new URL('/api/source/parse', SOURCE_PARSER_BASE_URL), {
+        method: 'POST', headers,
+        body: JSON.stringify({ url: parsed.href, maxChars: 200000, timeoutSeconds: 45 }),
+        signal: timedSignal(signal, 50000),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: response.statusText }));
+        return res.status(response.status).json(error);
+      }
+      const data = await response.json();
+      if (!data.success || !data.text) {
+        return res.status(502).json({ success: false, error: data.error || data.code || 'PARSE_FAILED' });
+      }
+      const { text, truncated, title, source, sourceType } = data;
+      return res.json({ success: true, text, truncated, title, source, sourceType });
+    } catch (error) {
+      if (signal.aborted) return;
+      return res.status(502).json({ success: false, error: 'Source parser unavailable', message: error.message });
+    }
+  }
   if (!isWiki) {
     try {
       const source = await fetchPage(url, signal);
       signal.throwIfAborted();
-      return res.json({ text: source.text, title: source.title, url: source.url, retrievedAt: source.retrievedAt, truncated: source.text.length >= 8000 });
+      return res.json({ success: true, text: source.text, title: source.title, url: source.url, retrievedAt: source.retrievedAt, truncated: source.text.length >= 8000 });
     } catch (error) {
       if (signal.aborted) return;
       return res.status(400).json({ error: 'Article fetch failed', message: error.message });
     }
   }
   // /wiki/<Title> → decode + replace _ with space. Strip any sub-fragment.
-  const title = decodeURIComponent(parsed.pathname.replace(/^\/wiki\//, '').split('#')[0].split('?')[0]).replace(/_/g, ' ');
+  let title;
+  try {
+    title = decodeURIComponent(parsed.pathname.slice('/wiki/'.length)).replace(/_/g, ' ');
+  } catch {
+    return res.status(400).json({ error: 'Invalid Wikipedia title' });
+  }
   const lang = (parsed.hostname.split('.')[0] === 'en' || parsed.hostname.startsWith('en.')) ? 'en' : parsed.hostname.split('.')[0];
   if (!/^[a-z]{2,12}(?:-[a-z]{2,12})?$/.test(lang)) return res.status(400).json({ error: 'Unsupported Wikipedia language' });
   const apiBase = `https://${lang}.wikipedia.org/w/api.php`;
@@ -355,7 +401,7 @@ app.post('/api/fetch-article', async (req, res) => {
     }
     const truncated = extract.length > MAX_ARTICLE_CHARS;
     const text = truncated ? extract.slice(0, MAX_ARTICLE_CHARS) : extract;
-    res.json({ text, truncated });
+    res.json({ success: true, text, truncated });
   } catch (error) {
     if (signal.aborted) return;
     console.error(`[${new Date().toISOString()}] fetch-article error:`, error.message);
@@ -558,15 +604,31 @@ async function callOllama(model, prompt, promptType, _effort, signal) {
   }
 }
 
+// SPA fallback - for production mode, serve index.html for all non-API routes
+// This allows React Router to handle client-side routing
+if (process.env.NODE_ENV === 'production') {
+  app.get(/^\/(?!api\/|ai-config\.js).*/, (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
+
 // Start server
 app.listen(PORT, process.env.CODEX_ENABLED === 'true' ? '127.0.0.1' : (process.env.HOST || '127.0.0.1'), () => {
   const models = getAvailableModels();
+  const isProduction = process.env.NODE_ENV === 'production';
+
   console.log(`\n🪄 Jeop3 AI Server running on http://localhost:${PORT}`);
   console.log(`🎟️ Subscription: ${models.codex.join(', ') || 'unavailable'}`);
+  if (isProduction) {
+    console.log(`📦 Production mode: serving static files from dist/`);
+  }
   console.log(`🤖 OpenRouter: ${models.openrouter.length > 0 ? models.openrouter.join(', ') : 'none'}`);
   console.log(`🦙 Ollama: ${models.ollama.length > 0 ? models.ollama.join(', ') : 'none'}`);
   console.log(`🧠 OpenAI: ${models.openai.length > 0 ? models.openai.join(', ') : 'none'}`);
   console.log(`⚡ Rate limit: ${RPM_LIMIT} requests/minute`);
   console.log(`🌐 CORS: ${corsOrigin === '*' ? 'All origins' : corsOrigin}`);
+  if (SOURCE_PARSER_BASE_URL) {
+    console.log(`📄 Source parser: ${SOURCE_PARSER_BASE_URL}`);
+  }
   console.log(`\nPress Ctrl+C to stop\n`);
 });
