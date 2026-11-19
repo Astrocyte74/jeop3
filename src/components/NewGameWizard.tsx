@@ -34,7 +34,7 @@ import { Wand2, ArrowLeft, Sparkles, ChevronDown, FileText, Globe, Zap, Edit, Al
 import { getAIApiBase, fetchArticleContent, generateAI, safeJsonParse } from '@/lib/ai/service';
 import { validators } from '@/lib/ai/prompts';
 import type { AIContext } from '@/lib/ai/types';
-import { useAuth } from '@/lib/auth';
+import { AI_SIGN_IN_REQUIRED, isClerkConfigured, SignInButton, useAuth } from '@/lib/auth';
 import { getModelStats, formatTime, getCostEstimate, initializePricing } from '@/lib/ai/stats';
 import { GenerationTheatre, type TheatreColumn } from '@/components/wizard/GenerationTheatre';
 import type { ResearchAcc } from '@/components/wizard/researchProgress';
@@ -128,6 +128,12 @@ const difficultyOptions = [
     desc: 'Niche details and deep cuts - for trivia experts'
   }
 ];
+
+type SourceInput = {
+  type: CustomSource['type'];
+  content: string;
+  count: 1 | 2 | 3 | 4 | 5 | 6;
+};
 
 const MIN_CHARS = 40;
 const MAX_CHARS = 100000;
@@ -287,8 +293,23 @@ const isValidUrl = (url: string): boolean => {
 };
 
 export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImportJSON, isLoading = false, loadingStage, generationEvent, research, progress, error, onRetry, onCancelGeneration }: NewGameWizardProps) {
-  // Clerk auth - needed for fetch-article endpoint
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn, isLoaded, sessionId } = useAuth();
+  const [access, setAccess] = useState<'checking' | 'ready' | 'sign-in'>('checking');
+  const [accessCheck, setAccessCheck] = useState(0);
+  useEffect(() => {
+    let active = true;
+    if (open) {
+      setAccess('checking');
+      if (isLoaded) {
+        const token = isSignedIn ? getToken().catch(() => null) : Promise.resolve(null);
+        void token.then(value => { if (active) setAccess(value ? 'ready' : 'sign-in'); });
+      }
+    }
+    return () => { active = false; };
+  }, [open, getToken, isSignedIn, isLoaded, sessionId, accessCheck, error]);
+  const [preparing, setPreparing] = useState(false);
+  const submission = useRef(0);
+  useEffect(() => () => { submission.current++; }, [open]);
 
   // New wizard step state. The Live Board is the one and only AI creation flow
   // now — the wizard opens straight onto it. The composer/stepper step code is
@@ -314,7 +335,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null);
   // Stash in-progress input on edit-enter so it's restored on Save/Cancel —
   // never silently discard a typed topic or a pasted article.
-  const pendingInputRef = useRef<{ type: 'topic' | 'paste' | 'url'; content: string; count: 1 | 2 | 3 | 4 | 5 | 6 } | null>(null);
+  const pendingInputRef = useRef<SourceInput | null>(null);
   const [fetchError, setFetchError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [sourceInputError, setSourceInputError] = useState('');
@@ -330,7 +351,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // never refetch.
   const [draftNames, setDraftNames] = useState<Record<string, string[]>>({});
   const [rerollingColKey, setRerollingColKey] = useState<string | null>(null);
-  const draftFetchesInFlight = useRef<Set<string>>(new Set());
+  const draftFetchesInFlight = useRef(new Map<string, Promise<string[]>>());
   const draftUnitContexts = useRef<Map<string, AIContext>>(new Map());
 
   const [aiModel, setAIModel] = useState<string>('or:google/gemini-2.5-flash-lite');
@@ -410,21 +431,21 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   }, [customSources]);
 
   // Validate current source input
-  const validateCurrentSource = (): boolean => {
+  const validateSource = ({ type, content }: SourceInput): boolean => {
     setSourceInputError('');
-    if (currentSourceType === 'topic' && !currentSourceContent.trim()) {
+    if (type === 'topic' && !content.trim()) {
       setSourceInputError('Please enter a topic');
       return false;
     }
-    if (currentSourceType === 'paste' && currentSourceContent.trim().length < MIN_CHARS) {
+    if (type === 'paste' && content.trim().length < MIN_CHARS) {
       setSourceInputError(`Please enter at least ${MIN_CHARS} characters`);
       return false;
     }
-    if (currentSourceType === 'url' && !currentSourceContent.trim()) {
+    if (type === 'url' && !content.trim()) {
       setSourceInputError('Please enter a URL');
       return false;
     }
-    if (currentSourceType === 'url' && currentSourceContent.trim() && !isValidUrl(currentSourceContent.trim())) {
+    if (type === 'url' && content.trim() && !isValidUrl(content.trim())) {
       setSourceInputError('Please enter a valid URL (e.g., https://en.wikipedia.org/wiki/Topic)');
       return false;
     }
@@ -434,7 +455,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Reset the span editor for the next entry. Every new span defaults to 1
   // column (the user widens it per content as needed); focus returns to the
   // input so the fill-in-turn flow is type → Enter → type → Enter.
-  const resetCurrentSource = (_addedSourceCount?: number) => {
+  const resetCurrentSource = () => {
     setCurrentSourceContent('');
     setCurrentSourceCategoryCount(1);
     setSourceInputError('');
@@ -489,50 +510,36 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     }
   };
 
-  // Add the current source (topic/paste/url) to the list. Shared by the classic
-  // stepper's 'add-content' step and the single-page composer's "Add source" button.
-  // Returns true on success.
-  const addCurrentSource = async (): Promise<boolean> => {
-    if (!validateCurrentSource()) return false;
-    if (currentSourceType === 'url') {
-      setIsFetching(true);
-      setFetchError('');
-      try {
-        const authToken = await getToken().catch(() => null);
-        const result = await fetchArticleContent(currentSourceContent.trim(), authToken);
-        if (result.success && result.text) {
-          const newSource: CustomSource = {
-            id: crypto.randomUUID(),
-            type: 'url',
-            categoryCount: currentSourceCategoryCount,
-            url: currentSourceContent.trim(),
-            fetchedContent: result.text,
-          };
-          setCustomSources([...customSources, newSource]);
-          resetCurrentSource(newSource.categoryCount);
-          return true;
-        }
-        setFetchError(result.error || 'Failed to fetch content from URL');
-        return false;
-      } catch (err) {
-        setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
-        return false;
-      } finally {
-        setIsFetching(false);
-      }
+  const currentInput: SourceInput = { type: currentSourceType, content: currentSourceContent, count: currentSourceCategoryCount };
+
+  const readSource = async (input: SourceInput, existing?: CustomSource): Promise<CustomSource | null> => {
+    if (!validateSource(input)) return null;
+    const content = input.content.trim();
+    const source = { id: existing?.id ?? crypto.randomUUID(), type: input.type, categoryCount: existing?.categoryCount ?? input.count };
+    if (input.type === 'topic') return { ...source, topic: content };
+    if (input.type === 'paste') return { ...source, content };
+    if (existing?.url === content && existing.fetchedContent) return existing;
+    setIsFetching(true);
+    setFetchError('');
+    try {
+      const authToken = await getToken().catch(() => null);
+      const result = await fetchArticleContent(content, authToken);
+      if (result.success && result.text) return { ...source, url: content, fetchedContent: result.text };
+      setFetchError(result.error || 'Failed to fetch content from URL');
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
+    } finally {
+      setIsFetching(false);
     }
-    const newSource: CustomSource = {
-      id: crypto.randomUUID(),
-      type: currentSourceType,
-      categoryCount: currentSourceCategoryCount,
-    };
-    if (currentSourceType === 'topic') {
-      newSource.topic = currentSourceContent.trim();
-    } else {
-      newSource.content = currentSourceContent.trim();
-    }
-    setCustomSources([...customSources, newSource]);
-    resetCurrentSource(newSource.categoryCount);
+    return null;
+  };
+
+  const addCurrentSource = async () => {
+    if (isFetching || getRemainingCategories() < currentInput.count) return false;
+    const source = await readSource(currentInput);
+    if (!source) return false;
+    setCustomSources(prev => [...prev, source]);
+    resetCurrentSource();
     return true;
   };
 
@@ -575,32 +582,11 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Save content edits back to the span in place. Type + width are locked during
   // edit, so only the content field changes (URL re-fetches only if it changed).
   const saveSourceEdit = async () => {
-    const id = editingSourceId;
-    if (!id || !validateCurrentSource()) return;
-    const source = customSources.find(s => s.id === id);
-    if (currentSourceType === 'url') {
-      const newUrl = currentSourceContent.trim();
-      if (source && newUrl === source.url) { exitEditMode(true); return; } // unchanged
-      setIsFetching(true); setFetchError('');
-      try {
-        const authToken = await getToken().catch(() => null);
-        const result = await fetchArticleContent(newUrl, authToken);
-        if (!result.success || !result.text) {
-          setFetchError(result.error || 'Failed to fetch content from URL');
-          return;
-        }
-        setCustomSources(prev => prev.map(s => s.id === id ? { ...s, url: newUrl, fetchedContent: result.text } : s));
-      } catch (err) {
-        setFetchError(err instanceof Error ? err.message : 'Failed to fetch content');
-        return;
-      } finally {
-        setIsFetching(false);
-      }
-    } else if (currentSourceType === 'topic') {
-      setCustomSources(prev => prev.map(s => s.id === id ? { ...s, topic: currentSourceContent.trim() } : s));
-    } else {
-      setCustomSources(prev => prev.map(s => s.id === id ? { ...s, content: currentSourceContent.trim() } : s));
-    }
+    const original = customSources.find(s => s.id === editingSourceId);
+    if (!original) return;
+    const edited = await readSource(currentInput, original);
+    if (!edited) return;
+    setCustomSources(prev => prev.map(s => s.id === edited.id ? edited : s));
     exitEditMode(true);
   };
 
@@ -658,29 +644,55 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     }
   };
 
-  const handleComplete = () => {
-    // Validate we have at least one source before completing
-    if (creationMode === 'ai' && customSources.length === 0) {
-      setSourceInputError('Please add at least one source');
-      return;
+  const handleComplete = async () => {
+    if (preparing || isLoading || isFetching) return;
+    const attempt = ++submission.current;
+    const active = () => attempt === submission.current;
+    setPreparing(true);
+    try {
+      if (!await getToken().catch(() => null)) {
+        if (active()) { setAccess('sign-in'); setSubmitted(false); }
+        return;
+      }
+      if (!active()) return;
+      let sources = customSources;
+      let pending: SourceInput | null = currentInput;
+      if (editingSourceId) {
+        const original = sources.find(s => s.id === editingSourceId);
+        if (!original) return;
+        const edited = await readSource(currentInput, original);
+        if (!active() || !edited) return;
+        sources = sources.map(s => s.id === edited.id ? edited : s);
+        pending = pendingInputRef.current;
+        setCustomSources(sources);
+        exitEditMode(true);
+      }
+      if (pending?.content.trim()) {
+        const remaining = 6 - sources.reduce((n, source) => n + source.categoryCount, 0);
+        if (pending.count > remaining) {
+          setSourceInputError('This board has room for fewer columns. Adjust the column count.');
+          return;
+        }
+        const source = await readSource(pending);
+        if (!active() || !source) return;
+        sources = [...sources, source];
+        setCustomSources(sources);
+        resetCurrentSource();
+      }
+      if (!sources.length) { setSourceInputError('Please enter a topic, paste notes or enter a URL.'); return; }
+      const withTitles = await Promise.all(sources.map(async source => {
+        const unit = draftUnitForSource(source);
+        const names = draftNames[unit.key] ?? await fetchDraftNamesForUnit(unit);
+        return names.length === source.categoryCount ? { ...source, suggestedTitles: names } : source;
+      }));
+      if (!active()) return;
+      setSubmitted(true);
+      setRunId(n => n + 1);
+      onComplete({ mode: creationMode, theme: theme || 'random', difficulty, includeFinalJeopardy,
+        sourceMode: 'custom', customSources: withTitles });
+    } finally {
+      if (active()) setPreparing(false);
     }
-    // Carry the curated (possibly rerolled) draft titles from the Live Board into
-    // each source so generation honors them — the final board matches the preview.
-    const customSourcesWithDrafts = customSources.map(s => {
-      const titles = (draftNames[draftUnitForSource(s).key] || []).filter(t => t && t.trim());
-      return titles.length ? { ...s, suggestedTitles: titles.slice(0, s.categoryCount) } : s;
-    });
-    const data: WizardCompleteData = {
-      mode: creationMode,
-      theme: theme || 'random',
-      difficulty,
-      includeFinalJeopardy,
-      sourceMode: 'custom',
-      customSources: customSourcesWithDrafts,
-    };
-    setSubmitted(true);
-    setRunId((n) => n + 1);
-    onComplete(data);
   };
 
   // Failure view -> "Try again": clear the parent's error, then re-run with the same sources.
@@ -719,6 +731,9 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // Reset wizard when opening — straight onto the Live Board, first span = 1 column
   const resetWizard = () => {
     setCurrentStep('liveboard');
+    setPreparing(false);
+    setEditingSourceId(null);
+    pendingInputRef.current = null;
     setCreationMode('ai');
     setSubmitted(false);
     setCustomSources([]);
@@ -803,28 +818,28 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       ? buildDraftUnit(draftInput, undefined, Math.min(currentSourceCategoryCount, getRemainingCategories()))
       : null;
 
-  const fetchDraftNamesForUnit = async (unit: DraftUnit) => {
-    draftFetchesInFlight.current.add(unit.key);
+  const fetchDraftNamesForUnit = (unit: DraftUnit): Promise<string[]> => {
+    const pending = draftFetchesInFlight.current.get(unit.key);
+    if (pending) return pending;
     draftUnitContexts.current.set(unit.key, unit.context);
-    try {
-      const authToken = await getToken().catch(() => null);
-      const raw = await generateAI<string>('category-names-draft', unit.context, difficulty, undefined, authToken);
+    const request = (async () => {
+      const token = await getToken().catch(() => null);
+      if (!token) return [];
+      const raw = await generateAI<string>('category-names-draft', unit.context, difficulty, undefined, token);
       const parsed = safeJsonParse(raw, validators['category-names-draft']) as { names: string[] } | null;
-      // Cache even on failure ([]) so a bad response doesn't retry-loop;
-      // columns simply keep their source-label fallback.
-      const names = parsed?.names?.slice(0, unit.count) ?? [];
+      return parsed?.names?.slice(0, unit.count) ?? [];
+    })().catch(() => []).then(names => {
       setDraftNames(prev => ({ ...prev, [unit.key]: names }));
-    } catch {
-      setDraftNames(prev => ({ ...prev, [unit.key]: [] }));
-    } finally {
-      draftFetchesInFlight.current.delete(unit.key);
-    }
+      return names;
+    }).finally(() => draftFetchesInFlight.current.delete(unit.key));
+    draftFetchesInFlight.current.set(unit.key, request);
+    return request;
   };
 
   // Debounced trigger: any unit not yet cached or in flight gets fetched 800ms
   // after the last relevant change. Only active in the liveboard view.
   useEffect(() => {
-    if (currentStep !== 'liveboard') return;
+    if (!open || access !== 'ready' || preparing || submitted || currentStep !== 'liveboard') return;
     const units = customSources.map(draftUnitForSource);
     if (typedDraftUnit) units.push(typedDraftUnit);
     const missing = units.filter(u => !(u.key in draftNames) && !draftFetchesInFlight.current.has(u.key));
@@ -834,18 +849,19 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep, customSources, theme, difficulty, currentSourceType, currentSourceContent, currentSourceCategoryCount, draftNames]);
+  }, [open, access, preparing, submitted, currentStep, customSources, theme, difficulty, currentSourceType, currentSourceContent, currentSourceCategoryCount, draftNames]);
 
   // Per-span "regenerate titles": re-roll every draft title for one added span
   // in a single pass, avoiding the span's current titles so the result is fresh.
   const regenerateSpanTitles = async (source: CustomSource) => {
-    if (rerollingColKey) return;
+    if (rerollingColKey || access !== 'ready') return;
     const unit = draftUnitForSource(source);
     const baseContext = draftUnitContexts.current.get(unit.key) ?? unit.context;
     const avoid = (draftNames[unit.key] || []).filter(Boolean);
     setRerollingColKey(`span-${source.id}`);
     try {
       const authToken = await getToken().catch(() => null);
+      if (!authToken) { setAccess('sign-in'); return; }
       const raw = await generateAI<string>(
         'category-names-draft',
         { ...baseContext, count: source.categoryCount, existingNames: avoid },
@@ -865,11 +881,12 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
 
   const rerollDraftName = async (unitKey: string, index: number, colKey: string) => {
     const baseContext = draftUnitContexts.current.get(unitKey);
-    if (!baseContext || rerollingColKey) return;
+    if (!baseContext || rerollingColKey || access !== 'ready') return;
     setRerollingColKey(colKey);
     try {
       const avoid = Object.values(draftNames).flat().filter(Boolean);
       const authToken = await getToken().catch(() => null);
+      if (!authToken) { setAccess('sign-in'); return; }
       const raw = await generateAI<string>(
         'category-names-draft',
         { ...baseContext, count: 1, existingNames: avoid },
@@ -921,7 +938,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     for (let i = 0; i < s.categoryCount; i++) {
       cols.push({
         key: `${s.id}-${i}`, label: sourceLabel(s), state: 'added',
-        name: names?.[i], unitKey: unit.key, idx: i, pending: names === undefined,
+        name: names?.[i], unitKey: unit.key, idx: i, pending: access === 'ready' && names === undefined,
       });
     }
     previewSpans.push({ key: s.id, state: 'added', sourceType: s.type, startCol: colCursor, columns: cols });
@@ -931,7 +948,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // The span currently being authored is always visible on the board — as a
   // highlighted "next" outline before any content is typed, then as shimmering
   // draft columns (with live draft titles for topics) once typing starts.
-  if (colCursor <= 6) {
+  if (!editingSourceId && colCursor <= 6) {
     const width = Math.min(currentSourceCategoryCount, getRemainingCategories());
     const spanState: 'draft' | 'next' = draftInput ? 'draft' : 'next';
     const draftLabel =
@@ -942,7 +959,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
       cols.push({
         key: `draft-${i}`, label: draftLabel, state: spanState,
         name: typedNames?.[i], unitKey: typedDraftUnit?.key, idx: i,
-        pending: spanState === 'draft' && typedDraftUnit !== null && typedNames === undefined,
+        pending: access === 'ready' && spanState === 'draft' && typedDraftUnit !== null && typedNames === undefined,
       });
     }
     previewSpans.push({ key: 'authoring-span', state: spanState, sourceType: currentSourceType, startCol: colCursor, columns: cols });
@@ -992,7 +1009,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
   // ==================== Building view (generation theatre) ====================
   // Shown while generating, and kept up on failure so the error is visible (the
   // old layout only rendered `error` during loading, i.e. never in practice).
-  const building = creationMode === 'ai' && currentStep === 'liveboard' && (isLoading || (submitted && !!error));
+  const building = creationMode === 'ai' && currentStep === 'liveboard' && (isLoading || (submitted && !!error && error !== AI_SIGN_IN_REQUIRED));
   const theatreColumns: TheatreColumn[] = customSources.flatMap((s, si) => {
     const names = draftNames[draftUnitForSource(s).key];
     return Array.from({ length: s.categoryCount }, (_, i) => ({
@@ -1003,6 +1020,8 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
     }));
   });
   const totalCategories = getTotalCategoryCount();
+  const pending = editingSourceId ? pendingInputRef.current : currentInput;
+  const submissionCount = totalCategories + (pending?.content.trim() ? pending.count : 0);
   const modelShortName = (aiModel.includes(':') ? aiModel.split(':').slice(1).join(':') : aiModel).split('/').pop() || aiModel;
   const buildSummary = `${totalCategories} ${totalCategories === 1 ? 'category' : 'categories'} · ${difficulty} · ${modelShortName}`;
 
@@ -1233,7 +1252,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             onBackToEdit={handleBackToEdit}
           />
         ) : (
-          <div className={`wiz-enter overflow-y-auto flex-1 -mx-6 px-6 py-4 ${currentStep === 'liveboard' ? 'lg:overflow-y-hidden' : ''}`}>
+          <div inert={preparing} className={`wiz-enter overflow-y-auto flex-1 -mx-6 px-6 py-4 ${currentStep === 'liveboard' ? 'lg:overflow-y-hidden' : ''}`}>
             {/* ==================== STEP 1: CHOOSE MODE ==================== */}
             {currentStep === 'choose-mode' && (
               <div className="space-y-3" role="radiogroup" aria-label="Choose game creation mode">
@@ -1479,7 +1498,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                   variant="outline"
                   className="w-full justify-center border-dashed border-yellow-600/50 text-yellow-300/90 hover:bg-yellow-500/10 hover:text-yellow-200"
                 >
-                  <Plus className="w-4 h-4 mr-1.5" /> Add to {spanRangeLabel.toLowerCase()}
+                  <Plus className="w-4 h-4 mr-1.5" /> {currentSourceCategoryCount === getRemainingCategories() ? `Add to ${spanRangeLabel.toLowerCase()}` : 'Add another category'}
                 </Button>
                 )}
                 </div>
@@ -1586,7 +1605,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                       </p>
                     ) : (
                       <p className="text-xs text-slate-500 mt-2 capitalize">
-                        {difficulty} difficulty · {plannedColumnCount * 5} planned clues · {getTotalCategoryCount()} of 6 columns added
+                        {difficulty} difficulty · {plannedColumnCount * 5} planned clues · {plannedColumnCount} of 6 columns planned
                       </p>
                     )}
                   </div>
@@ -1609,7 +1628,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                 <button
                                   type="button"
                                   onClick={() => void regenerateSpanTitles(spanSource)}
-                                  disabled={rerollingColKey !== null}
+                                  disabled={access !== 'ready' || rerollingColKey !== null}
                                   title="Regenerate titles for this span"
                                   aria-label="Regenerate titles for this span"
                                   className="ml-auto p-0.5 rounded text-slate-400 hover:text-yellow-400 disabled:opacity-40 flex-shrink-0"
@@ -1622,8 +1641,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                             <div role="status" className="min-h-6 rounded-md border border-dashed border-yellow-500/50 bg-yellow-500/5 flex items-center justify-center gap-1 px-1 py-1 text-[10px] font-bold uppercase tracking-wider text-yellow-500/90 text-center leading-tight">
                               {span.state === 'next' ? '↓ next'
                                 : span.columns.some(col => col.pending) ? 'Suggesting titles…'
-                                : span.columns.some(col => col.name) ? 'Preview ready — not added'
-                                : 'Not added yet'}
+                                : 'Included on Generate'}
                             </div>
                           ) : (
                             <div className="h-6" />
@@ -1663,7 +1681,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); void rerollDraftName(col.unitKey!, col.idx!, col.key); }}
-                                    disabled={rerollingColKey !== null}
+                                    disabled={access !== 'ready' || rerollingColKey !== null}
                                     title="Reroll this category title"
                                     aria-label="Reroll this category title"
                                     className={`absolute top-1 right-1 p-0.5 rounded text-blue-200/50 hover:text-yellow-400 transition-opacity ${
@@ -1711,11 +1729,7 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
                     {previewSpans.some(span => span.columns.some(col => col.pending))
                       ? 'AI is suggesting category titles only. No clues are being written yet.'
                       : 'These are suggested category titles, not generated clues.'}
-                    {' '}{draftInput && !editingSourceId && getRemainingCategories() > 0
-                      ? `Click “Add to ${spanRangeLabel.toLowerCase()}”, then “Generate game” to write and check the clues.`
-                      : customSources.length > 0
-                        ? 'Click “Generate game” to write and check the clues.'
-                        : 'Add a topic, pasted text or URL, then click “Generate game”.'}
+                    {' '}Generate with the current input, or add another category first.
                   </p>
                 </div>
               )}
@@ -2216,20 +2230,27 @@ export function NewGameWizard({ open, onClose, onComplete, onOpenEditor, onImpor
             <>
               {/* Spacer pushes the summary + primary action to the right edge */}
               <div className="hidden sm:block flex-1" />
-              <span className={`hidden sm:block text-xs mr-1 ${customSources.length === 0 ? 'text-yellow-500/80' : 'text-slate-500'}`}>
-                {customSources.length === 0
-                  ? 'Add your content to the board first'
-                  : `${getTotalCategoryCount()} ${getTotalCategoryCount() === 1 ? 'category' : 'categories'} · ${getTotalCategoryCount() * 5} clues · ${difficulty}`}
-              </span>
+              {access === 'sign-in' && (
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-amber-300">
+                  {isClerkConfigured() ? (
+                    <>
+                      {AI_SIGN_IN_REQUIRED}
+                      <SignInButton mode="modal"><Button type="button" variant="outline">Sign in</Button></SignInButton>
+                      <Button type="button" variant="ghost" onClick={() => setAccessCheck(n => n + 1)}>Check again</Button>
+                    </>
+                  ) : 'AI generation requires sign-in. Sign-in is not configured here. Use the manual editor under More options.'}
+                </div>
+              )}
               <Button
                 type="button"
                 onClick={handleComplete}
-                disabled={isLoading || customSources.length === 0 || isFetching}
-                title={customSources.length === 0 ? 'Add a topic, pasted text or URL to a column first' : undefined}
+                disabled={access !== 'ready' || preparing || isLoading || submissionCount === 0 || isFetching || !!rerollingColKey}
                 className="h-11 px-7 text-[15px] font-semibold bg-yellow-400 text-slate-950 hover:bg-yellow-300 shadow-lg shadow-yellow-500/25 transition-all enabled:hover:-translate-y-px enabled:active:translate-y-0 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:opacity-100"
               >
                 <Wand2 className="w-4 h-4 mr-2" />
-                Generate game
+                {preparing ? 'Preparing categories…' : access === 'checking' ? 'Checking sign-in…'
+                  : submissionCount ? `Generate ${submissionCount} ${submissionCount === 1 ? 'category' : 'categories'} · ${submissionCount * 5} clues`
+                  : 'Generate game'}
               </Button>
             </>
           )}

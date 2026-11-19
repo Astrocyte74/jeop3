@@ -68,7 +68,7 @@ export interface AIPreviewDialogProps {
   open: boolean;
   type: AIPromptType;
   data: PreviewData;
-  onConfirm: (selected: { title?: number; items: Set<string> }) => void;
+  onConfirm: (selected: { title?: number; items: Set<string> }, destination: 'play' | 'library') => void;
   onCancel: () => void;
   onBack?: () => void;
   onRegenerateAll?: () => void;
@@ -840,8 +840,7 @@ export function AIPreviewDialog({
   // Any manual edit or regeneration in this session counts as unsaved.
   const [hasEdits, setHasEdits] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
-  // Set while Save is running so the dialog's own close doesn't read as a discard.
-  const savingRef = useRef(false);
+  const [saveError, setSaveError] = useState('');
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [internalRegeneratedItems, setInternalRegeneratedItems] = useState<Set<string>>(new Set());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -864,11 +863,12 @@ export function AIPreviewDialog({
       setInternalRegeneratedItems(new Set());
       setHasEdits(false);
       setConfirmDiscard(false);
-      savingRef.current = false;
+      setSaveError('');
     }
   }, [open]);
 
-  const hasUnsaved = hasEdits || regeneratedItems.size > 0;
+  const newGame = type === 'categories-generate';
+  const hasUnsaved = newGame || hasEdits || regeneratedItems.size > 0;
   const markEdited = <A extends unknown[]>(fn?: (...args: A) => void) =>
     fn ? (...args: A) => { setHasEdits(true); fn(...args); } : undefined;
 
@@ -877,14 +877,17 @@ export function AIPreviewDialog({
     else onCancel();
   };
 
-  const handleConfirm = () => {
-    savingRef.current = true;
+  const handleConfirm = (destination: 'play' | 'library') => {
     // Pass both the selected title (if applicable) and checked items
     const result = {
       title: type === 'game-title' ? (selectedTitle ?? 0) : selectedTitle ?? undefined,
       items: checkedItems
     };
-    onConfirm(result);
+    try {
+      onConfirm(result, destination);
+    } catch {
+      setSaveError('Could not save to this browser. Check available storage and try again.');
+    }
   };
 
   const getTypeLabel = () => {
@@ -1010,27 +1013,22 @@ export function AIPreviewDialog({
   return (
     <AlertDialog
       open={open}
-      onOpenChange={(next) => {
-        if (next) return;
-        // Save closes the dialog through here too; only Esc/overlay should ask.
-        if (savingRef.current) onCancel();
-        else requestDiscard();
-      }}
+      onOpenChange={next => { if (!next) requestDiscard(); }}
     >
       {/* data-[size=default]:sm:max-w-3xl matches the base component's own variant so it can override its sm:max-w-lg cap */}
       <AlertDialogContent className="max-w-[95vw] data-[size=default]:sm:max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
         {/* Persistent bar: same name and actions as the board view of the editor. */}
         <div className="sticky -top-6 z-20 -mx-6 -mt-6 border-b border-white/10 bg-background/95 px-6 pb-3 pt-5 backdrop-blur">
           <AlertDialogHeader>
-            <div className="flex w-full items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-3">
               <PencilLine className="h-5 w-5 shrink-0 text-purple-300" aria-hidden />
               <div className="min-w-0 flex-1">
-                <AlertDialogTitle>{EDITOR_NAME}</AlertDialogTitle>
+                <AlertDialogTitle>{newGame ? 'Review your new game' : EDITOR_NAME}</AlertDialogTitle>
                 <AlertDialogDescription className="flex items-center gap-2">
-                  <span>{getTypeLabel()}</span>
+                  {!newGame && <span>{getTypeLabel()}</span>}
                   <span className={`inline-flex items-center gap-1.5 ${hasUnsaved ? 'text-amber-300' : 'text-slate-500'}`} role="status" aria-live="polite">
                     <span className={`size-2 rounded-full ${hasUnsaved ? 'bg-amber-400' : 'bg-slate-600'}`} aria-hidden />
-                    {hasUnsaved ? 'Unsaved changes' : 'No changes'}
+                    {newGame ? 'Not saved yet' : hasUnsaved ? 'Unsaved changes' : 'No changes'}
                   </span>
                 </AlertDialogDescription>
               </div>
@@ -1045,15 +1043,21 @@ export function AIPreviewDialog({
                 <X className="mr-1.5 h-4 w-4" />
                 {hasUnsaved ? 'Discard' : 'Close'}
               </Button>
-              <AlertDialogAction
-                onClick={handleConfirm}
+              {newGame && (
+                <Button variant="outline" size="sm" disabled={isLoading} onClick={() => handleConfirm('library')}>
+                  Save to library
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={() => handleConfirm('play')}
                 disabled={(type === 'game-title' && selectedTitle === null) || isLoading}
-                aria-label="Save game"
                 className="bg-yellow-500 font-semibold text-black hover:bg-yellow-400"
               >
-                Save
-              </AlertDialogAction>
+                {newGame ? 'Save and play' : 'Save'}
+              </Button>
             </div>
+            {saveError && <p role="alert" className="text-sm text-red-400">{saveError}</p>}
           </AlertDialogHeader>
         </div>
 
@@ -1139,9 +1143,9 @@ export function AIPreviewDialog({
         <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+              <AlertDialogTitle>{newGame ? 'Discard this game?' : 'Discard unsaved changes?'}</AlertDialogTitle>
               <AlertDialogDescription>
-                Your edits and regenerated items haven't been saved. Leaving now will lose them.
+                {newGame ? 'This game has not been saved to your library.' : "Your edits and regenerated items haven't been saved."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

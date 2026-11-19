@@ -1,6 +1,6 @@
 import { EMPTY_RESEARCH, foldProgress, type ResearchAcc } from '@/components/wizard/researchProgress';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth, useUser, SignInButton, SignedOut, enableDevAuthBypass } from '@/lib/auth';
+import { AI_SIGN_IN_REQUIRED, useAuth, useUser, SignInButton, SignedOut, enableDevAuthBypass } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -773,7 +773,15 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
     };
     const runGenerate = async (type: AIPromptType, context: AIContext, level: AIDifficulty = 'normal') => {
       checkAbort(controller.signal);
-      const result = await aiGenerate(type, context, level, options);
+      const result = await aiGenerate(type, context, level, {
+        ...options,
+        onError: err => {
+          if (!isStale() && err.message === AI_SIGN_IN_REQUIRED) {
+            setRunError(AI_SIGN_IN_REQUIRED);
+            controller.abort(err);
+          }
+        },
+      });
       checkAbort(controller.signal);
       return result;
     };
@@ -1231,11 +1239,7 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
 
   // ==================== AI PREVIEW HANDLERS ====================
 
-  const handleAIPreviewConfirm = useCallback((selected: { title?: number; items: Set<string> }) => {
-    setAiPreviewOpen(false);
-    setShowWizard(false);
-    setWizardHidden(false);
-
+  const handleAIPreviewConfirm = useCallback((selected: { title?: number; items: Set<string> }, destination: 'play' | 'library') => {
     if (!generatedGameData) return;
 
     const { title: selectedTitleIndex, items: checkedItems } = selected;
@@ -1313,10 +1317,12 @@ export function MainMenu({ onSelectGame, onOpenEditor, startWithWizard, onStartW
     setGames(prev => [...prev, gameMeta]);
     setSelectedGameId(gameId);
 
-    // Start playing
-    onSelectGame(gameId, finalGame);
+    setAiPreviewOpen(false);
+    setShowWizard(false);
+    setWizardHidden(false);
+    if (destination === 'play') onSelectGame(gameId, finalGame);
     setGeneratedGameData(null);
-  }, [generatedGameData, onSelectGame]);
+  }, [generatedGameData, onSelectGame, user]);
 
   const handleAIPreviewCancel = () => {
     setAiPreviewOpen(false);

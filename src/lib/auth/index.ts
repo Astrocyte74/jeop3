@@ -12,7 +12,7 @@ import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-r
 import { SignedIn as ClerkSignedIn, SignedOut as ClerkSignedOut, SignInButton as ClerkSignInButton, SignOutButton as ClerkSignOutButton, UserButton as ClerkUserButton } from '@clerk/clerk-react'
 
 // Check if Clerk is properly configured (not a placeholder key)
-function isClerkConfigured(): boolean {
+export function isClerkConfigured(): boolean {
   if (typeof import.meta === 'undefined' || !import.meta.env) {
     return false
   }
@@ -60,6 +60,10 @@ export function disableDevAuthBypass(): void {
   } catch {}
 }
 
+export const AI_SIGN_IN_REQUIRED = 'Sign in to generate a game with AI.'
+const getDevToken = async () => 'dev-bypass-token'
+const getLocalToken = async () => null
+
 // Safe wrapper for useAuth - returns defaults when Clerk not configured
 export function useAuth() {
   if (isDevAuthBypass()) {
@@ -68,7 +72,7 @@ export function useAuth() {
       isLoaded: true,
       userId: 'dev-bypass',
       sessionId: 'dev',
-      getToken: async () => 'dev-bypass-token',
+      getToken: getDevToken,
       signOut: async () => {
         disableDevAuthBypass()
         if (typeof window !== 'undefined') window.location.reload()
@@ -83,7 +87,7 @@ export function useAuth() {
       isLoaded: true,
       userId: 'local-user',
       sessionId: 'local-session',
-      getToken: async () => null, // No token needed for local mode
+      getToken: getLocalToken, // No token needed for local mode
       signOut: async () => {}, // no-op for local dev
     }
   }

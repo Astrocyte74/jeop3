@@ -7,7 +7,7 @@ import { checkAbort, isAbort, type GenerationOptions } from './progress';
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
+import { AI_SIGN_IN_REQUIRED, useAuth } from '@/lib/auth';
 import type {
   AIPromptType,
   AIContext,
@@ -171,7 +171,7 @@ export function useAIGeneration() {
 
     // Check if we have a token (AI generation requires auth)
     if (!authToken) {
-      const err = new Error('Please sign in to create games with AI');
+      const err = new Error(AI_SIGN_IN_REQUIRED);
       show(err.message, 'error', { duration: 4000 });
       setError(err);
       setIsLoading(false);
