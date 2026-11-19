@@ -1,0 +1,76 @@
+{
+  "title": "Truth Matters",
+  "subtitle": "Gospel truths, misleading messages, and science that changed its mind",
+  "rows": 5,
+  "suggestedTeamNames": ["Truth Seekers", "The Bright Lights", "Faithful Thinkers"],
+  "metadata": {
+    "sourceMode": "custom",
+    "sourceMaterial": "Youth lesson from a Latter-day Saint perspective. Questions reviewed with the teacher. Accept equivalent wording; the premortal life and the pre-existence are both accepted answers.",
+    "customSources": [
+      { "type": "url", "content": "https://www.churchofjesuschrist.org/study/new-era/2014/01/truth-lies-and-your-self-worth?lang=eng" },
+      { "type": "url", "content": "https://www.churchofjesuschrist.org/study/ya-weekly/2021/09/5-truths-about-truth?lang=eng" },
+      { "type": "url", "content": "https://www.churchofjesuschrist.org/study/ensign/2008/03/plain-and-precious-truths?lang=eng" },
+      { "type": "url", "content": "https://en.wikipedia.org/wiki/List_of_superseded_scientific_theories" }
+    ]
+  },
+  "categories": [
+    {
+      "title": "Who Am I?",
+      "sourceUrl": "https://www.churchofjesuschrist.org/study/new-era/2014/01/truth-lies-and-your-self-worth?lang=eng",
+      "sourceMaterial": "Divine identity and worth; premortal life; agency; Moses 1:39.",
+      "clues": [
+        { "value": 200, "clue": "Complete the song title: ‘I Am a Child of ___.’", "response": "God." },
+        { "value": 400, "clue": "Does having more money make someone worth more to Heavenly Father?", "response": "No." },
+        { "value": 600, "clue": "We lived with Heavenly Father before we were born. What is that existence called?", "response": "The premortal life. Also accept: the pre-existence." },
+        { "value": 800, "clue": "What word means our God-given ability to choose?", "response": "Agency." },
+        { "value": 1000, "clue": "According to Moses 1:39, God’s work is to bring about our immortality and what else?", "response": "Eternal life." }
+      ]
+    },
+    {
+      "title": "Truths About Jesus",
+      "sourceUrl": "https://www.churchofjesuschrist.org/study/ensign/2008/03/plain-and-precious-truths?lang=eng",
+      "clues": [
+        { "value": 200, "clue": "Who is the Savior of the world?", "response": "Jesus Christ." },
+        { "value": 400, "clue": "Who created the earth under Heavenly Father’s direction?", "response": "Jesus Christ." },
+        { "value": 600, "clue": "What event reunited Jesus’s spirit with His body, never to be separated again?", "response": "The Resurrection." },
+        { "value": 800, "clue": "What name did Jesus Christ use in the Old Testament?", "response": "Jehovah." },
+        { "value": 1000, "clue": "The Father, Son, and Holy Ghost are three distinct personages. Together, what are They called?", "response": "The Godhead." }
+      ]
+    },
+    {
+      "title": "How Do We Find Truth?",
+      "sourceUrl": "https://www.churchofjesuschrist.org/study/ya-weekly/2021/09/5-truths-about-truth?lang=eng",
+      "sourceMaterial": "See also Moroni 10:5, James 1:5, Joseph Smith—History 1:11–13, and Doctrine and Covenants 88:118.",
+      "clues": [
+        { "value": 200, "clue": "What do we call communicating with Heavenly Father?", "response": "Prayer." },
+        { "value": 400, "clue": "Does a million people sharing an internet claim prove it is true?", "response": "No." },
+        { "value": 600, "clue": "Moroni taught that we can know the truth of all things by the power of whom?", "response": "The Holy Ghost." },
+        { "value": 800, "clue": "Joseph Smith was inspired to pray by a verse telling people who lack wisdom to ask God. In which book of the Bible is it found?", "response": "James. The verse is James 1:5." },
+        { "value": 1000, "clue": "Complete the scriptural instruction: Seek learning ‘by study and also by ___.’", "response": "Faith. See Doctrine and Covenants 88:118." }
+      ]
+    },
+    {
+      "title": "The World Says…",
+      "sourceMaterial": "The quoted messages are illustrative claims, not quotations from the sources. Church teaching sources: https://www.churchofjesuschrist.org/study/manual/gospel-topics/sabbath-day?lang=eng ; https://www.churchofjesuschrist.org/study/manual/gospel-topics/gambling?lang=eng ; https://www.churchofjesuschrist.org/study/manual/for-the-strength-of-youth/06-body?lang=eng ; https://www.churchofjesuschrist.org/study/manual/for-the-strength-of-youth/07-truth?lang=eng ; https://www.churchofjesuschrist.org/study/manual/for-the-strength-of-youth/03-help?lang=eng",
+      "clues": [
+        { "value": 200, "clue": "‘Sunday is just another day.’ What do we call the day God commands us to keep holy?", "response": "The Sabbath." },
+        { "value": 400, "clue": "‘Drinking alcohol is good for you.’ Which revealed health law tells Latter-day Saints to abstain?", "response": "The Word of Wisdom." },
+        { "value": 600, "clue": "‘Bet on the game—you could win big!’ What is this practice that the Church teaches us to avoid?", "response": "Gambling." },
+        { "value": 800, "clue": "‘Cheating is fine if nobody catches you.’ Which virtue means being truthful and refusing to cheat?", "response": "Honesty." },
+        { "value": 1000, "clue": "‘You’ve sinned, so there’s no way back.’ What gospel principle means turning away from sin and back to God?", "response": "Repentance." }
+      ]
+    },
+    {
+      "title": "Science: They Believed WHAT?!",
+      "sourceUrl": "https://en.wikipedia.org/wiki/List_of_superseded_scientific_theories",
+      "sourceMaterial": "These are old explanations people believed. Better evidence helped people discover their mistakes. Sources by value: 200 — https://www.royalsociety.org/blog/2023/08/diet-of-worms/ ; 400 — https://pubmed.ncbi.nlm.nih.gov/12795547/ ; 600 — https://www.mun.ca/biology/scarr/4270_Redi_experiment.html ; 800 — https://wwwnc.cdc.gov/eid/article/12/7/ET-1207_article ; 1000 — https://www.nlm.nih.gov/exhibition/artificial-intelligence-and-physiognomy/digitalgallery_theme_1.html",
+      "clues": [
+        { "value": 200, "clue": "People once believed tiny creatures were chewing holes inside their teeth. What creatures did they blame?", "response": "Worms. ‘Tooth worms’ were an old explanation for toothache and decay." },
+        { "value": 400, "clue": "Some ancient thinkers believed we could see because rays shot OUT of which body parts?", "response": "Our eyes. This was called the emission theory of vision." },
+        { "value": 600, "clue": "People once thought rotting meat produced maggots by itself. Maggots actually hatch from eggs laid by which insects?", "response": "Flies. Experiments showed that keeping flies away prevented maggots from appearing on the meat." },
+        { "value": 800, "clue": "Malaria was once blamed on ‘bad air’ from swamps. Which insects actually spread the parasites that cause it?", "response": "Mosquitoes. The name ‘malaria’ comes from the Italian for ‘bad air.’" },
+        { "value": 1000, "clue": "Phrenologists claimed they could tell your personality by feeling bumps on which part of your body?", "response": "Your skull. Also accept: your head. This supposed way of reading someone’s character was discredited." }
+      ]
+    }
+  ]
+}

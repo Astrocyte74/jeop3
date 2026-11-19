@@ -1,0 +1,192 @@
+{
+  "title": "General Knowledge Game Night",
+  "subtitle": "A little science, stories, geography, and Canada",
+  "rows": 5,
+  "suggestedTeamNames": [
+    "The Brainwaves",
+    "The Bright Sparks",
+    "The Quiz Crew"
+  ],
+  "categories": [
+    {
+      "title": "Around the World",
+      "clues": [
+        {
+          "value": 200,
+          "clue": "The Eiffel Tower stands in this French capital.",
+          "response": "What is Paris?"
+        },
+        {
+          "value": 400,
+          "clue": "The pyramids of Giza are in this country.",
+          "response": "What is Egypt?"
+        },
+        {
+          "value": 600,
+          "clue": "This ocean lies between Africa and Australia.",
+          "response": "What is the Indian Ocean?"
+        },
+        {
+          "value": 800,
+          "clue": "The Andes run along the western side of this continent.",
+          "response": "What is South America?"
+        },
+        {
+          "value": 1000,
+          "clue": "This imaginary line at zero degrees longitude passes through Greenwich, London.",
+          "response": "What is the prime meridian?"
+        }
+      ]
+    },
+    {
+      "title": "Science Lab",
+      "clues": [
+        {
+          "value": 200,
+          "clue": "H2O is the chemical formula for this everyday liquid.",
+          "response": "What is water?"
+        },
+        {
+          "value": 400,
+          "clue": "Plants use sunlight to make sugars through this process.",
+          "response": "What is photosynthesis?"
+        },
+        {
+          "value": 600,
+          "clue": "This force keeps planets in orbit around the Sun.",
+          "response": "What is gravity?"
+        },
+        {
+          "value": 800,
+          "clue": "The chemical symbol Fe represents this metal.",
+          "response": "What is iron?"
+        },
+        {
+          "value": 1000,
+          "clue": "This negatively charged particle occupies the region around an atomic nucleus.",
+          "response": "What is an electron?"
+        }
+      ]
+    },
+    {
+      "title": "Animal Kingdom",
+      "clues": [
+        {
+          "value": 200,
+          "clue": "This black-and-white Chinese bear is famous for eating bamboo.",
+          "response": "What is the giant panda?"
+        },
+        {
+          "value": 400,
+          "clue": "These mammals are the only ones capable of powered, sustained flight.",
+          "response": "What are bats?"
+        },
+        {
+          "value": 600,
+          "clue": "A caterpillar becomes a butterfly through this transformation process.",
+          "response": "What is metamorphosis?"
+        },
+        {
+          "value": 800,
+          "clue": "An octopus has this many hearts.",
+          "response": "What is three?"
+        },
+        {
+          "value": 1000,
+          "clue": "The platypus and echidnas belong to this group of egg-laying mammals.",
+          "response": "What are monotremes?"
+        }
+      ]
+    },
+    {
+      "title": "Bookshelf",
+      "clues": [
+        {
+          "value": 200,
+          "clue": "In the fairy tale, this girl loses a glass slipper after attending a royal ball.",
+          "response": "Who is Cinderella?"
+        },
+        {
+          "value": 400,
+          "clue": "This young wizard attends Hogwarts with Ron Weasley and Hermione Granger.",
+          "response": "Who is Harry Potter?"
+        },
+        {
+          "value": 600,
+          "clue": "This author wrote Romeo and Juliet.",
+          "response": "Who is William Shakespeare?"
+        },
+        {
+          "value": 800,
+          "clue": "Bilbo Baggins is the title character of this J. R. R. Tolkien novel.",
+          "response": "What is The Hobbit?"
+        },
+        {
+          "value": 1000,
+          "clue": "This author created Elizabeth Bennet and Mr. Darcy in Pride and Prejudice.",
+          "response": "Who is Jane Austen?"
+        }
+      ]
+    },
+    {
+      "title": "Oh, Canada!",
+      "clues": [
+        {
+          "value": 200,
+          "clue": "A leaf from this kind of tree appears on the Canadian flag.",
+          "response": "What is a maple tree?"
+        },
+        {
+          "value": 400,
+          "clue": "This city is the capital of Canada.",
+          "response": "What is Ottawa?"
+        },
+        {
+          "value": 600,
+          "clue": "Edmonton and Calgary are in this province.",
+          "response": "What is Alberta?"
+        },
+        {
+          "value": 800,
+          "clue": "This territory was created in 1999 from part of the Northwest Territories.",
+          "response": "What is Nunavut?"
+        },
+        {
+          "value": 1000,
+          "clue": "The Bay of Fundy lies between Nova Scotia and this other province.",
+          "response": "What is New Brunswick?"
+        }
+      ]
+    },
+    {
+      "title": "Numbers & Shapes",
+      "clues": [
+        {
+          "value": 200,
+          "clue": "A triangle has this many sides.",
+          "response": "What is three?"
+        },
+        {
+          "value": 400,
+          "clue": "A right angle measures this many degrees.",
+          "response": "What is 90?"
+        },
+        {
+          "value": 600,
+          "clue": "This is the smallest prime number.",
+          "response": "What is two?"
+        },
+        {
+          "value": 800,
+          "clue": "The area of a circle equals pi multiplied by the square of this measurement.",
+          "response": "What is the radius?"
+        },
+        {
+          "value": 1000,
+          "clue": "In a right triangle, this longest side has a square equal to the sum of the squares of the other two sides.",
+          "response": "What is the hypotenuse?"
+        }
+      ]
+    }
+  ]
+}
